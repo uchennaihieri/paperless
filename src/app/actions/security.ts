@@ -87,3 +87,19 @@ export async function verifySignatureToken(token: string) {
     return { success: false, error: "System could not properly verify/decrypt signature." };
   }
 }
+
+export async function getMySignature() {
+  const session = await auth();
+  const userId = session?.user?.id ? parseInt(session.user.id) : null;
+  if (!userId) return { success: false, error: "Not logged in" };
+
+  try {
+    const data = await prisma.securityData.findUnique({ where: { userId } });
+    if (!data) return { success: false, error: "No signature configured yet." };
+
+    const rawSignature = decrypt(data.encryptedSignature);
+    return { success: true, signatureData: rawSignature };
+  } catch (error) {
+    return { success: false, error: "Failed to retrieve signature." };
+  }
+}

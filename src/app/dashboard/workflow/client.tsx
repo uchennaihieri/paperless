@@ -332,10 +332,10 @@ function DetailPanel({
                 <p className="text-sm text-gray-500">Enter your 8-character secure signature token to automatically apply your registered signature securely.</p>
                 <Input
                   value={signatureToken}
-                  onChange={(e) => setSignatureToken(e.target.value.toUpperCase())}
+                  onChange={(e) => setSignatureToken(e.target.value)}
                   maxLength={8}
-                  placeholder="e.g. 1A2B3C4D"
-                  className="mt-2 text-center tracking-widest font-mono uppercase text-lg h-12"
+                  placeholder="e.g. 1a2b3c4d"
+                  className="mt-2 text-center tracking-widest font-mono text-lg h-12"
                 />
               </div>
             ) : (
@@ -344,7 +344,7 @@ function DetailPanel({
                 <div className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 overflow-hidden">
                   <SignatureCanvas
                     ref={sigPad}
-                    canvasProps={{ className: 'w-full h-[250px] cursor-crosshair' }}
+                    canvasProps={{ className: 'w-full h-[250px]' }}
                     penColor="#171717"
                   />
                 </div>
