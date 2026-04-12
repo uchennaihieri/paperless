@@ -2,7 +2,7 @@ import { getSubmission } from "@/app/actions/form";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
 
 function statusVariant(status: string) {
   switch (status) {
@@ -33,7 +33,7 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
         <div>
           <h2 className="text-2xl font-bold text-gray-900">{submission.formName}</h2>
           <p className="text-sm text-gray-400 mt-0.5">
-            Ref: {submission.id.slice(-8).toUpperCase()} · Submitted {new Date(submission.createdAt).toLocaleString()}
+            Ref: {submission.reference || submission.id.slice(-8).toUpperCase()} · Submitted {new Date(submission.createdAt).toLocaleString()}
           </p>
         </div>
         <Badge variant={statusVariant(submission.status) as any} className="text-sm px-3">{submission.status}</Badge>
@@ -51,12 +51,33 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {Object.entries(responses).map(([q, a], i) => (
-                <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                  <td className="px-4 py-3 font-medium text-gray-700">{q}</td>
-                  <td className="px-4 py-3 text-gray-600">{String(a) || <span className="italic text-gray-300">—</span>}</td>
-                </tr>
-              ))}
+              {Object.entries(responses).map(([q, a], i) => {
+                const isAttachmentArray = Array.isArray(a) && a.every(item => item && item.isAttachment);
+                return (
+                  <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                    <td className="px-4 py-3 font-medium text-gray-700">{q}</td>
+                    <td className="px-4 py-3 text-gray-600">
+                      {isAttachmentArray ? (
+                        <div className="flex flex-col gap-2">
+                          {(a as any[]).map((file, idx) => (
+                            <a 
+                              key={idx} 
+                              href={file.url} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="flex items-center gap-2 text-primary hover:underline font-medium"
+                            >
+                              <FileText className="w-4 h-4" /> {file.name}
+                            </a>
+                          ))}
+                        </div>
+                      ) : (
+                        String(a) || <span className="italic text-gray-300">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

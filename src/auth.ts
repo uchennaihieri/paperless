@@ -49,11 +49,21 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
         const userRoles = await prisma.user.findMany({
           where: {
             finca_email: { equals: email, mode: 'insensitive' },
-            status: { equals: 'active', mode: 'insensitive' }
+            status: { equals: 'active', mode: 'insensitive' },
+            OR: [
+              { lock_flag: false },
+              { lock_flag: null }
+            ]
           }
         });
 
         if (userRoles.length === 0) throw new Error("No active account found");
+
+        const isSystemAdmin = userRoles.some(r => r.user_role?.toLowerCase() === 'administrator');
+
+        if (userRoles.length > 1 && !isSystemAdmin) {
+          throw new Error("Account locked: Multiple active roles detected. Please contact administrator.");
+        }
 
         const defaultRole = userRoles[0];
 

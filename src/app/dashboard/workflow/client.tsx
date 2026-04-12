@@ -40,6 +40,7 @@ type QueueItem = {
   signingType: string;
   status: string;
   createdAt: string;
+  reference: string | null;
   formResponses: Record<string, any>;
   signatories: Signatory[];
   submittedBy: { user_name: string | null; finca_email: string | null; branch: string | null } | null;
@@ -127,7 +128,7 @@ function DetailPanel({
           <div>
             <h2 className="text-xl font-bold text-gray-900">{item.formName}</h2>
             <p className="text-sm text-gray-400 mt-0.5">
-              Ref: {item.id.slice(-8).toUpperCase()} ·{" "}
+              Ref: {item.reference || item.id.slice(-8).toUpperCase()} ·{" "}
               {new Date(item.createdAt).toLocaleDateString()}
             </p>
           </div>
@@ -182,14 +183,33 @@ function DetailPanel({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {Object.entries(responses).map(([q, a], i) => (
-                    <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                      <td className="px-4 py-2.5 font-medium text-gray-700 align-top">{q}</td>
-                      <td className="px-4 py-2.5 text-gray-600 align-top">
-                        {String(a) || <span className="italic text-gray-300">—</span>}
-                      </td>
-                    </tr>
-                  ))}
+                  {Object.entries(responses).map(([q, a], i) => {
+                    const isAttachmentArray = Array.isArray(a) && a.every(item => item && item.isAttachment);
+                    return (
+                      <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                        <td className="px-4 py-2.5 font-medium text-gray-700 align-top">{q}</td>
+                        <td className="px-4 py-2.5 text-gray-600 align-top">
+                          {isAttachmentArray ? (
+                            <div className="flex flex-col gap-2">
+                              {(a as any[]).map((file, idx) => (
+                                <a 
+                                  key={idx} 
+                                  href={file.url} 
+                                  target="_blank" 
+                                  rel="noreferrer" 
+                                  className="flex items-center gap-2 text-primary hover:underline"
+                                >
+                                  <FileText className="w-4 h-4" /> {file.name}
+                                </a>
+                              ))}
+                            </div>
+                          ) : (
+                            String(a) || <span className="italic text-gray-300">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -434,7 +454,7 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
                       </span>
                     </div>
                     <div className="text-xs text-gray-400 mt-1 flex flex-wrap gap-3">
-                      <span>Ref: {item.id.slice(-8).toUpperCase()}</span>
+                      <span>Ref: {item.reference || item.id.slice(-8).toUpperCase()}</span>
                       {item.submittedBy && (
                         <span>
                           By: {item.submittedBy.user_name ?? item.submittedBy.finca_email}

@@ -116,7 +116,8 @@ export async function submitForm(
   formName: string,
   formResponses: Record<string, any>,
   signatories: SignatoryInput[],
-  signingType: "sequential" | "parallel" = "sequential"
+  signingType: "sequential" | "parallel" = "sequential",
+  initiatorToken?: string
 ) {
   const session = await auth();
   const roles: any[] = JSON.parse((session?.user as any)?.roles ?? "[]");
@@ -124,10 +125,85 @@ export async function submitForm(
   const active = roles.find((r: any) => r.id === activeId) ?? roles[0];
 
   try {
+    let finalSignatureData = null;
+    let finalSignatureStatus = "Pending";
+    let finalSignedAt = null;
+
+    if (initiatorToken) {
+      // Inline import to avoid circular dependency issues if any
+      const { verifySignatureToken } = await import("@/app/actions/security");
+      const sigRes = await verifySignatureToken(initiatorToken);
+      if (!sigRes.success) {
+        return { success: false, error: sigRes.error };
+      }
+      finalSignatureData = sigRes.signatureData;
+      finalSignatureStatus = "Signed";
+      finalSignedAt = new Date();
+    }
+
+    let reference = "";
+    try {
+      const acronym = formName.split(" ").map(w => w[0]).join("").toUpperCase();
+      const count = await prisma.formSubmission.count({ where: { templateId } });
+      reference = `${acronym}${count + 1}`;
+    } catch(e) {
+      reference = `REF-${Date.now()}`;
+    }
+
+    // Process files dynamically
+    let extractedNames: string[] = [];
+    Object.values(formResponses).forEach((val) => {
+      if (typeof val === "string") {
+        extractedNames.push(...val.split(", ").map(s => s.trim()));
+      }
+    });
+
+    const fileRecords = await prisma.uploadedFile.findMany({
+      where: { fileName: { in: extractedNames } }
+    });
+
+    let updatedResponses = { ...formResponses };
+
+    if (fileRecords.length > 0) {
+      const fs = await import("fs/promises");
+      const path = await import("path");
+      const targetDir = path.join("C:\\Users\\USER\\uploads", formName, reference);
+      await fs.mkdir(targetDir, { recursive: true });
+
+      for (const record of fileRecords) {
+        const oldPath = record.filePath;
+        const newPath = path.join(targetDir, record.fileName);
+        try {
+          await fs.rename(oldPath, newPath);
+          await prisma.uploadedFile.update({
+             where: { id: record.id },
+             data: { filePath: newPath }
+          });
+        } catch(e) {
+          console.error("Failed to move file", oldPath, e);
+        }
+      }
+
+      for (const [key, val] of Object.entries(updatedResponses)) {
+        if (typeof val === "string") {
+          const parts = val.split(", ").map(s => s.trim());
+          const matchingRecords = fileRecords.filter(r => parts.includes(r.fileName));
+          if (matchingRecords.length > 0) {
+            updatedResponses[key] = matchingRecords.map(r => ({
+              isAttachment: true,
+              name: r.originalName,
+              url: `/api/file?id=${r.id}`
+            }));
+          }
+        }
+      }
+    }
+
     const submission = await prisma.formSubmission.create({
       data: {
         formName,
-        formResponses,
+        reference,
+        formResponses: updatedResponses,
         signingType,
         submittedById: active?.id ?? null,
         templateId,
@@ -136,6 +212,9 @@ export async function submitForm(
             position: s.position,
             userName: s.userName,
             email: s.email,
+            status: s.position === 1 && finalSignatureStatus === "Signed" ? "Signed" : "Pending",
+            signatureData: s.position === 1 ? finalSignatureData : null,
+            signedAt: s.position === 1 && finalSignatureStatus === "Signed" ? finalSignedAt : null,
           })),
         },
       },

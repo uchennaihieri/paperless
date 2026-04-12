@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
+import prisma from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
@@ -11,7 +12,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No files received." }, { status: 400 });
     }
 
-    const uploadDir = path.join(process.cwd(), "public", "uploads");
+    const uploadDir = "C:\\Users\\USER\\uploads";
     await fs.mkdir(uploadDir, { recursive: true });
 
     const savedFiles = [];
@@ -22,7 +23,17 @@ export async function POST(req: NextRequest) {
       const filePath = path.join(uploadDir, uniqueName);
       await fs.writeFile(filePath, buffer);
       
-      savedFiles.push(`/uploads/${uniqueName}`);
+      const record = await prisma.uploadedFile.create({
+        data: {
+          fileName: uniqueName,
+          originalName: file.name,
+          filePath: filePath,
+          size: buffer.length,
+          mimeType: file.type || "application/octet-stream",
+        }
+      });
+      
+      savedFiles.push(uniqueName);
     }
 
     return NextResponse.json({ success: true, files: savedFiles }, { status: 200 });

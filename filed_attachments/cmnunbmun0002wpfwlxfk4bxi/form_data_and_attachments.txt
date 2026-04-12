@@ -1,8 +1,0 @@
-Form: Testing Form
-Date: Sat Apr 11 2026 19:06:03 GMT+0100 (West Africa Standard Time)
-
-Responses:
-{
-  "age": "20",
-  "name": "Uchenna"
-}

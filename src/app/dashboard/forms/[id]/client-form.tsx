@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { submitForm, searchUsers, SignatoryInput, SigningType } from "@/app/actions/form";
-import { ArrowLeft, Send, UserPlus, X, Search, Check, ChevronRight, GitBranch, Layers } from "lucide-react";
+import { X, Search, Check, ChevronRight, GitBranch, Layers, Send, UserPlus, ArrowLeft, KeyRound } from "lucide-react";
 import Link from "next/link";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -197,6 +197,9 @@ function SignatoriesStep({
   const [searching, setSearching] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Guard against hiding the current user who is always first
+  const { currentUser } = arguments[0] as unknown as { currentUser: { userName: string, email: string }};
+
   const handleSearch = useCallback((q: string) => {
     setQuery(q);
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -346,14 +349,16 @@ function SignatoriesStep({
                     <p className="text-sm font-medium text-gray-900 truncate">{s.userName}</p>
                     <p className="text-xs text-gray-400 truncate">{s.email}</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => onRemove(s.email)}
-                    className="text-gray-300 hover:text-red-500 cursor-pointer transition-colors shrink-0"
-                    aria-label="Remove signatory"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+                  {s.position !== 1 && (
+                    <button
+                      type="button"
+                      onClick={() => onRemove(s.email)}
+                      className="text-gray-300 hover:text-red-500 cursor-pointer transition-colors shrink-0"
+                      aria-label="Remove signatory"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               ))
           )}
@@ -471,13 +476,19 @@ function ReviewStep({
 
 // ─── Main Wizard ──────────────────────────────────────────────────────────────
 
-export default function FormFillerClient({ template }: { template: any }) {
+export default function FormFillerClient({ template, currentUser }: { template: any, currentUser: { userName: string; email: string } }) {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState<Record<string, any>>({});
-  const [signatories, setSignatories] = useState<SignatoryInput[]>([]);
+  const [signatories, setSignatories] = useState<SignatoryInput[]>([{
+    position: 1,
+    userName: currentUser.userName,
+    email: currentUser.email
+  }]);
   const [signingType, setSigningType] = useState<SigningType>("sequential");
   const [submitting, setSubmitting] = useState(false);
+  const [showTokenModal, setShowTokenModal] = useState(false);
+  const [signatureToken, setSignatureToken] = useState("");
   const [error, setError] = useState("");
 
   const fields: Field[] = typeof template.fields === "string"
@@ -520,8 +531,9 @@ export default function FormFillerClient({ template }: { template: any }) {
       labeledData[f.label] = formData[f.id] ?? "";
     });
 
-    const res = await submitForm(template.id, template.name, labeledData, signatories, signingType);
+    const res = await submitForm(template.id, template.name, labeledData, signatories, signingType, signatureToken);
     setSubmitting(false);
+    setShowTokenModal(false);
 
     if (res.success) {
       router.push("/dashboard/forms");
@@ -578,11 +590,46 @@ export default function FormFillerClient({ template }: { template: any }) {
             signatories={signatories}
             signingType={signingType}
             onBack={() => setStep(2)}
-            onSubmit={handleSubmit}
+            onSubmit={() => setShowTokenModal(true)}
             submitting={submitting}
           />
         )}
       </Card>
+
+      {/* Token Verification Modal for Instant First-Signature */}
+      {showTokenModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 text-center space-y-4">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-primary/10 mb-2">
+                <KeyRound className="h-6 w-6 text-primary" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">Sign & Submit</h3>
+              <p className="text-sm text-gray-500">
+                You are listed as the first signatory. Enter your 8-character token to securely apply your signature to this submission simultaneously.
+              </p>
+              <Input
+                type="text"
+                placeholder="Token (e.g. 1a2b3c4d)"
+                value={signatureToken}
+                onChange={(e) => setSignatureToken(e.target.value)}
+                maxLength={8}
+                className="text-center tracking-widest font-mono text-lg py-6"
+              />
+              <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
+                <Button variant="ghost" onClick={() => setShowTokenModal(false)}>Cancel</Button>
+                <Button 
+                  disabled={signatureToken.length !== 8 || submitting} 
+                  onClick={handleSubmit} 
+                  className="w-full sm:w-auto"
+                >
+                  {submitting ? "Signing..." : "Verify & Submit"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
