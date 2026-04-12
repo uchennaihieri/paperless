@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createFormTemplate } from "@/app/actions/form";
+import { createFormTemplate, updateFormTemplate } from "@/app/actions/form";
 import { ArrowLeft, Plus, Trash2, Save } from "lucide-react";
 import Link from "next/link";
 
@@ -23,17 +23,19 @@ const SELECT_CLASS = "flex h-10 w-full rounded-md border border-neutral-300 bg-t
 export default function FormBuilderClient({
   isAdmin,
   branches,
+  initialTemplate,
 }: {
   isAdmin: boolean;
   branches: string[];
+  initialTemplate?: any;
 }) {
   const router = useRouter();
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [formOwner, setFormOwner] = useState("");
-  const [formTreater, setFormTreater] = useState("");
-  const [htmlTemplate, setHtmlTemplate] = useState("");
-  const [fields, setFields] = useState<Field[]>([
+  const [name, setName] = useState(initialTemplate?.name || "");
+  const [description, setDescription] = useState(initialTemplate?.description || "");
+  const [formOwner, setFormOwner] = useState(initialTemplate?.formOwner || "");
+  const [formTreater, setFormTreater] = useState(initialTemplate?.formTreater || "");
+  const [htmlTemplate, setHtmlTemplate] = useState(initialTemplate?.htmlTemplate || "");
+  const [fields, setFields] = useState<Field[]>(initialTemplate?.fields || [
     { id: "f1", label: "", type: "text", required: true, description: "" },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -78,14 +80,29 @@ export default function FormBuilderClient({
     if (fields.some((f) => !f.label.trim())) return setError("All fields must have a label.");
 
     setIsSubmitting(true);
-    const res = await createFormTemplate(
-      name.trim(),
-      description,
-      fields,
-      formOwner || undefined,
-      formTreater || undefined,
-      htmlTemplate || undefined
-    );
+    let res;
+
+    if (initialTemplate?.id) {
+      res = await updateFormTemplate(
+        initialTemplate.id,
+        name.trim(),
+        description,
+        fields,
+        formOwner || undefined,
+        formTreater || undefined,
+        htmlTemplate || undefined
+      );
+    } else {
+      res = await createFormTemplate(
+        name.trim(),
+        description,
+        fields,
+        formOwner || undefined,
+        formTreater || undefined,
+        htmlTemplate || undefined
+      );
+    }
+    
     setIsSubmitting(false);
 
     if (res.success) {
@@ -104,8 +121,8 @@ export default function FormBuilderClient({
       </div>
 
       <div>
-        <h2 className="text-2xl font-bold tracking-tight">Form Builder</h2>
-        <p className="text-gray-500">Create a new form template for the organisation.</p>
+        <h2 className="text-2xl font-bold tracking-tight">{initialTemplate ? "Edit Form Template" : "Form Builder"}</h2>
+        <p className="text-gray-500">{initialTemplate ? "Update an existing form template." : "Create a new form template for the organisation."}</p>
       </div>
 
       <Card className="border-t-4 border-t-primary shadow-lg">

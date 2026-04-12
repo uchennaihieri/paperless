@@ -6,8 +6,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, FilePlus, ChevronRight, ListCollapse, PlusCircle } from "lucide-react";
+import { Search, FilePlus, ChevronRight, ListCollapse, PlusCircle, Edit2, Trash2, AlertTriangle } from "lucide-react";
 import Link from "next/link";
+import { deleteFormTemplate } from "@/app/actions/form";
 
 function statusVariant(status: string) {
   switch (status) {
@@ -31,10 +32,24 @@ export default function FormsClientPage({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"available" | "submitted">("available");
   const [searchQuery, setSearchQuery] = useState("");
+  const [formToDelete, setFormToDelete] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const filteredForms = templates.filter((f: any) =>
     f.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const handleDelete = async () => {
+    if (!formToDelete) return;
+    setIsDeleting(true);
+    const res = await deleteFormTemplate(formToDelete.id);
+    setIsDeleting(false);
+    if (res.success) {
+      setFormToDelete(null);
+    } else {
+      alert(res.error || "Failed to delete form.");
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -87,10 +102,28 @@ export default function FormsClientPage({
           {filteredForms.map((form) => (
             <Card
               key={form.id}
-              className="hover:shadow-md transition-all cursor-pointer border-l-4 border-l-primary group"
+              className="hover:shadow-md transition-all cursor-pointer border-l-4 border-l-primary group relative overflow-hidden"
               onClick={() => router.push(`/dashboard/forms/${form.id}`)}
             >
               <CardContent className="p-5">
+                {isAdmin && (
+                  <div className="absolute top-3 right-3 flex items-center justify-end gap-1 opacity-0 shrink-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/forms/builder?id=${form.id}`); }}
+                      className="p-1.5 bg-gray-50 border border-gray-200 hover:bg-gray-100 rounded-md text-gray-500 hover:text-primary transition-colors cursor-pointer shadow-sm"
+                      title="Edit Template"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setFormToDelete(form); }}
+                      className="p-1.5 bg-red-50 border border-red-100 hover:bg-red-100 rounded-md text-red-500 hover:text-red-600 transition-colors cursor-pointer shadow-sm"
+                      title="Delete Template"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
                 <div className="bg-primary/10 w-9 h-9 rounded-lg flex items-center justify-center text-primary mb-3 group-hover:scale-110 transition-transform">
                   <FilePlus className="w-5 h-5" />
                 </div>
@@ -123,7 +156,7 @@ export default function FormsClientPage({
                     </div>
                     <div>
                       <h4 className="font-medium text-gray-900">
-                        {s.id.slice(-6).toUpperCase()} — {s.formName}
+                        {s.reference || s.id.slice(-8).toUpperCase()} — {s.formName}
                       </h4>
                       <p className="text-xs text-gray-400">
                         Submitted {new Date(s.createdAt).toLocaleDateString()} ·{" "}
@@ -139,6 +172,40 @@ export default function FormsClientPage({
               </Card>
             ))
           )}
+        </div>
+      )}
+      {/* Delete Confirmation Modal */}
+      {formToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200 text-center">
+            <div className="p-6">
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Template?</h3>
+              <p className="text-sm text-gray-500 mb-6">
+                Are you sure you want to delete the form <span className="font-semibold text-gray-900">"{formToDelete.name}"</span>? This action cannot be undone.
+              </p>
+              <div className="flex justify-center gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1 cursor-pointer"
+                  onClick={() => setFormToDelete(null)}
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1 cursor-pointer bg-red-600 hover:bg-red-700 hover:shadow-md transition-all"
+                  onClick={handleDelete}
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? "Deleting..." : "Delete Form"}
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

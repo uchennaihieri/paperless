@@ -4,8 +4,9 @@ import { useState, useTransition } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileDown, Printer, ChevronRight, CheckSquare, X, User, Calendar, FileText } from "lucide-react";
+import { FileDown, ChevronRight, CheckSquare, X, User, Calendar, FileText } from "lucide-react";
 import { fileAttachments } from "@/app/actions/form";
+import { assignToSelf, completeProcessWithApprover, searchActiveWorkflowUsers } from "@/app/actions/workflow";
 
 type ActionItem = {
   id: string;
@@ -28,12 +29,41 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
     startFiling(async () => {
       const res = await fileAttachments(selected.id);
       if (res.success) {
-        // Optimistically update the selected object
         setSelected({ ...selected, status: "Filed" });
       } else {
         alert(res.error || "Failed to file attachments.");
       }
     });
+  };
+
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const [statusMode, setStatusMode] = useState<"assign" | "complete" | "">("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [selectedApprover, setSelectedApprover] = useState<any | "none">(null);
+  const [isChanging, setIsChanging] = useState(false);
+
+  const handleAssignSelf = async () => {
+    setIsChanging(true);
+    const res = await assignToSelf(selected!.id);
+    setIsChanging(false);
+    if (res.success) {
+      setSelected({ ...selected!, status: "Assigned to You" });
+      setShowStatusModal(false);
+    }
+  };
+
+  const handleCompleteProcess = async () => {
+    setIsChanging(true);
+    const email = selectedApprover === "none" ? undefined : selectedApprover?.finca_email;
+    const name = selectedApprover === "none" ? undefined : selectedApprover?.user_name;
+    const res = await completeProcessWithApprover(selected!.id, email, name);
+    setIsChanging(false);
+    if (res.success) {
+      setSelected(null);
+      setShowStatusModal(false);
+      setStatusMode("");
+    }
   };
 
   return (
@@ -89,14 +119,14 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
               ← Back to List
             </Button>
             <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setShowStatusModal(true)} className="cursor-pointer">
+                Change Status
+              </Button>
               <a href={`/api/pdf?id=${selected.id}`} download>
                 <Button size="sm" className="cursor-pointer">
                   <FileDown className="w-4 h-4 mr-2" /> Download PDF
                 </Button>
               </a>
-              <Button size="sm" variant="outline" onClick={() => window.open(`/api/pdf?id=${selected.id}&action=print`, "_blank")} className="cursor-pointer">
-                <Printer className="w-4 h-4 mr-2" /> Print
-              </Button>
               <Button 
                 size="sm" 
                 variant="secondary" 
@@ -200,6 +230,99 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
           </div>
         </div>
       )}
+
+      {/* Status Modal */}
+      {showStatusModal && selected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50">
+               <h3 className="font-semibold text-gray-800">Change Status</h3>
+               <button onClick={() => { setShowStatusModal(false); setStatusMode(""); }} className="text-gray-400 hover:text-gray-600">
+                 <X className="w-5 h-5" />
+               </button>
+            </div>
+            <div className="p-6">
+              {!statusMode && (
+                <div className="flex flex-col gap-3">
+                  <Button variant="outline" className="h-14 justify-start px-6 cursor-pointer hover:bg-primary/5 hover:border-primary/50" onClick={() => {
+                     setStatusMode("assign");
+                     handleAssignSelf();
+                  }}>
+                    <User className="w-5 h-5 mr-3 text-primary" />
+                    <div className="text-left"><div className="font-semibold text-gray-900">Assign to Self</div><div className="text-xs text-gray-500 font-normal">Take ownership of treating this form</div></div>
+                  </Button>
+                  <Button variant="outline" className="h-14 justify-start px-6 cursor-pointer hover:bg-green-50 hover:border-green-300" onClick={() => setStatusMode("complete")}>
+                    <CheckSquare className="w-5 h-5 mr-3 text-green-600" />
+                    <div className="text-left"><div className="font-semibold text-gray-900">Complete Process</div><div className="text-xs text-gray-500 font-normal">Finish treating and optionally route to an approver</div></div>
+                  </Button>
+                </div>
+              )}
+
+              {statusMode === "assign" && (
+                 <div className="text-center py-8">
+                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                   <p className="text-sm text-gray-500">Assigning to you...</p>
+                 </div>
+              )}
+
+              {statusMode === "complete" && (
+                <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                   <p className="text-sm text-gray-600 mb-4">You can optionally route this to a final approver. If no approver is needed, select "None".</p>
+                   
+                   <div className="flex gap-2">
+                     <Button 
+                       variant={selectedApprover === "none" ? "default" : "outline"} 
+                       onClick={() => setSelectedApprover("none")}
+                       className="flex-1 cursor-pointer"
+                     >
+                        None
+                     </Button>
+                   </div>
+
+                   <div className="relative mt-2">
+                     <span className="text-xs font-semibold text-gray-500 uppercase">Or Search Approver:</span>
+                     <div className="flex gap-2 mt-1">
+                       <input 
+                         className="flex-1 border rounded-md px-3 text-sm focus:ring-1 focus:ring-primary outline-none"
+                         placeholder="Name or email..." 
+                         value={searchQuery}
+                         onChange={(e) => setSearchQuery(e.target.value)}
+                       />
+                       <Button variant="secondary" className="cursor-pointer" onClick={async () => {
+                          const res = await searchActiveWorkflowUsers(searchQuery);
+                          setSearchResults(res);
+                       }}>Search</Button>
+                     </div>
+                     {searchResults.length > 0 && (
+                       <div className="mt-2 border border-blue-100 rounded-lg max-h-40 overflow-y-auto bg-blue-50/50 p-1 flex flex-col gap-1">
+                          {searchResults.map(u => (
+                            <button
+                               key={u.finca_email}
+                               onClick={() => setSelectedApprover(u)}
+                               className={`text-left text-sm p-2 rounded-md transition-colors cursor-pointer ${selectedApprover?.finca_email === u.finca_email ? "bg-primary text-white" : "hover:bg-blue-100 text-gray-800"}`}
+                            >
+                               <div className="font-medium">{u.user_name}</div>
+                               <div className="text-xs opacity-80">{u.finca_email}</div>
+                            </button>
+                          ))}
+                       </div>
+                     )}
+                   </div>
+
+                   <Button 
+                     className="w-full mt-4 cursor-pointer" 
+                     disabled={(!selectedApprover) || isChanging}
+                     onClick={handleCompleteProcess}
+                   >
+                     {isChanging ? "Saving..." : "Confirm & Submit"}
+                   </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

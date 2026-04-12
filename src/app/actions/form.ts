@@ -70,6 +70,66 @@ export async function createFormTemplate(
   }
 }
 
+export async function updateFormTemplate(
+  id: string,
+  name: string,
+  description: string,
+  fields: any[],
+  formOwner?: string,
+  formTreater?: string,
+  htmlTemplate?: string
+) {
+  const session = await auth();
+  const roles: any[] = JSON.parse((session?.user as any)?.roles ?? "[]");
+  const activeId = (session?.user as any)?.activeRoleId;
+  const active = roles.find((r: any) => r.id === activeId) ?? roles[0];
+
+  if (!active || active.user_role?.toLowerCase() !== "administrator") {
+    return { success: false, error: "Only Administrators can update forms." };
+  }
+
+  try {
+    const template = await prisma.formTemplate.update({
+      where: { id },
+      data: { 
+        name, 
+        description, 
+        fields, 
+        formOwner: formOwner ?? null, 
+        formTreater: formTreater ?? null,
+        htmlTemplate: htmlTemplate ?? null 
+      },
+    });
+    revalidatePath("/dashboard/forms");
+    return { success: true, data: template };
+  } catch (error: any) {
+    if (error?.code === "P2002")
+      return { success: false, error: "A form with this name already exists." };
+    return { success: false, error: "Failed to update form." };
+  }
+}
+
+export async function deleteFormTemplate(id: string) {
+  const session = await auth();
+  const roles: any[] = JSON.parse((session?.user as any)?.roles ?? "[]");
+  const activeId = (session?.user as any)?.activeRoleId;
+  const active = roles.find((r: any) => r.id === activeId) ?? roles[0];
+
+  if (!active || active.user_role?.toLowerCase() !== "administrator") {
+    return { success: false, error: "Only Administrators can delete forms." };
+  }
+
+  try {
+    await prisma.formTemplate.delete({
+      where: { id }
+    });
+    revalidatePath("/dashboard/forms");
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: "Failed to delete form or it does not exist." };
+  }
+}
+
 // ─── Fetch distinct branches from users table ─────────────────────────────────
 
 export async function getBranches(): Promise<string[]> {
@@ -95,7 +155,10 @@ export async function getActionItems() {
 
   return prisma.formSubmission.findMany({
     where: {
-      status: { in: ["Completed", "Filed"] },
+      OR: [
+        { status: { in: ["Processing", "Filed"] } },
+        { status: { startsWith: "Assigned" } }
+      ],
       template: {
         formTreater: { equals: userBranch, mode: "insensitive" },
       },

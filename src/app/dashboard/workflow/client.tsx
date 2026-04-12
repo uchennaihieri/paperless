@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useTransition, useRef } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import SignatureCanvas from "react-signature-canvas";
-import { signSubmission, declineSubmission, getSubmissionDetail } from "@/app/actions/workflow";
+import { signSubmission, declineSubmission, getSubmissionDetail, getMyQueue } from "@/app/actions/workflow";
 import {
   Clock,
   CheckCircle2,
@@ -399,6 +399,22 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
   const removeFromQueue = (id: string) => {
     setQueue((prev) => prev.filter((q) => q.id !== id));
   };
+
+  useEffect(() => {
+    const fetchQueue = async () => {
+      try {
+        const freshQueue = await getMyQueue();
+        if (freshQueue) {
+          setQueue(freshQueue as any[]);
+        }
+      } catch (err) {
+        console.error("Failed to fetch queue updates", err);
+      }
+    };
+
+    const interval = setInterval(fetchQueue, 5000); // 5 seconds polling
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="space-y-6 max-w-5xl">

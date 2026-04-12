@@ -6,6 +6,73 @@ import { revalidatePath } from "next/cache";
 
 import { verifySignatureToken } from "./security";
 
+// ─── Add Action Center operations ─────────────────────────────────────────────
+
+export async function searchActiveWorkflowUsers(query: string) {
+  if (!query || query.length < 2) return [];
+  return prisma.user.findMany({
+    where: {
+      status: { equals: "active", mode: "insensitive" },
+      OR: [
+        { user_name: { contains: query, mode: "insensitive" } },
+        { finca_email: { contains: query, mode: "insensitive" } },
+      ]
+    },
+    select: { user_name: true, finca_email: true },
+    take: 10,
+    distinct: ["finca_email"]
+  });
+}
+
+export async function assignToSelf(submissionId: string) {
+  const session = await auth();
+  const userName = (session?.user as any)?.user_name || "Unknown";
+  try {
+    await prisma.formSubmission.update({
+      where: { id: submissionId },
+      data: { status: `Assigned to ${userName.split(' ')[0]}` }
+    });
+    revalidatePath("/dashboard/action");
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: "Failed to assign." };
+  }
+}
+
+export async function completeProcessWithApprover(submissionId: string, approverEmail?: string, approverName?: string) {
+  try {
+    if (!approverEmail) {
+      await prisma.formSubmission.update({
+        where: { id: submissionId },
+        data: { status: "Completed" }
+      });
+    } else {
+      const existingSigs = await prisma.submissionSignatory.findMany({
+        where: { submissionId }
+      });
+      const maxPos = existingSigs.length > 0 ? Math.max(...existingSigs.map(s => s.position)) : 0;
+      
+      await prisma.submissionSignatory.create({
+        data: {
+          submissionId,
+          userName: approverName!,
+          email: approverEmail,
+          position: maxPos + 1,
+          status: "Pending"
+        }
+      });
+      await prisma.formSubmission.update({
+        where: { id: submissionId },
+        data: { status: "In-review" }
+      });
+    }
+    revalidatePath("/dashboard/action");
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: "Failed to complete process." };
+  }
+}
+
 // ─── Get the active user's email from session ──────────────────────────────
 
 async function getActiveEmail(): Promise<string | null> {
@@ -124,7 +191,7 @@ export async function signSubmission(
       // All signed — advance the overall submission status
       await prisma.formSubmission.update({
         where: { id: submissionId },
-        data: { status: "Completed" },
+        data: { status: "Processing" },
       });
     } else {
       // At least one still pending — move to In-review
