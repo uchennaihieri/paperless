@@ -26,14 +26,19 @@ export async function searchActiveWorkflowUsers(query: string) {
 
 export async function assignToSelf(submissionId: string) {
   const session = await auth();
-  const userName = (session?.user as any)?.user_name || "Unknown";
+  const roles: any[] = JSON.parse((session?.user as any)?.roles ?? "[]");
+  const activeId = (session?.user as any)?.activeRoleId;
+  const active = roles.find((r: any) => r.id === activeId) ?? roles[0];
+  const userName: string = active?.user_name || (session?.user as any)?.user_name || "Unknown";
+  const firstName = userName.split(" ")[0];
+  const newStatus = `Assigned to ${firstName}`;
   try {
     await prisma.formSubmission.update({
       where: { id: submissionId },
-      data: { status: `Assigned to ${userName.split(' ')[0]}` }
+      data: { status: newStatus }
     });
     revalidatePath("/dashboard/action");
-    return { success: true };
+    return { success: true, newStatus };
   } catch (err) {
     return { success: false, error: "Failed to assign." };
   }

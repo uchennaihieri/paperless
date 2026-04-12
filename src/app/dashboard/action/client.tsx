@@ -21,15 +21,22 @@ type ActionItem = {
 };
 
 export default function ActionClient({ items }: { items: ActionItem[] }) {
+  const [localItems, setLocalItems] = useState<ActionItem[]>(items);
   const [selected, setSelected] = useState<ActionItem | null>(null);
   const [isFiling, startFiling] = useTransition();
+
+  // Sync a status change across both the list and the detail view
+  const updateItemStatus = (id: string, newStatus: string) => {
+    setLocalItems(prev => prev.map(i => i.id === id ? { ...i, status: newStatus } : i));
+    setSelected(prev => prev?.id === id ? { ...prev, status: newStatus } : prev);
+  };
 
   const handleFileAction = () => {
     if (!selected || selected.status === "Filed") return;
     startFiling(async () => {
       const res = await fileAttachments(selected.id);
       if (res.success) {
-        setSelected({ ...selected, status: "Filed" });
+        updateItemStatus(selected.id, "Filed");
       } else {
         alert(res.error || "Failed to file attachments.");
       }
@@ -47,9 +54,10 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
     setIsChanging(true);
     const res = await assignToSelf(selected!.id);
     setIsChanging(false);
-    if (res.success) {
-      setSelected({ ...selected!, status: "Assigned to You" });
+    if (res.success && res.newStatus) {
+      updateItemStatus(selected!.id, res.newStatus);
       setShowStatusModal(false);
+      setStatusMode("");
     }
   };
 
@@ -60,9 +68,18 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
     const res = await completeProcessWithApprover(selected!.id, email, name);
     setIsChanging(false);
     if (res.success) {
+      const newStatus = email ? "In-review" : "Completed";
+      updateItemStatus(selected!.id, newStatus);
+      // Remove from local list if no longer belongs to Action Center
+      if (!email) {
+        setLocalItems(prev => prev.filter(i => i.id !== selected!.id));
+      }
       setSelected(null);
       setShowStatusModal(false);
       setStatusMode("");
+      setSelectedApprover(null);
+      setSearchResults([]);
+      setSearchQuery("");
     }
   };
 
@@ -75,13 +92,13 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
 
       {!selected ? (
         <div className="grid gap-3">
-          {items.length === 0 ? (
+          {localItems.length === 0 ? (
             <div className="py-20 text-center text-gray-400">
               <CheckSquare className="w-12 h-12 mx-auto mb-4 opacity-20" />
               <p>No completed forms to treat at the moment.</p>
             </div>
           ) : (
-            items.map((item) => (
+            localItems.map((item) => (
               <Card 
                 key={item.id} 
                 className="hover:shadow-md transition-all cursor-pointer group border-l-4 border-l-green-500" 
@@ -102,8 +119,12 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <Badge variant={item.status === "Filed" ? "secondary" : "success"}>
-                      {item.status === "Filed" ? "Filed" : "Completed"}
+                    <Badge variant={
+                      item.status === "Filed" ? "secondary" :
+                      item.status === "Processing" ? "warning" :
+                      item.status.startsWith("Assigned") ? "default" : "success"
+                    }>
+                      {item.status}
                     </Badge>
                     <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-primary transition-colors" />
                   </div>
