@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import SignatureCanvas from "react-signature-canvas";
-import { signSubmission, declineSubmission, getSubmissionDetail, getMyQueue } from "@/app/actions/workflow";
+import { signSubmission, declineSubmission, getSubmissionDetail, getMyQueue, approveSubmission } from "@/app/actions/workflow";
 import {
   Clock,
   CheckCircle2,
@@ -41,6 +41,7 @@ type QueueItem = {
   status: string;
   createdAt: string;
   reference: string | null;
+  approverEmail?: string | null;
   formResponses: Record<string, any>;
   signatories: Signatory[];
   submittedBy: { user_name: string | null; finca_email: string | null; branch: string | null } | null;
@@ -61,6 +62,7 @@ function DetailPanel({
 }) {
   const [isPendingSig, startSignTransition] = useTransition();
   const [isPendingDec, startDeclineTransition] = useTransition();
+  const [isPendingApp, startApproveTransition] = useTransition();
   const [error, setError] = useState("");
   const [confirmDecline, setConfirmDecline] = useState(false);
 
@@ -274,7 +276,32 @@ function DetailPanel({
 
         {/* Footer actions */}
         <div className="p-6 border-t border-gray-100 bg-gray-50 shrink-0 space-y-3">
-          {!confirmDecline ? (
+          {item.status === "Awaiting Final Approval" ? (
+            // Simple approve button — no signature required for final approver
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                This document is awaiting your final approval.
+              </div>
+              <Button
+                className="w-full cursor-pointer bg-green-600 hover:bg-green-700 text-white"
+                disabled={isPendingApp}
+                onClick={() => {
+                  startApproveTransition(async () => {
+                    const res = await approveSubmission(item.id);
+                    if (res.success) {
+                      onSigned(item.id);
+                    } else {
+                      setError(res.error || "Failed to approve.");
+                    }
+                  });
+                }}
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                {isPendingApp ? "Approving…" : "Approve & Complete"}
+              </Button>
+            </div>
+          ) : !confirmDecline ? (
             <div className="flex gap-3">
               <Button
                 variant="outline"

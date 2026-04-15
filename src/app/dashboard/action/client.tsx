@@ -12,6 +12,8 @@ type ActionItem = {
   reference?: string | null;
   formName: string;
   status: string;
+  treatedBy?: string | null;
+  approvedBy?: string | null;
   formResponses: Record<string, any>;
   signingType: string;
   createdAt: string;
@@ -80,12 +82,11 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
     const res = await completeProcessWithApprover(selected!.id, email, name);
     setIsChanging(false);
     if (res.success) {
-      const newStatus = email ? "In-review" : "Completed";
+      const isNoneFinal = selectedApprover?._none;
+      const newStatus = isNoneFinal ? "Completed" : "Awaiting Final Approval";
       updateItemStatus(selected!.id, newStatus);
-      // Remove from local list if no longer belongs to Action Center
-      if (!email) {
-        setLocalItems(prev => prev.filter(i => i.id !== selected!.id));
-      }
+      // Item leaves the Action Center list in both cases
+      setLocalItems(prev => prev.filter(i => i.id !== selected!.id));
       setSelected(null);
       setShowStatusModal(false);
       setStatusMode("");
@@ -123,7 +124,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                     </div>
                     <div>
                       <h4 className="font-semibold text-gray-900">{item.template.name}</h4>
-                      <div className="text-xs text-gray-400 mt-1 flex gap-3">
+                      <div className="text-xs text-gray-400 mt-1 flex gap-3 flex-wrap">
                         <span>Ref: {item.reference || item.id.slice(-8).toUpperCase()}</span>
                         <span>By: {item.submittedBy?.user_name ?? "Unknown"}</span>
                         <span>{new Date(item.createdAt).toLocaleDateString()}</span>

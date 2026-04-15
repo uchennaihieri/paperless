@@ -49,9 +49,12 @@ model FormSubmission {
   id             String              @id @default(cuid())
   reference      String?             @unique
   formName       String
-  status         String              @default("Submitted") // Submitted, In-review, Processing, Completed, Rejected
+  status         String              @default("Submitted") // Submitted, In-review, Processing, Awaiting Final Approval, Completed, Rejected
   formResponses  Json                // The actual field answers
   signingType    String              @default("sequential") // sequential | parallel
+  treatedBy      String?             // Name of the officer who assigned to self and treated
+  approvedBy     String?             // Display name of final approver, or "None"
+  approverEmail  String?             // Email used to route to approver's queue
   submittedById  Int?
   submittedBy    User?               @relation(fields: [submittedById], references: [id])
   templateId     String

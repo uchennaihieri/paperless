@@ -35,7 +35,7 @@ export async function assignToSelf(submissionId: string) {
   try {
     await prisma.formSubmission.update({
       where: { id: submissionId },
-      data: { status: newStatus }
+      data: { status: newStatus, treatedBy: userName }
     });
     revalidatePath("/dashboard/action");
     return { success: true, newStatus };
@@ -47,34 +47,59 @@ export async function assignToSelf(submissionId: string) {
 export async function completeProcessWithApprover(submissionId: string, approverEmail?: string, approverName?: string) {
   try {
     if (!approverEmail) {
+      // No approver — mark Completed immediately
       await prisma.formSubmission.update({
         where: { id: submissionId },
-        data: { status: "Completed" }
+        data: { status: "Completed", approvedBy: "None", approverEmail: null }
       });
     } else {
-      const existingSigs = await prisma.submissionSignatory.findMany({
-        where: { submissionId }
-      });
-      const maxPos = existingSigs.length > 0 ? Math.max(...existingSigs.map(s => s.position)) : 0;
-      
-      await prisma.submissionSignatory.create({
-        data: {
-          submissionId,
-          userName: approverName!,
-          email: approverEmail,
-          position: maxPos + 1,
-          status: "Pending"
-        }
-      });
+      // Has approver — store their info and change status (NO signatory row created)
       await prisma.formSubmission.update({
         where: { id: submissionId },
-        data: { status: "In-review" }
+        data: {
+          status: "Awaiting Final Approval",
+          approvedBy: approverName ?? approverEmail,
+          approverEmail
+        }
       });
     }
     revalidatePath("/dashboard/action");
+    revalidatePath("/dashboard/workflow");
     return { success: true };
   } catch (err) {
     return { success: false, error: "Failed to complete process." };
+  }
+}
+
+// ─── Final approver approves a submission ────────────────────────────────────
+
+export async function approveSubmission(submissionId: string) {
+  const email = await getActiveEmail();
+  if (!email) return { success: false, error: "Not authenticated." };
+
+  try {
+    const submission = await prisma.formSubmission.findUnique({
+      where: { id: submissionId },
+      select: { status: true, approverEmail: true }
+    });
+
+    if (!submission || submission.status !== "Awaiting Final Approval") {
+      return { success: false, error: "Submission is not awaiting final approval." };
+    }
+
+    if (submission.approverEmail?.toLowerCase() !== email.toLowerCase()) {
+      return { success: false, error: "You are not the designated approver." };
+    }
+
+    await prisma.formSubmission.update({
+      where: { id: submissionId },
+      data: { status: "Completed" }
+    });
+
+    revalidatePath("/dashboard/workflow");
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: "Failed to approve submission." };
   }
 }
 
@@ -101,44 +126,53 @@ export async function getMyQueue() {
   const email = await getActiveEmail();
   if (!email) return [];
 
-  // Fetch all submissions where this user is a Pending signatory
-  const candidates = await prisma.formSubmission.findMany({
-    where: {
-      signatories: {
-        some: {
-          email: { equals: email, mode: "insensitive" },
-          status: "Pending",
+  const [normalItems, finalApprovalItems] = await Promise.all([
+    // 1. Normal workflow: user is a pending signatory (exclude "Awaiting Final Approval")
+    prisma.formSubmission.findMany({
+      where: {
+        signatories: {
+          some: {
+            email: { equals: email, mode: "insensitive" },
+            status: "Pending",
+          },
         },
+        status: { not: "Awaiting Final Approval" },
       },
-    },
-    include: {
-      signatories: { orderBy: { position: "asc" } },
-      submittedBy: {
-        select: { user_name: true, finca_email: true, branch: true },
+      include: {
+        signatories: { orderBy: { position: "asc" } },
+        submittedBy: { select: { user_name: true, finca_email: true, branch: true } },
       },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+      orderBy: { createdAt: "desc" },
+    }),
+    // 2. Final approval: user is the designated approver via approverEmail field
+    prisma.formSubmission.findMany({
+      where: {
+        status: "Awaiting Final Approval",
+        approverEmail: { equals: email, mode: "insensitive" },
+      },
+      include: {
+        signatories: { orderBy: { position: "asc" } },
+        submittedBy: { select: { user_name: true, finca_email: true, branch: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+  ]);
 
-  // Apply per-submission queue eligibility filter
-  return candidates.filter((submission) => {
+  // Filter normal items for sequential eligibility
+  const eligibleNormal = normalItems.filter((submission) => {
     const myRow = submission.signatories.find(
       (s) => s.email.toLowerCase() === email.toLowerCase()
     );
     if (!myRow || myRow.status !== "Pending") return false;
-
-    if (submission.signingType === "parallel") {
-      // Parallel: eligible as long as own row is Pending
-      return true;
-    }
-
-    // Sequential: eligible only if every signatory with a LOWER position
-    // has already Signed (no one ahead is still Pending)
+    if (submission.signingType === "parallel") return true;
     const blockedByPrior = submission.signatories.some(
       (s) => s.position < myRow.position && s.status === "Pending"
     );
     return !blockedByPrior;
   });
+
+  // Final approval items are always eligible — append them
+  return [...eligibleNormal, ...finalApprovalItems];
 }
 
 // ─── Sign a submission ────────────────────────────────────────────────────────
@@ -193,7 +227,7 @@ export async function signSubmission(
     });
 
     if (unsigned === 0) {
-      // All signed — advance the overall submission status
+      // All signatories have signed — move to Processing (goes to Action Center)
       await prisma.formSubmission.update({
         where: { id: submissionId },
         data: { status: "Processing" },

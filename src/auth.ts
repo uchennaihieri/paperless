@@ -67,11 +67,22 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
 
         const defaultRole = userRoles[0];
 
+        // Only store the fields actually needed by the app in the JWT.
+        // Storing full Prisma records causes HTTP 431 (cookie too large).
+        const minimalRoles = userRoles.map(r => ({
+          id: r.id.toString(),
+          user_role: r.user_role,
+          branch: r.branch,
+          user_name: r.user_name,
+          finca_email: r.finca_email,
+          employee_id: r.employee_id,
+        }));
+
         return {
           id: defaultRole.id.toString(),
           email: defaultRole.finca_email,
           name: defaultRole.user_name || "User",
-          roles: JSON.stringify(userRoles) 
+          roles: JSON.stringify(minimalRoles)
         };
       }
     })
