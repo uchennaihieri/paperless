@@ -12,22 +12,21 @@ export type SignatoryInput = {
 export type SigningType = "sequential" | "parallel";
 
 export async function getFormTemplates() {
-  const result = await apiClient("/forms/templates", { method: "GET" });
+  const result = await apiClient("/forms", { method: "GET" }).catch(e => ({ data: [] }));
   return result.data || [];
 }
 
 export async function getFormTemplate(id: string) {
-  const result = await apiClient(`/forms/templates/${id}`, { method: "GET" });
+  const result = await apiClient(`/forms/${id}`, { method: "GET" }).catch(e => ({ data: null }));
   return result.data || null;
 }
 
 export async function isAdministrator() {
-  // Let the client or middleware check session, or perform an API call
   return false;
 }
 
 export async function createFormTemplate(name: string, description: string, fields: any[], formOwner?: string, formTreater?: string, htmlTemplate?: string) {
-  const result = await apiClient("/forms/templates", {
+  const result = await apiClient("/forms", {
     method: "POST",
     body: JSON.stringify({ name, description, fields, formOwner, formTreater, htmlTemplate })
   });
@@ -36,8 +35,8 @@ export async function createFormTemplate(name: string, description: string, fiel
 }
 
 export async function updateFormTemplate(id: string, name: string, description: string, fields: any[], formOwner?: string, formTreater?: string, htmlTemplate?: string) {
-  const result = await apiClient(`/forms/templates/${id}`, {
-    method: "PUT",
+  const result = await apiClient(`/forms/${id}`, {
+    method: "PATCH",
     body: JSON.stringify({ name, description, fields, formOwner, formTreater, htmlTemplate })
   });
   revalidatePath("/dashboard/forms");
@@ -45,18 +44,18 @@ export async function updateFormTemplate(id: string, name: string, description: 
 }
 
 export async function deleteFormTemplate(id: string) {
-  const result = await apiClient(`/forms/templates/${id}`, { method: "DELETE" });
+  const result = await apiClient(`/forms/${id}`, { method: "DELETE" });
   revalidatePath("/dashboard/forms");
   return result;
 }
 
 export async function getBranches(): Promise<string[]> {
-  const result = await apiClient("/forms/branches", { method: "GET" });
+  const result = await apiClient("/forms/branches", { method: "GET" }).catch(e => ({ data: [] }));
   return result.data || [];
 }
 
 export async function getActionItems() {
-  const result = await apiClient("/forms/action-items", { method: "GET" });
+  const result = await apiClient("/submissions/action-items", { method: "GET" }).catch(e => ({ data: [] }));
   return result.data || [];
 }
 
@@ -70,22 +69,22 @@ export async function submitForm(templateId: string, formName: string, formRespo
 }
 
 export async function getMySubmissions() {
-  const result = await apiClient("/submissions/me", { method: "GET" });
+  const result = await apiClient("/submissions/my", { method: "GET" }).catch(e => ({ data: [] }));
   return result.data || [];
 }
 
 export async function getSubmission(id: string) {
-  const result = await apiClient(`/submissions/${id}`, { method: "GET" });
+  const result = await apiClient(`/submissions/${id}`, { method: "GET" }).catch(e => ({ data: null }));
   return result.data || null;
 }
 
 export async function getAllSubmissions() {
-  const result = await apiClient("/submissions", { method: "GET" });
+  const result = await apiClient("/submissions", { method: "GET" }).catch(e => ({ data: [] }));
   return result.data || [];
 }
 
 export async function searchUsers(query: string) {
-  const result = await apiClient(`/forms/users/search?q=${encodeURIComponent(query)}`, { method: "GET" });
+  const result = await apiClient(`/forms/search-users?q=${encodeURIComponent(query)}`, { method: "GET" }).catch(e => ({ data: [] }));
   return result.data || [];
 }
 

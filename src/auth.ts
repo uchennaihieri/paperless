@@ -32,16 +32,17 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
           });
 
           if (!result || !result.success) {
-             throw new Error(result.error || "Invalid OTP or account inactive");
+            throw new Error(result.error || "Invalid OTP or account inactive");
           }
 
-          // The Express backend should return the default role/user info in result.data
-          // Let's assume it returns user and minimalRoles
+          // Express backend returns: { success, token, user: { id, name, email, roles, ... } }
+          const user = result.user;
           return {
-             id: result.data.id.toString(),
-             email: result.data.finca_email,
-             name: result.data.user_name || "User",
-             roles: JSON.stringify(result.data.minimalRoles || [result.data])
+            id: user.id.toString(),
+            email: user.email,
+            name: user.name || "User",
+            roles: JSON.stringify(user.roles || []),
+            activeRoleId: user.roles?.[0]?.id?.toString() ?? user.id.toString(),
           };
         } catch (err: any) {
            throw new Error(err.message || "Failed to authenticate");
@@ -53,7 +54,7 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
     async jwt({ token, user, trigger, session }) {
       if (user) {
         token.roles = (user as any).roles;
-        token.activeRoleId = user.id;
+        token.activeRoleId = (user as any).activeRoleId ?? user.id;
       }
       if (trigger === "update" && session?.activeRoleId) {
         token.activeRoleId = session.activeRoleId;

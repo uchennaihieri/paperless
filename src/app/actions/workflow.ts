@@ -4,12 +4,12 @@ import { apiClient } from "@/lib/apiClient";
 import { revalidatePath } from "next/cache";
 
 export async function searchActiveWorkflowUsers(query: string) {
-  const result = await apiClient(`/workflow/users/search?q=${encodeURIComponent(query)}`, { method: "GET" });
+  const result = await apiClient(`/workflow/search-users?q=${encodeURIComponent(query)}`, { method: "GET" }).catch(e => ({ data: [] }));
   return result.data || [];
 }
 
 export async function assignToSelf(submissionId: string) {
-  const result = await apiClient(`/workflow/${submissionId}/assign`, { method: "POST" });
+  const result = await apiClient(`/workflow/${submissionId}/assign-self`, { method: "POST" });
   revalidatePath("/dashboard/action");
   return result;
 }
@@ -31,7 +31,7 @@ export async function approveSubmission(submissionId: string) {
 }
 
 export async function getMyQueue() {
-  const result = await apiClient("/workflow/queue", { method: "GET" });
+  const result = await apiClient("/workflow/queue", { method: "GET" }).catch(e => ({ data: [] }));
   return result.data || [];
 }
 
@@ -54,6 +54,6 @@ export async function declineSubmission(submissionId: string) {
 }
 
 export async function getSubmissionDetail(id: string) {
-  const result = await apiClient(`/submissions/${id}`, { method: "GET" });
+  const result = await apiClient(`/workflow/submissions/${id}`, { method: "GET" }).catch(e => ({ data: null }));
   return result.data || null;
 }
