@@ -87,7 +87,7 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
       <div>
         <h3 className="text-xs font-semibold text-primary uppercase tracking-widest border-b border-gray-200 pb-2 mb-3">Signatories</h3>
         <div className="space-y-2">
-          {signatories.map((s) => (
+          {signatories?.map((s: any) => (
             <div key={s.id} className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-4 py-3 shadow-sm">
               <div className="h-7 w-7 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0">
                 {s.position}
