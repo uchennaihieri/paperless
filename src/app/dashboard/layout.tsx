@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { Building2, FileText, CheckSquare, PenTool, LayoutDashboard, LogOut, ArrowLeftRight, Users } from "lucide-react";
+import { Building2, FileText, CheckSquare, PenTool, LayoutDashboard, LogOut, ArrowLeftRight, Users, BarChart2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -11,8 +11,10 @@ const navigation = [
   { name: "Forms", href: "/dashboard/forms", icon: FileText },
   { name: "Action", href: "/dashboard/action", icon: CheckSquare },
   { name: "Signature", href: "/dashboard/signature", icon: PenTool },
+  { name: "Reports", href: "/dashboard/reports", icon: BarChart2 },
   { name: "Teams", href: "/dashboard/teams", icon: Users },
 ];
+
 
 export default function DashboardLayout({
   children,
