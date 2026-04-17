@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { Building2, FileText, CheckSquare, PenTool, LayoutDashboard, LogOut, ArrowLeftRight, Users, BarChart2 } from "lucide-react";
+import { Building2, FileText, CheckSquare, PenTool, LayoutDashboard, LogOut, ArrowLeftRight, Users, BarChart2, Menu, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useState } from "react";
 
 const navigation = [
   { name: "Workflow", href: "/dashboard/workflow", icon: LayoutDashboard },
@@ -35,15 +36,31 @@ export default function DashboardLayout({
     signOut({ callbackUrl: '/' });
   };
 
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   return (
     <div className="min-h-screen bg-gray-50 flex">
+      {/* Mobile Sidebar Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden" 
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <div className="w-64 bg-white border-r border-gray-200 flex flex-col fixed inset-y-0 z-10 transition-transform">
-        <div className="h-16 flex items-center px-6 border-b border-gray-100 shrink-0">
+      <div className={cn(
+        "w-64 bg-white border-r border-gray-200 flex flex-col fixed inset-y-0 z-50 transition-transform duration-300 md:translate-x-0",
+        isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="h-16 flex items-center justify-between px-6 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-2 text-primary font-bold text-xl">
             <Building2 className="h-6 w-6" />
             Paperless 2.0
           </div>
+          <button className="md:hidden p-1 text-gray-500" onClick={() => setIsMobileMenuOpen(false)}>
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Active Role Card */}
@@ -89,10 +106,10 @@ export default function DashboardLayout({
             })}
         </div>
 
-        <div className="p-4 border-t border-gray-100">
+        <div className="p-4 border-t border-gray-100 shrink-0 mb-4 md:mb-0">
           <button
             onClick={handleSignOut}
-            className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-gray-600 hover:text-red-600 transition-colors w-full text-left"
+            className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-gray-600 hover:text-red-600 transition-colors w-full text-left cursor-pointer"
           >
             <LogOut className="h-5 w-5 text-gray-400" />
             Sign Out
@@ -101,11 +118,19 @@ export default function DashboardLayout({
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 ml-64 flex flex-col min-h-screen">
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-8 shrink-0 sticky top-0 z-10">
-          <h1 className="text-xl font-semibold text-gray-800">
-            {navigation.find((item) => pathname.startsWith(item.href))?.name || "Dashboard"}
-          </h1>
+      <div className="flex-1 md:ml-64 flex flex-col min-h-screen min-w-0 transition-all duration-300">
+        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8 shrink-0 sticky top-0 z-10">
+          <div className="flex items-center gap-3">
+            <button 
+              className="md:hidden p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-md cursor-pointer"
+              onClick={() => setIsMobileMenuOpen(true)}
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <h1 className="text-xl font-semibold text-gray-800 hidden sm:block">
+              {navigation.find((item) => pathname.startsWith(item.href))?.name || "Dashboard"}
+            </h1>
+          </div>
           <div className="flex items-center gap-4">
             <div className="text-sm font-medium text-gray-700">
               {activeRole?.user_name || session?.user?.name || "User"}
@@ -116,7 +141,7 @@ export default function DashboardLayout({
           </div>
         </header>
 
-        <main className="flex-1 p-8 overflow-y-auto">
+        <main className="flex-1 p-4 md:p-8 overflow-y-auto w-full">
           {children}
         </main>
       </div>

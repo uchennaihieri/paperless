@@ -133,12 +133,12 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                 className="hover:shadow-md transition-all cursor-pointer group border-l-4 border-l-green-500" 
                 onClick={() => setSelected(item)}
               >
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="bg-green-100 p-3 rounded-xl">
+                <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="flex items-start md:items-center gap-4 w-full md:w-auto">
+                    <div className="bg-green-100 p-3 rounded-xl hidden sm:block shrink-0">
                       <CheckSquare className="w-6 h-6 text-green-600" />
                     </div>
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <h4 className="font-semibold text-gray-900">{item.template.name}</h4>
                       <div className="text-xs text-gray-400 mt-1 flex gap-3 flex-wrap">
                         <span>Ref: {item.reference || item.id.slice(-8).toUpperCase()}</span>
@@ -147,7 +147,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex justify-between items-center w-full md:w-auto mt-2 md:mt-0 gap-4 shrink-0">
                     <Badge variant={
                       item.status === "Filed" ? "secondary" :
                       item.status === "Processing" ? "warning" :
@@ -155,7 +155,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                     }>
                       {item.status}
                     </Badge>
-                    <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-primary transition-colors" />
+                    <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-primary transition-colors hidden md:block" />
                   </div>
                 </CardContent>
               </Card>
@@ -164,11 +164,11 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
         </div>
       ) : (
         <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-          <div className="flex justify-between items-center print:hidden">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
             <Button variant="outline" onClick={() => setSelected(null)} className="cursor-pointer">
-              ← Back to List
+              ← Back
             </Button>
-            <div className="flex flex-col items-end gap-1">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2 w-full sm:w-auto">
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={openStatusModal} className="cursor-pointer">
                   Change Status
@@ -195,22 +195,22 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
             </div>
           </div>
 
-          <div className="bg-white border shadow-xl max-w-[800px] p-8 md:p-12 mx-auto font-sans text-sm relative print:shadow-none print:border-none print:m-0 print:p-0">
+          <div className="bg-white border shadow-xl max-w-[800px] p-4 sm:p-8 md:p-12 mx-auto font-sans text-sm relative print:shadow-none print:border-none print:m-0 print:p-0">
             
             {/* Logo */}
-            <div className="flex justify-between items-start mb-10">
-              <div className="flex items-center gap-2 text-[#B50938] font-bold text-2xl">
-                <div className="h-10 w-10 bg-[#B50938] rounded-full flex items-center justify-center text-white text-xl">F</div>
+            <div className="flex flex-col sm:flex-row justify-between items-start mb-10 gap-6">
+              <div className="flex items-center gap-2 text-[#B50938] font-bold text-2xl order-2 sm:order-1">
+                <div className="h-10 w-10 bg-[#B50938] rounded-full flex items-center justify-center text-white text-xl shrink-0">F</div>
                 <span>FINCA</span>
               </div>
-              <div className="text-right">
+              <div className="text-left sm:text-right order-1 sm:order-2">
                 <h1 className="text-xl font-bold text-gray-900 uppercase tracking-tight">{selected.template.name}</h1>
                 <p className="text-xs text-gray-500 mt-1">Ref: {selected.id.toUpperCase()}</p>
               </div>
             </div>
 
             {/* Form Info */}
-            <div className="grid grid-cols-2 gap-8 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 mb-8">
               <div className="space-y-4">
                 <div>
                   <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Submitted By</h3>
@@ -284,7 +284,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
             {/* Signatures */}
             <div>
                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Digitally Signed By</h3>
-               <div className="grid grid-cols-2 gap-x-12 gap-y-8">
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-6 sm:gap-y-8">
                   {selected.signatories.map((sig, i) => (
                     <div key={i} className="border-b border-gray-100 pb-2">
                       <div className="flex justify-between items-end mb-1">
