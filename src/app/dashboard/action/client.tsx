@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileDown, ChevronRight, CheckSquare, X, User } from "lucide-react";
-import { assignToSelf, completeProcessWithApprover, searchActiveWorkflowUsers } from "@/app/actions/workflow";
+import { FileDown, ChevronRight, CheckSquare, X, User, RefreshCw, AlertTriangle } from "lucide-react";
+import { assignToSelf, completeProcessWithApprover, searchActiveWorkflowUsers, regeneratePdf } from "@/app/actions/workflow";
 
 type ActionItem = {
   id: string;
@@ -38,6 +38,22 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [selectedApprover, setSelectedApprover] = useState<any>(null);
   const [isChanging, setIsChanging] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [regenError, setRegenError] = useState("");
+
+  const handleRegenerate = async (id: string) => {
+    setIsRegenerating(true);
+    setRegenError("");
+    const res = await regeneratePdf(id);
+    setIsRegenerating(false);
+    if (!res.success) {
+      setRegenError(res.error || "Failed to regenerate.");
+      setTimeout(() => setRegenError(""), 5000);
+    } else {
+      updateItemStatus(id, selected!.status); // Just to force a trick re-render locally if we needed, though revalidatePath works for server.
+      // Easiest is to let server component refresh since `revalidatePath("/dashboard/action")` will just pass down new `items`.
+    }
+  };
 
   // Live search — fires on every keystroke
   useEffect(() => {
@@ -152,15 +168,30 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
             <Button variant="outline" onClick={() => setSelected(null)} className="cursor-pointer">
               ← Back to List
             </Button>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={openStatusModal} className="cursor-pointer">
-                Change Status
-              </Button>
-              <a href={`/api/pdf?id=${selected.id}`} download>
-                <Button size="sm" className="cursor-pointer">
-                  <FileDown className="w-4 h-4 mr-2" /> Download PDF
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={openStatusModal} className="cursor-pointer">
+                  Change Status
                 </Button>
-              </a>
+                {selected.status === "Completed" && (
+                  <Button size="sm" variant="outline" onClick={() => handleRegenerate(selected.id)} disabled={isRegenerating} className="cursor-pointer border-amber-200 text-amber-700 hover:bg-amber-50">
+                    <RefreshCw className={`w-4 h-4 mr-2 ${isRegenerating ? "animate-spin" : ""}`} /> 
+                    {isRegenerating ? "Regenerating..." : "Regenerate PDF"}
+                  </Button>
+                )}
+                {selected?.formResponses?.["CompletedFormPDF"]?.[0]?.url && (
+                  <a href={selected.formResponses["CompletedFormPDF"][0].url} download>
+                    <Button size="sm" className="cursor-pointer">
+                      <FileDown className="w-4 h-4 mr-2" /> Download PDF
+                    </Button>
+                  </a>
+                )}
+              </div>
+              {regenError && (
+                <span className="text-xs text-red-500 flex items-center gap-1 mt-1">
+                  <AlertTriangle className="w-3 h-3" /> {regenError}
+                </span>
+              )}
             </div>
           </div>
 
@@ -216,14 +247,39 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                   <div className="w-1/2">VALUE/RESPONSE</div>
                </div>
                <div className="border-x border-b rounded-b-lg border-gray-100 divide-y divide-gray-100">
-                  {Object.entries(selected.formResponses).map(([key, val], i) => (
-                    <div key={i} className="flex px-4 py-3 text-xs">
-                      <div className="w-1/2 font-semibold text-gray-700">{key}</div>
-                      <div className="w-1/2 text-gray-600 truncate">{String(val)}</div>
+                  {Object.entries(selected.formResponses).filter(([k]) => k !== "CompletedFormPDF").map(([key, val], i) => (
+                    <div key={i} className="flex px-4 py-3 text-xs flex-col sm:flex-row gap-2 sm:gap-0">
+                      <div className="w-full sm:w-1/2 font-semibold text-gray-700">{key}</div>
+                      <div className="w-full sm:w-1/2 text-gray-600 break-words">
+                         {Array.isArray(val) && val.length > 0 && val[0]?.isAttachment 
+                            ? val.map((v, i) => <div key={i} className="text-primary underline">{v.name}</div>)
+                            : String(val)}
+                      </div>
                     </div>
                   ))}
                </div>
             </div>
+
+            {/* Generated Form Output */}
+            {selected.formResponses["CompletedFormPDF"] && selected.formResponses["CompletedFormPDF"].length > 0 && (
+               <div className="mb-10">
+                 <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Completed Generated Document</h3>
+                 <div className="border border-gray-200 rounded-lg overflow-hidden flex flex-col bg-gray-50 p-2 shadow-sm">
+                   <div className="flex justify-between items-center px-2 pb-2">
+                      <span className="text-xs font-semibold text-gray-800 flex items-center gap-2">
+                        <FileDown className="w-4 h-4 text-red-500" />
+                        {selected.formResponses["CompletedFormPDF"][0].name}
+                      </span>
+                      <a href={selected.formResponses["CompletedFormPDF"][0].url} download className="text-xs bg-gray-900 text-white px-3 py-1 rounded">Download</a>
+                   </div>
+                   <iframe 
+                     src={selected.formResponses["CompletedFormPDF"][0].url} 
+                     className="w-full h-[650px] border border-gray-200 rounded-md bg-white"
+                     title="Generated Document"
+                   />
+                 </div>
+               </div>
+            )}
 
             {/* Signatures */}
             <div>

@@ -1,24 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search, FilePlus, ChevronRight, ListCollapse, PlusCircle, Edit2, Trash2, AlertTriangle } from "lucide-react";
+import {
+  Search, FilePlus, ChevronRight, ListCollapse, PlusCircle,
+  Edit2, Trash2, AlertTriangle, Pencil, MessageCircle,
+} from "lucide-react";
 import Link from "next/link";
-import { deleteFormTemplate } from "@/app/actions/form";
+import { deleteFormTemplate, deleteSubmission } from "@/app/actions/form";
+import EditSubmissionModal from "./edit-submission-modal";
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function statusVariant(status: string) {
   switch (status) {
-    case "Completed": return "success";
-    case "Processing": return "warning";
-    case "In-review": return "secondary";
-    case "Rejected": return "destructive";
-    default: return "default";
+    case "Completed":                return "success";
+    case "Processing":               return "warning";
+    case "In-review":                return "secondary";
+    case "Rejected":                 return "destructive";
+    case "Awaiting Final Approval":  return "outline";
+    default:                         return "default";
   }
 }
+
+const EDITABLE_STATUSES = ["Submitted", "Rejected"];
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function FormsClientPage({
   templates,
@@ -30,26 +42,61 @@ export default function FormsClientPage({
   isAdmin: boolean;
 }) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"available" | "submitted">("available");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [formToDelete, setFormToDelete] = useState<any>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const { data: session } = useSession();
+  const currentUserId = session?.user?.id ? Number(session.user.id) : null;
+
+  const [activeTab, setActiveTab]           = useState<"available" | "submitted">("available");
+  const [searchQuery, setSearchQuery]        = useState("");
+
+  // ── Template delete modal ──
+  const [templateToDelete, setTemplateToDelete] = useState<any>(null);
+  const [isDeletingTemplate, setIsDeletingTemplate] = useState(false);
+
+  // ── Submission delete modal ──
+  const [submissionToDelete, setSubmissionToDelete] = useState<any>(null);
+  const [isDeletingSubmission, startDeleteSubmission] = useTransition();
+  const [deleteSubError, setDeleteSubError] = useState("");
+
+  // ── Submission edit modal ──
+  const [submissionToEdit, setSubmissionToEdit]     = useState<any>(null);
+
+  // ── Rejection reason viewer ──
+  const [viewingReason, setViewingReason]           = useState<any | null>(null); // holds the submission
 
   const filteredForms = templates.filter((f: any) =>
     f.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleDelete = async () => {
-    if (!formToDelete) return;
-    setIsDeleting(true);
-    const res = await deleteFormTemplate(formToDelete.id);
-    setIsDeleting(false);
+  // ── Handlers ──────────────────────────────────────────────────────────────
+
+  const handleDeleteTemplate = async () => {
+    if (!templateToDelete) return;
+    setIsDeletingTemplate(true);
+    const res = await deleteFormTemplate(templateToDelete.id);
+    setIsDeletingTemplate(false);
     if (res.success) {
-      setFormToDelete(null);
+      setTemplateToDelete(null);
+      router.refresh();
     } else {
       alert(res.error || "Failed to delete form.");
     }
   };
+
+  const handleDeleteSubmission = () => {
+    if (!submissionToDelete) return;
+    setDeleteSubError("");
+    startDeleteSubmission(async () => {
+      const res = await deleteSubmission(submissionToDelete.id);
+      if (res.success) {
+        setSubmissionToDelete(null);
+        router.refresh();
+      } else {
+        setDeleteSubError(res.error || "Failed to delete submission.");
+      }
+    });
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -83,12 +130,16 @@ export default function FormsClientPage({
         {(["available", "submitted"] as const).map((tab) => (
           <button
             key={tab}
+            id={`forms-tab-${tab}`}
             className={`pb-3 font-medium text-sm transition-colors relative cursor-pointer ${
               activeTab === tab ? "text-primary" : "text-gray-500 hover:text-gray-700"
             }`}
             onClick={() => setActiveTab(tab)}
           >
-            {tab === "available" ? "Available Forms" : `My Submissions (${submissions.length})`}
+            {tab === "available"
+              ? "Available Forms"
+              : `My Submissions (${submissions.length})`
+            }
             {activeTab === tab && (
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-md" />
             )}
@@ -96,7 +147,7 @@ export default function FormsClientPage({
         ))}
       </div>
 
-      {/* Available */}
+      {/* ── Available forms tab ── */}
       {activeTab === "available" && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredForms.map((form) => (
@@ -116,7 +167,7 @@ export default function FormsClientPage({
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); setFormToDelete(form); }}
+                      onClick={(e) => { e.stopPropagation(); setTemplateToDelete(form); }}
                       className="p-1.5 bg-red-50 border border-red-100 hover:bg-red-100 rounded-md text-red-500 hover:text-red-600 transition-colors cursor-pointer shadow-sm"
                       title="Delete Template"
                     >
@@ -140,74 +191,233 @@ export default function FormsClientPage({
         </div>
       )}
 
-      {/* Submitted */}
+      {/* ── My Submissions tab ── */}
       {activeTab === "submitted" && (
         <div className="grid gap-3">
           {submissions.length === 0 ? (
-            <div className="py-16 text-center text-gray-400">You haven't submitted any forms yet.</div>
+            <div className="py-16 text-center text-gray-400">
+              You haven&apos;t submitted any forms yet.
+            </div>
           ) : (
-            submissions.map((s: any) => (
-              <Card key={s.id} className="hover:shadow-sm transition-shadow cursor-pointer"
-                onClick={() => router.push(`/dashboard/forms/submission/${s.id}`)}>
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="bg-gray-100 p-2 rounded-md">
-                      <ListCollapse className="w-5 h-5 text-gray-500" />
+            submissions.map((s: any) => {
+              const canEditOrDelete =
+                (currentUserId === null || s.submittedById === currentUserId) &&
+                EDITABLE_STATUSES.includes(s.status);
+
+              return (
+                <Card
+                  key={s.id}
+                  className="hover:shadow-sm transition-shadow"
+                >
+                  <CardContent className="p-4 flex items-center justify-between gap-3">
+                    {/* Left — click to view */}
+                    <div
+                      className="flex items-center gap-3 flex-1 cursor-pointer min-w-0"
+                      onClick={() => router.push(`/dashboard/forms/submission/${s.id}`)}
+                    >
+                      <div className="bg-gray-100 p-2 rounded-md shrink-0">
+                        <ListCollapse className="w-5 h-5 text-gray-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-medium text-gray-900 truncate">
+                          {s.reference || s.id.slice(-8).toUpperCase()} — {s.formName}
+                        </h4>
+                        <p className="text-xs text-gray-400">
+                          Submitted {new Date(s.createdAt).toLocaleDateString()} ·{" "}
+                          {s.signatories?.length ?? 0} signator{s.signatories?.length === 1 ? "y" : "ies"}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="font-medium text-gray-900">
-                        {s.reference || s.id.slice(-8).toUpperCase()} — {s.formName}
-                      </h4>
-                      <p className="text-xs text-gray-400">
-                        Submitted {new Date(s.createdAt).toLocaleDateString()} ·{" "}
-                        {s.signatories?.length ?? 0} signator{s.signatories?.length === 1 ? "y" : "ies"}
-                      </p>
+
+                    {/* Right — status + actions */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant={statusVariant(s.status) as any}>{s.status}</Badge>
+
+                      {canEditOrDelete && (
+                        <>
+                          <button
+                            id={`edit-submission-${s.id}`}
+                            onClick={() => setSubmissionToEdit(s)}
+                            title="Edit & Resubmit"
+                            className="p-1.5 rounded-md text-gray-400 hover:text-primary hover:bg-primary/5 transition-colors"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </button>
+                          <button
+                            id={`delete-submission-${s.id}`}
+                            onClick={() => { setDeleteSubError(""); setSubmissionToDelete(s); }}
+                            title="Delete Submission"
+                            className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+
+                      {/* Rejection reason icon — only when Rejected and has reason */}
+                      {s.status === "Rejected" &&
+                        s.signatories?.some((sig: any) => sig.status === "Declined" && sig.declineReason) && (
+                          <button
+                            id={`view-reason-${s.id}`}
+                            onClick={() => setViewingReason(s)}
+                            title="View rejection reason"
+                            className="p-1.5 rounded-md text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </button>
+                        )}
+
+                      <ChevronRight
+                        className="w-4 h-4 text-gray-300 cursor-pointer"
+                        onClick={() => router.push(`/dashboard/forms/submission/${s.id}`)}
+                      />
                     </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Badge variant={statusVariant(s.status) as any}>{s.status}</Badge>
-                    <ChevronRight className="w-4 h-4 text-gray-400" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+                  </CardContent>
+                </Card>
+              );
+            })
           )}
         </div>
       )}
-      {/* Delete Confirmation Modal */}
-      {formToDelete && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200 text-center">
+
+      {/* ── Template delete modal ── */}
+      {templateToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden text-center">
             <div className="p-6">
               <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
                 <AlertTriangle className="w-8 h-8" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Template?</h3>
               <p className="text-sm text-gray-500 mb-6">
-                Are you sure you want to delete the form <span className="font-semibold text-gray-900">"{formToDelete.name}"</span>? This action cannot be undone.
+                Are you sure you want to delete{" "}
+                <span className="font-semibold text-gray-900">&ldquo;{templateToDelete.name}&rdquo;</span>?
+                This action cannot be undone.
               </p>
               <div className="flex justify-center gap-3">
-                <Button
-                  variant="outline"
-                  className="flex-1 cursor-pointer"
-                  onClick={() => setFormToDelete(null)}
-                  disabled={isDeleting}
-                >
+                <Button variant="outline" className="flex-1 cursor-pointer" onClick={() => setTemplateToDelete(null)} disabled={isDeletingTemplate}>
                   Cancel
                 </Button>
                 <Button
                   variant="destructive"
-                  className="flex-1 cursor-pointer bg-red-600 hover:bg-red-700 hover:shadow-md transition-all"
-                  onClick={handleDelete}
-                  disabled={isDeleting}
+                  className="flex-1 cursor-pointer"
+                  onClick={handleDeleteTemplate}
+                  disabled={isDeletingTemplate}
                 >
-                  {isDeleting ? "Deleting..." : "Delete Form"}
+                  {isDeletingTemplate ? "Deleting…" : "Delete Template"}
                 </Button>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* ── Submission delete modal ── */}
+      {submissionToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden text-center">
+            <div className="p-6">
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Submission?</h3>
+              <p className="text-sm text-gray-500 mb-2">
+                Are you sure you want to permanently delete{" "}
+                <span className="font-semibold text-gray-900">
+                  {submissionToDelete.reference
+                    ? `${submissionToDelete.reference} — ${submissionToDelete.formName}`
+                    : submissionToDelete.formName}
+                </span>?
+              </p>
+              <p className="text-xs text-gray-400 mb-5">
+                This will also remove all signatory records. This action cannot be undone.
+              </p>
+              {deleteSubError && (
+                <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg mb-4">{deleteSubError}</p>
+              )}
+              <div className="flex justify-center gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => setSubmissionToDelete(null)} disabled={isDeletingSubmission}>
+                  Cancel
+                </Button>
+                <Button
+                  id="confirm-delete-submission-btn"
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={handleDeleteSubmission}
+                  disabled={isDeletingSubmission}
+                >
+                  {isDeletingSubmission ? "Deleting…" : "Delete"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit submission modal ── */}
+      {submissionToEdit && (
+        <EditSubmissionModal
+          submission={submissionToEdit}
+          onClose={() => setSubmissionToEdit(null)}
+          onSaved={() => {
+            setSubmissionToEdit(null);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {/* ── Rejection reason modal ── */}
+      {viewingReason && (() => {
+        const declined = (viewingReason.signatories ?? []).filter(
+          (sig: any) => sig.status === "Declined" && sig.declineReason
+        );
+        return (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+              <div className="p-6 space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-full bg-red-100 shrink-0">
+                      <MessageCircle className="w-5 h-5 text-red-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-900">Rejection Reason</h3>
+                      <p className="text-xs text-gray-400">
+                        {viewingReason.reference
+                          ? `${viewingReason.reference} · `
+                          : ""}{viewingReason.formName}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setViewingReason(null)}
+                    className="p-1.5 rounded-full hover:bg-gray-100 transition-colors shrink-0 text-gray-400 hover:text-gray-600 text-xl leading-none"
+                    aria-label="Close"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {declined.map((sig: any) => (
+                    <div key={sig.id} className="bg-red-50 border border-red-200 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-semibold text-red-800">{sig.userName}</span>
+                        <span className="text-xs text-red-400">{sig.email}</span>
+                      </div>
+                      <p className="text-sm text-red-700 leading-relaxed">{sig.declineReason}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <Button variant="outline" onClick={() => setViewingReason(null)}>Close</Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

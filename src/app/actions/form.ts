@@ -21,23 +21,37 @@ export async function getFormTemplate(id: string) {
   return result.data || null;
 }
 
+import { auth } from "@/auth";
+
 export async function isAdministrator() {
-  return false;
+  const session = await auth().catch(() => null);
+  if (!session?.user) return false;
+  
+  try {
+    const rolesStr = (session.user as any).roles;
+    if (!rolesStr) return false;
+    const roles = typeof rolesStr === "string" ? JSON.parse(rolesStr) : rolesStr;
+    const activeId = (session.user as any).activeRoleId;
+    const activeRole = roles.find((r: any) => String(r.id) === String(activeId)) || roles[0];
+    return activeRole?.user_role?.toLowerCase() === "administrator";
+  } catch (e) {
+    return false;
+  }
 }
 
-export async function createFormTemplate(name: string, description: string, fields: any[], formOwner?: string, formTreater?: string, htmlTemplate?: string) {
+export async function createFormTemplate(name: string, description: string, fields: any[], formOwner?: string, formTreater?: string, pdfTemplateId?: string) {
   const result = await apiClient("/forms", {
     method: "POST",
-    body: JSON.stringify({ name, description, fields, formOwner, formTreater, htmlTemplate })
+    body: JSON.stringify({ name, description, fields, formOwner, formTreater, pdfTemplateId })
   });
   revalidatePath("/dashboard/forms");
   return result;
 }
 
-export async function updateFormTemplate(id: string, name: string, description: string, fields: any[], formOwner?: string, formTreater?: string, htmlTemplate?: string) {
+export async function updateFormTemplate(id: string, name: string, description: string, fields: any[], formOwner?: string, formTreater?: string, pdfTemplateId?: string) {
   const result = await apiClient(`/forms/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ name, description, fields, formOwner, formTreater, htmlTemplate })
+    body: JSON.stringify({ name, description, fields, formOwner, formTreater, pdfTemplateId })
   });
   revalidatePath("/dashboard/forms");
   return result;
@@ -59,10 +73,10 @@ export async function getActionItems() {
   return result.data || [];
 }
 
-export async function submitForm(templateId: string, formName: string, formResponses: Record<string, any>, signatories: SignatoryInput[], signingType: "sequential" | "parallel" = "sequential", initiatorToken?: string) {
+export async function submitForm(formData: FormData) {
   const result = await apiClient("/submissions", {
     method: "POST",
-    body: JSON.stringify({ templateId, formName, formResponses, signatories, signingType, initiatorToken })
+    body: formData
   });
   revalidatePath("/dashboard/forms");
   return result;
@@ -91,5 +105,29 @@ export async function searchUsers(query: string) {
 export async function fileAttachments(submissionId: string) {
   const result = await apiClient(`/submissions/${submissionId}/file-attachments`, { method: "POST" });
   revalidatePath("/dashboard/action");
+  return result;
+}
+
+// ── PUT /api/v1/submissions/:id — edit & resubmit ─────────────────────────────
+export async function editSubmission(
+  id: string,
+  body: {
+    formResponses: Record<string, any>;
+    signatories?: SignatoryInput[];
+    signingType?: SigningType;
+  }
+) {
+  const result = await apiClient(`/submissions/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+  revalidatePath("/dashboard/forms");
+  return result;
+}
+
+// ── DELETE /api/v1/submissions/:id ────────────────────────────────────────────
+export async function deleteSubmission(id: string) {
+  const result = await apiClient(`/submissions/${id}`, { method: "DELETE" });
+  revalidatePath("/dashboard/forms");
   return result;
 }

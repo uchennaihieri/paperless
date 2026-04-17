@@ -13,6 +13,7 @@ const navigation = [
   { name: "Signature", href: "/dashboard/signature", icon: PenTool },
   { name: "Reports", href: "/dashboard/reports", icon: BarChart2 },
   { name: "Teams", href: "/dashboard/teams", icon: Users },
+  { name: "Templates", href: "/dashboard/templates", icon: FileText },
 ];
 
 
@@ -63,7 +64,7 @@ export default function DashboardLayout({
           </div>
           {navigation
             .filter((item) => {
-              if (item.name === "Teams") {
+              if (item.name === "Teams" || item.name === "Templates") {
                 return activeRole?.user_role?.toLowerCase() === "administrator";
               }
               return true;

@@ -19,7 +19,7 @@ export const apiClient = async (
   const backendToken = (session?.user as any)?.backendToken;
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers as Record<string, string>),
   };
 

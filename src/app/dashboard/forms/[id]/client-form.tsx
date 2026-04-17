@@ -111,43 +111,32 @@ function FormFieldsStep({
                 <Input
                   id={field.id}
                   type="file"
-                  required={field.required}
+                  required={field.required && (!formData[field.id] || formData[field.id].length === 0)}
                   accept={field.accept}
                   multiple={(field.maxFiles ?? 1) > 1}
                   className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
                   onChange={async (e) => {
                     const files = Array.from(e.target.files ?? []);
                     if (files.length === 0) {
-                      onChange(field.id, "");
-                      return;
-                    }
-                    
-                    const fd = new FormData();
-                    files.forEach(f => fd.append("files", f));
-                    
-                    // Show a quick uploading indicator
-                    const originalLabel = document.getElementById(`label-${field.id}`);
-                    if (originalLabel) originalLabel.innerText = "Uploading...";
-                    
-                    try {
-                      const res = await fetch("/api/upload", {
-                        method: "POST",
-                        body: fd
-                      });
-                      const data = await res.json();
-                      if (data.success) {
-                        onChange(field.id, data.files.join(", "));
-                        if (originalLabel) originalLabel.innerText = "Uploaded successfully!";
-                      } else {
-                        alert("Failed to upload files");
-                        if (originalLabel) originalLabel.innerText = "Upload failed!";
-                      }
-                    } catch (error) {
-                      alert("Error uploading to local folder");
-                      if (originalLabel) originalLabel.innerText = "Upload error!";
+                      onChange(field.id, null);
+                    } else {
+                      onChange(field.id, files);
                     }
                   }}
                 />
+                {formData[field.id] && formData[field.id].length > 0 && (
+                  <ul className="mt-4 space-y-2">
+                    {(formData[field.id] as File[]).map((f, i) => (
+                      <li key={i} className="text-sm text-gray-600 flex items-center justify-between bg-white px-3 py-2 rounded-md border border-gray-200">
+                        <span className="truncate">{f.name}</span>
+                        <button type="button" onClick={() => {
+                           const newFiles = (formData[field.id] as File[]).filter((_, idx) => idx !== i);
+                           onChange(field.id, newFiles.length > 0 ? newFiles : null);
+                        }} className="text-red-400 hover:text-red-600 font-bold">&times;</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <p id={`label-${field.id}`} className="text-xs text-gray-400 mt-2">{field.description}</p>
               </div>
             ) : (
@@ -426,7 +415,15 @@ function ReviewStep({
                   <tr key={f.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                     <td className="px-4 py-3 font-medium text-gray-700">{f.label}</td>
                     <td className="px-4 py-3 text-gray-600">
-                      {formData[f.id] || <span className="italic text-gray-300">—</span>}
+                      {f.type === "file" && formData[f.id] ? (
+                        <div className="flex flex-col gap-1">
+                          {(formData[f.id] as File[]).map((file, idx) => (
+                            <span key={idx} className="text-sm font-medium text-gray-800">{file.name}</span>
+                          ))}
+                        </div>
+                      ) : (
+                        formData[f.id] || <span className="italic text-gray-300">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -526,12 +523,36 @@ export default function FormFillerClient({ template, currentUser }: { template: 
   const handleSubmit = async () => {
     setSubmitting(true);
     setError("");
-    const labeledData: Record<string, any> = {};
+    const textOnlyResponses: Record<string, any> = {};
+    const fileFields: Record<string, File[]> = {};
+
     fields.forEach((f) => {
-      labeledData[f.label] = formData[f.id] ?? "";
+      if (f.type === "file") {
+        if (formData[f.id]) {
+          fileFields[f.label] = formData[f.id] as File[];
+        }
+      } else {
+        textOnlyResponses[f.label] = formData[f.id] ?? "";
+      }
     });
 
-    const res = await submitForm(template.id, template.name, labeledData, signatories, signingType, signatureToken);
+    const formDataPayload = new FormData();
+    formDataPayload.append("data", JSON.stringify({
+      templateId: template.id,
+      formName: template.name,
+      formResponses: textOnlyResponses,
+      signatories,
+      signingType,
+      ...(signatureToken ? { initiatorToken: signatureToken } : {})
+    }));
+
+    for (const [fieldName, files] of Object.entries(fileFields)) {
+      for (const file of files) {
+        formDataPayload.append(fieldName, file);
+      }
+    }
+
+    const res = await submitForm(formDataPayload);
     setSubmitting(false);
     setShowTokenModal(false);
 

@@ -13,6 +13,7 @@ declare module "next-auth" {
 }
 
 export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
+  basePath: "/api/auth",
   providers: [
     CredentialsProvider({
       name: "OTP",
