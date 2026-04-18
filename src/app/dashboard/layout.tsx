@@ -1,11 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { Building2, FileText, CheckSquare, PenTool, LayoutDashboard, LogOut, ArrowLeftRight, Users, BarChart2, Menu, X } from "lucide-react";
+import {
+  Building2, FileText, CheckSquare, PenTool, LayoutDashboard,
+  LogOut, Users, BarChart2, Menu, X, History, Settings,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import { HistoryModal } from "@/components/HistoryModal";
+import { SettingsModal } from "@/components/SettingsModal";
 
 const navigation = [
   { name: "Workflow", href: "/dashboard/workflow", icon: LayoutDashboard },
@@ -25,20 +30,33 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const router = useRouter();
 
   // Find the exact active role from session
   const roles = session?.user && (session.user as any).roles ? JSON.parse((session.user as any).roles) : [];
   const activeRoleId = session?.user && (session.user as any).activeRoleId;
   const activeRole = roles.find((r: any) => r.id === activeRoleId) || roles[0];
 
-  const handleSignOut = () => {
-    signOut({ callbackUrl: '/' });
-  };
+  const handleSignOut = () => signOut({ callbackUrl: '/' });
 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen]       = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen]     = useState(false);
+  const avatarMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close avatar menu when clicking outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (avatarMenuRef.current && !avatarMenuRef.current.contains(e.target as Node)) {
+        setIsAvatarMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   return (
+    <>
     <div className="min-h-screen bg-gray-50 flex">
       {/* Mobile Sidebar Overlay */}
       {isMobileMenuOpen && (
@@ -69,9 +87,6 @@ export default function DashboardLayout({
             <div className="text-xs font-semibold text-gray-500 uppercase">Active Role</div>
             <div className="font-medium text-sm text-gray-900 mt-1 truncate">{activeRole.branch}</div>
             <div className="text-xs text-primary font-medium truncate">{activeRole.user_role}</div>
-            <Link href="/role-selection" className="mt-2 text-xs text-gray-500 hover:text-primary flex items-center gap-1 transition-colors">
-              <ArrowLeftRight className="w-3 h-3" /> Switch Role
-            </Link>
           </div>
         )}
 
@@ -105,17 +120,8 @@ export default function DashboardLayout({
               );
             })}
         </div>
-
-        <div className="p-4 border-t border-gray-100 shrink-0 mb-4 md:mb-0">
-          <button
-            onClick={handleSignOut}
-            className="flex items-center gap-3 px-3 py-2 text-sm font-medium text-gray-600 hover:text-red-600 transition-colors w-full text-left cursor-pointer"
-          >
-            <LogOut className="h-5 w-5 text-gray-400" />
-            Sign Out
-          </button>
-        </div>
       </div>
+
 
       {/* Main Content */}
       <div className="flex-1 md:ml-64 flex flex-col min-h-screen min-w-0 transition-all duration-300">
@@ -131,12 +137,49 @@ export default function DashboardLayout({
               {navigation.find((item) => pathname.startsWith(item.href))?.name || "Dashboard"}
             </h1>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="text-sm font-medium text-gray-700">
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:block text-sm font-medium text-gray-700">
               {activeRole?.user_name || session?.user?.name || "User"}
             </div>
-            <div className="h-8 w-8 bg-primary rounded-full flex items-center justify-center text-white text-sm font-medium uppercase">
-              {activeRole?.user_name ? activeRole.user_name.charAt(0) : "U"}
+
+            {/* Avatar button + dropdown */}
+            <div className="relative" ref={avatarMenuRef}>
+              <button
+                onClick={() => setIsAvatarMenuOpen((v) => !v)}
+                className="h-8 w-8 bg-primary rounded-full flex items-center justify-center text-white text-sm font-medium uppercase hover:ring-2 hover:ring-primary/40 transition-all cursor-pointer"
+                aria-label="User menu"
+              >
+                {activeRole?.user_name ? activeRole.user_name.charAt(0) : "U"}
+              </button>
+
+              {isAvatarMenuOpen && (
+                <div className="absolute right-0 top-10 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-1.5 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="px-3 py-2 border-b border-gray-100 mb-1">
+                    <p className="text-xs font-semibold text-gray-900 truncate">{activeRole?.user_name || session?.user?.name}</p>
+                    <p className="text-xs text-gray-400 truncate">{activeRole?.finca_email || ""}</p>
+                  </div>
+                  <button
+                    onClick={() => { setIsHistoryOpen(true); setIsAvatarMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <History className="w-4 h-4 text-gray-400" /> History
+                  </button>
+                  <button
+                    onClick={() => { setIsSettingsOpen(true); setIsAvatarMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <Settings className="w-4 h-4 text-gray-400" /> Settings
+                  </button>
+                  <div className="border-t border-gray-100 mt-1 pt-1">
+                    <button
+                      onClick={handleSignOut}
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" /> Sign Out
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>
@@ -146,5 +189,10 @@ export default function DashboardLayout({
         </main>
       </div>
     </div>
+
+    {/* Global Modals */}
+    <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
+    <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+    </>
   );
 }

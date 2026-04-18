@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { deleteFormTemplate, deleteSubmission } from "@/app/actions/form";
+import { getMySignature } from "@/app/actions/security";
 import EditSubmissionModal from "./edit-submission-modal";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -63,9 +64,14 @@ export default function FormsClientPage({
   // ── Rejection reason viewer ──
   const [viewingReason, setViewingReason]           = useState<any | null>(null); // holds the submission
 
+  const [formNavError, setFormNavError]             = useState("");
+
   const filteredForms = templates.filter((f: any) =>
     f.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // Exclude Completed submissions — users can review those via Activity History
+  const activeSubmissions = submissions.filter((s: any) => s.status !== "Completed");
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -80,6 +86,16 @@ export default function FormsClientPage({
     } else {
       alert(res.error || "Failed to delete form.");
     }
+  };
+
+  const handleFormClick = async (formId: string) => {
+    setFormNavError("");
+    const sigRes = await getMySignature();
+    if (!sigRes.success || !sigRes.signatureData) {
+      setFormNavError("You must configure your signature in your profile before filling out forms.");
+      return;
+    }
+    router.push(`/dashboard/forms/${formId}`);
   };
 
   const handleDeleteSubmission = () => {
@@ -138,7 +154,7 @@ export default function FormsClientPage({
           >
             {tab === "available"
               ? "Available Forms"
-              : `My Submissions (${submissions.length})`
+              : `My Submissions (${activeSubmissions.length})`
             }
             {activeTab === tab && (
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-md" />
@@ -149,12 +165,19 @@ export default function FormsClientPage({
 
       {/* ── Available forms tab ── */}
       {activeTab === "available" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="space-y-4">
+          {formNavError && (
+            <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              {formNavError}
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredForms.map((form) => (
             <Card
               key={form.id}
               className="hover:shadow-md transition-all cursor-pointer border-l-4 border-l-primary group relative overflow-hidden"
-              onClick={() => router.push(`/dashboard/forms/${form.id}`)}
+              onClick={() => handleFormClick(form.id)}
             >
               <CardContent className="p-5">
                 {isAdmin && (
@@ -189,17 +212,18 @@ export default function FormsClientPage({
             </div>
           )}
         </div>
+        </div>
       )}
 
       {/* ── My Submissions tab ── */}
       {activeTab === "submitted" && (
         <div className="grid gap-3">
-          {submissions.length === 0 ? (
+          {activeSubmissions.length === 0 ? (
             <div className="py-16 text-center text-gray-400">
-              You haven&apos;t submitted any forms yet.
+              You haven&apos;t submitted any active forms yet.
             </div>
           ) : (
-            submissions.map((s: any) => {
+            activeSubmissions.map((s: any) => {
               const canEditOrDelete =
                 (currentUserId === null || s.submittedById === currentUserId) &&
                 EDITABLE_STATUSES.includes(s.status);

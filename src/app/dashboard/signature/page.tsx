@@ -370,7 +370,7 @@ export default function SignaturePage() {
                 <Input
                   id="token-input"
                   value={inputToken}
-                  onChange={(e) => { setInputToken(e.target.value.toUpperCase()); setTokenError(""); }}
+                  onChange={(e) => { setInputToken(e.target.value); setTokenError(""); }}
                   maxLength={8}
                   placeholder="e.g. A1B2C3D4"
                   className="text-center tracking-[0.4em] font-mono text-lg"
@@ -381,7 +381,7 @@ export default function SignaturePage() {
                 <Input
                   id="token-confirm-input"
                   value={confirmToken}
-                  onChange={(e) => { setConfirmToken(e.target.value.toUpperCase()); setTokenError(""); }}
+                  onChange={(e) => { setConfirmToken(e.target.value); setTokenError(""); }}
                   maxLength={8}
                   placeholder="Re-enter your token"
                   className="text-center tracking-[0.4em] font-mono text-lg"

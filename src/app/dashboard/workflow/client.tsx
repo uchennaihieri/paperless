@@ -7,16 +7,18 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import SignatureCanvas from "react-signature-canvas";
 import {
   signSubmission, declineSubmission,
   approveSubmission, remindSignatory, getMyQueue,
 } from "@/app/actions/workflow";
+import { getMySignature } from "@/app/actions/security";
+
+import { useSmartFetch } from "@/hooks/useSmartFetch";
 
 import {
   Clock, CheckCircle2, XCircle, ChevronRight, X,
   GitBranch, Layers, User, FileText, AlertTriangle,
-  Pen, Bell, Loader2,
+  Pen, Bell, Loader2, RefreshCw
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -124,9 +126,7 @@ function DetailPanel({
 
   // Sign modal state
   const [showSignModal, setShowSignModal]        = useState(false);
-  const [signMethod, setSignMethod]              = useState<"token" | "draw">("token");
   const [signatureToken, setSignatureToken]      = useState("");
-  const sigPad                                   = useRef<any>(null);
 
   const responses = item.formResponses || {};
 
@@ -134,17 +134,17 @@ function DetailPanel({
 
   const handleSignConfirm = () => {
     setError("");
-    let payload: { signatureToken?: string; signatureData?: string } = {};
+    startSignTransition(async () => {
+      const sigRes = await getMySignature();
+      if (!sigRes.success || !sigRes.signatureData) {
+        setError("You must set up your signature in your profile before signing.");
+        return;
+      }
 
-    if (signMethod === "token") {
+      let payload: { signatureToken?: string } = {};
       if (signatureToken.length !== 8) { setError("Token must be exactly 8 characters."); return; }
       payload.signatureToken = signatureToken;
-    } else {
-      if (!sigPad.current || sigPad.current.isEmpty()) { setError("Please draw your signature."); return; }
-      payload.signatureData = sigPad.current.getTrimmedCanvas().toDataURL("image/png");
-    }
 
-    startSignTransition(async () => {
       const res = await signSubmission(item.id, payload);
       if (res.success) { onSigned(item.id); onClose(); }
       else { setError(res.error ?? "Failed to sign."); }
@@ -340,31 +340,6 @@ function DetailPanel({
                     </div>
                   )}
 
-                  {/* Remind button (Pending only) */}
-                  {s.status === "Pending" && (
-                    <div className="pl-9 flex items-center gap-3">
-                      {remindFeedback[s.id] ? (
-                        <span className={`text-xs font-medium ${
-                          remindFeedback[s.id].startsWith("✓") ? "text-green-600" : "text-red-600"
-                        }`}>
-                          {remindFeedback[s.id]}
-                        </span>
-                      ) : (
-                        <button
-                          id={`remind-${s.id}`}
-                          onClick={() => handleRemind(s.id)}
-                          disabled={remindingId === s.id}
-                          className="flex items-center gap-1.5 text-xs text-amber-600 hover:text-amber-800 transition-colors disabled:opacity-50"
-                        >
-                          {remindingId === s.id
-                            ? <Loader2 className="w-3 h-3 animate-spin" />
-                            : <Bell className="w-3 h-3" />
-                          }
-                          {remindingId === s.id ? "Sending…" : "Send Reminder"}
-                        </button>
-                      )}
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
@@ -412,7 +387,15 @@ function DetailPanel({
               </Button>
               <Button
                 className="flex-1 cursor-pointer"
-                onClick={() => setShowSignModal(true)}
+                onClick={async () => {
+                  setError("");
+                  const res = await getMySignature();
+                  if (!res.success || !res.signatureData) {
+                    setError("You need to have saved your signature before you start approving.");
+                    return;
+                  }
+                  setShowSignModal(true);
+                }}
                 disabled={isPendingSig || isPendingDec}
               >
                 <Pen className="w-4 h-4 mr-2" /> Sign & Approve
@@ -490,42 +473,17 @@ function DetailPanel({
               </button>
             </div>
 
-            <div className="flex gap-4 border-b border-gray-200 mb-6">
-              {(["token", "draw"] as const).map((m) => (
-                <button
-                  key={m}
-                  className={`pb-3 font-medium text-sm transition-colors relative ${signMethod === m ? "text-primary" : "text-gray-500"}`}
-                  onClick={() => setSignMethod(m)}
-                >
-                  {m === "token" ? "Use Token" : "Draw Fresh"}
-                  {signMethod === m && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-md" />}
-                </button>
-              ))}
-            </div>
-
             <div className="flex-1 mb-6">
-              {signMethod === "token" ? (
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-500">Enter your 8-character secure signature token.</p>
-                  <Input
-                    value={signatureToken}
-                    onChange={(e) => setSignatureToken(e.target.value)}
-                    maxLength={8}
-                    placeholder="e.g. 1a2b3c4d"
-                    className="text-center tracking-widest font-mono text-lg h-12"
-                  />
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-500">Draw your signature smoothly below.</p>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 overflow-hidden">
-                    <SignatureCanvas ref={sigPad} canvasProps={{ className: "w-full h-[250px]" }} penColor="#171717" />
-                  </div>
-                  <div className="flex justify-end">
-                    <Button variant="ghost" size="sm" onClick={() => sigPad.current?.clear()}>Clear Canvas</Button>
-                  </div>
-                </div>
-              )}
+              <div className="space-y-4">
+                <p className="text-sm text-gray-500">Enter your 8-character secure signature token.</p>
+                <Input
+                  value={signatureToken}
+                  onChange={(e) => setSignatureToken(e.target.value)}
+                  maxLength={8}
+                  placeholder="e.g. 1a2b3c4d"
+                  className="text-center tracking-widest font-mono text-lg h-12"
+                />
+              </div>
               {error && <p className="text-red-500 text-sm mt-4">{error}</p>}
             </div>
 
@@ -553,22 +511,26 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
   // Always derive selected item from live queue so the panel reflects updates
   const selected = selectedId ? queue.find((q) => q.id === selectedId) ?? null : null;
 
-  // Poll the queue every 15 seconds
-  const fetchQueue = useCallback(async () => {
+  const { 
+    data: fetchedQueue, 
+    lastUpdated, 
+    isFetching, 
+    timeAgoStr, 
+    forceRefresh 
+  } = useSmartFetch<QueueItem[]>(async () => {
     const data = await getMyQueue();
-    if (data) setQueue(data as QueueItem[]);
+    return data as QueueItem[];
   }, []);
 
   useEffect(() => {
-    const timer = setInterval(fetchQueue, 15_000);
-    return () => clearInterval(timer);
-  }, [fetchQueue]);
+    if (fetchedQueue) setQueue(fetchedQueue);
+  }, [fetchedQueue]);
 
   // After sign/decline, close panel and immediately refresh
   const removeFromQueue = useCallback(async (_id: string) => {
     setSelectedId(null);
-    await fetchQueue();
-  }, [fetchQueue]);
+    await forceRefresh();
+  }, [forceRefresh]);
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -578,8 +540,18 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
           <p className="text-gray-500">Items pending your review and signature.</p>
         </div>
         <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
+            {isFetching ? (
+              <><Loader2 className="w-3 h-3 animate-spin"/> Fetching updates…</>
+            ) : (
+              `Last updated: ${timeAgoStr}`
+            )}
+            <button onClick={forceRefresh} className="p-1 hover:bg-gray-200 rounded-full transition-colors ml-1" title="Refresh">
+              <RefreshCw className="w-3 h-3" />
+            </button>
+          </div>
           {queue.length > 0 && (
-            <span className="text-sm font-semibold bg-amber-100 text-amber-700 px-3 py-1 rounded-full">
+            <span className="text-sm font-semibold bg-amber-100 text-amber-700 px-3 py-1 rounded-full hidden sm:inline-block">
               {queue.length} pending
             </span>
           )}

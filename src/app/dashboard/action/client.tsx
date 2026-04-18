@@ -4,8 +4,10 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileDown, ChevronRight, CheckSquare, X, User, RefreshCw, AlertTriangle } from "lucide-react";
+import { FileDown, ChevronRight, CheckSquare, X, User, RefreshCw, AlertTriangle, Loader2 } from "lucide-react";
 import { assignToSelf, completeProcessWithApprover, searchActiveWorkflowUsers, regeneratePdf } from "@/app/actions/workflow";
+import { getActionItems } from "@/app/actions/form";
+import { useSmartFetch } from "@/hooks/useSmartFetch";
 
 type ActionItem = {
   id: string;
@@ -23,13 +25,27 @@ type ActionItem = {
 };
 
 export default function ActionClient({ items }: { items: ActionItem[] }) {
-  const [localItems, setLocalItems] = useState<ActionItem[]>(items);
   const [selected, setSelected] = useState<ActionItem | null>(null);
+
+  const {
+    data: fetchedItems,
+    lastUpdated,
+    isFetching,
+    timeAgoStr,
+    forceRefresh
+  } = useSmartFetch<ActionItem[]>(async () => {
+    const data = await getActionItems();
+    return data as ActionItem[];
+  }, []);
+
+  const localItems = fetchedItems || items;
 
   // Sync a status change across both the list and the detail view
   const updateItemStatus = (id: string, newStatus: string) => {
-    setLocalItems(prev => prev.map(i => i.id === id ? { ...i, status: newStatus } : i));
+    // Relying on native revalidation/fetch rather than tight local mutating,
+    // but we update the selected manually to show immediate visual feedback
     setSelected(prev => prev?.id === id ? { ...prev, status: newStatus } : prev);
+    forceRefresh(); // Trigger a background refresh to resync
   };
 
   const [showStatusModal, setShowStatusModal] = useState(false);
@@ -101,8 +117,6 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
       const isNoneFinal = selectedApprover?._none;
       const newStatus = isNoneFinal ? "Completed" : "Awaiting Final Approval";
       updateItemStatus(selected!.id, newStatus);
-      // Item leaves the Action Center list in both cases
-      setLocalItems(prev => prev.filter(i => i.id !== selected!.id));
       setSelected(null);
       setShowStatusModal(false);
       setStatusMode("");
@@ -114,9 +128,23 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
 
   return (
     <div className="space-y-6 max-w-6xl print:space-y-0">
-      <div className="print:hidden">
-        <h2 className="text-2xl font-bold tracking-tight">Action Center</h2>
-        <p className="text-gray-500">Treat approved and signed forms. View submitted responses and generate documents.</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 print:hidden">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight">Action Center</h2>
+          <p className="text-gray-500">Treat approved and signed forms. View submitted responses and generate documents.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
+            {isFetching ? (
+              <><Loader2 className="w-3 h-3 animate-spin"/> Fetching updates…</>
+            ) : (
+              `Last updated: ${timeAgoStr}`
+            )}
+            <button onClick={forceRefresh} className="p-1 hover:bg-gray-200 rounded-full transition-colors ml-1" title="Refresh">
+              <RefreshCw className="w-3 h-3" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {!selected ? (

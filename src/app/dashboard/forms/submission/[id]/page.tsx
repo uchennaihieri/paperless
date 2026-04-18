@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, FileText } from "lucide-react";
 import { AttachmentLink } from "./attachment-link";
 import { RegeneratePdfButton } from "./regenerate-button";
+import { RemindButton } from "./remind-button";
 
 function statusVariant(status: string) {
   switch (status) {
@@ -24,6 +25,7 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
 
   const responses = submission.formResponses as Record<string, any>;
   const signatories = submission.signatories;
+  const submitterEmail = (submission as any).submittedBy?.finca_email ?? null;
 
   const completedPdfArr = responses["CompletedFormPDF"];
   // Remove it from the general display loop so it isn't shown generically
@@ -128,11 +130,17 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
                 <p className="text-sm font-medium text-gray-900">{s.userName}</p>
                 <p className="text-xs text-gray-400">{s.email}</p>
               </div>
-              <Badge variant={
-                s.status === "Signed" ? "success" :
-                s.status === "Declined" ? "destructive" : "secondary"
-              }>{s.status}</Badge>
-              {s.signedAt && <span className="text-xs text-gray-400">{new Date(s.signedAt).toLocaleDateString()}</span>}
+              <div className="flex items-center gap-3 shrink-0">
+                <Badge variant={
+                  s.status === "Signed" ? "success" :
+                  s.status === "Declined" ? "destructive" : "secondary"
+                }>{s.status}</Badge>
+                {s.signedAt && <span className="text-xs text-gray-400">{new Date(s.signedAt).toLocaleDateString()}</span>}
+                {/* Show Send Reminder only when signatory is pending AND is not the submitter themselves */}
+                {s.status === "Pending" && s.email !== submitterEmail && (
+                  <RemindButton submissionId={submission.id} signatoryId={s.id} />
+                )}
+              </div>
             </div>
           ))}
         </div>
