@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { apiClient } from "@/lib/apiClient";
-import TemplateDesigner from "./TemplateDesigner";
+import ClientTemplateDesigner from "./ClientTemplateDesigner";
 
 export default async function TemplateDesignerPage({
   params
@@ -32,7 +32,7 @@ export default async function TemplateDesignerPage({
 
   return (
     <Suspense fallback={<div className="animate-pulse bg-gray-50 flex-1 p-6 rounded-xl min-h-[500px]">Loading Designer Engine...</div>}>
-       <TemplateDesigner templateId={id} initialData={initialData} />
+       <ClientTemplateDesigner templateId={id} initialData={initialData} />
     </Suspense>
   );
 }

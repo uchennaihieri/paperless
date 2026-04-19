@@ -208,9 +208,9 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                   </Button>
                 )}
                 {selected?.formResponses?.["CompletedFormPDF"]?.[0]?.url && (
-                  <a href={selected.formResponses["CompletedFormPDF"][0].url} download>
+                  <a href={selected.formResponses["CompletedFormPDF"][0].url} target="_blank" rel="noopener noreferrer">
                     <Button size="sm" className="cursor-pointer">
-                      <FileDown className="w-4 h-4 mr-2" /> Download PDF
+                      <FileDown className="w-4 h-4 mr-2" /> Open PDF
                     </Button>
                   </a>
                 )}
@@ -223,50 +223,8 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
             </div>
           </div>
 
-          <div className="bg-white border shadow-xl max-w-[800px] p-4 sm:p-8 md:p-12 mx-auto font-sans text-sm relative print:shadow-none print:border-none print:m-0 print:p-0">
-            
-            {/* Logo */}
-            <div className="flex flex-col sm:flex-row justify-between items-start mb-10 gap-6">
-              <div className="flex items-center gap-2 text-[#B50938] font-bold text-2xl order-2 sm:order-1">
-                <div className="h-10 w-10 bg-[#B50938] rounded-full flex items-center justify-center text-white text-xl shrink-0">F</div>
-                <span>FINCA</span>
-              </div>
-              <div className="text-left sm:text-right order-1 sm:order-2">
-                <h1 className="text-xl font-bold text-gray-900 uppercase tracking-tight">{selected.template.name}</h1>
-                <p className="text-xs text-gray-500 mt-1">Ref: {selected.id.toUpperCase()}</p>
-              </div>
-            </div>
 
-            {/* Form Info */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-8 mb-8">
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Submitted By</h3>
-                  <p className="font-medium text-gray-900">{selected.submittedBy?.user_name}</p>
-                  <p className="text-xs text-gray-500">{selected.submittedBy?.branch}</p>
-                </div>
-                <div>
-                  <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Date Submitted</h3>
-                  <p className="font-medium text-gray-900">{new Date(selected.createdAt).toLocaleString()}</p>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Form Treater</h3>
-                  <p className="font-medium text-gray-900">{selected.template.formTreater}</p>
-                </div>
-                <div>
-                  <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Status</h3>
-                  <Badge variant={
-                    selected.status === "Filed" ? "secondary" :
-                    selected.status === "Processing" ? "warning" :
-                    selected.status.startsWith("Assigned") ? "default" : "success"
-                  }>
-                    {selected.status}
-                  </Badge>
-                </div>
-              </div>
-            </div>
+          <div className="max-w-[800px] mx-auto space-y-6">
 
             {/* Table */}
             <div className="mb-10">
@@ -278,66 +236,63 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                   {Object.entries(selected.formResponses).filter(([k]) => k !== "CompletedFormPDF").map(([key, val], i) => (
                     <div key={i} className="flex px-4 py-3 text-xs flex-col sm:flex-row gap-2 sm:gap-0">
                       <div className="w-full sm:w-1/2 font-semibold text-gray-700">{key}</div>
-                      <div className="w-full sm:w-1/2 text-gray-600 break-words">
-                         {Array.isArray(val) && val.length > 0 && val[0]?.isAttachment 
-                            ? val.map((v, i) => <div key={i} className="text-primary underline">{v.name}</div>)
-                            : String(val)}
-                      </div>
+                       <div className="w-full sm:w-1/2 text-gray-600 break-words">
+                          {Array.isArray(val) && val.length > 0 && val[0]?.isAttachment 
+                             ? val.map((v: any, i: number) => (
+                                 <a
+                                   key={i}
+                                   href={v.url}
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   className="flex items-center gap-1.5 text-[#b50938] underline hover:text-[#9a0730] transition-colors mb-1"
+                                 >
+                                   <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                                   </svg>
+                                   {v.name}
+                                 </a>
+                               ))
+                             : String(val)}
+                       </div>
                     </div>
                   ))}
                </div>
             </div>
 
-            {/* Generated Form Output */}
+            {/* Generated PDF */}
             {selected.formResponses["CompletedFormPDF"] && selected.formResponses["CompletedFormPDF"].length > 0 && (
                <div className="mb-10">
                  <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Completed Generated Document</h3>
-                 <div className="border border-gray-200 rounded-lg overflow-hidden flex flex-col bg-gray-50 p-2 shadow-sm">
-                   <div className="flex justify-between items-center px-2 pb-2">
-                      <span className="text-xs font-semibold text-gray-800 flex items-center gap-2">
-                        <FileDown className="w-4 h-4 text-red-500" />
-                        {selected.formResponses["CompletedFormPDF"][0].name}
-                      </span>
-                      <a href={selected.formResponses["CompletedFormPDF"][0].url} download className="text-xs bg-gray-900 text-white px-3 py-1 rounded">Download</a>
+                 <div className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">
+                   <div className="flex items-center gap-3">
+                     <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                       <FileDown className="w-5 h-5 text-[#b50938]" />
+                     </div>
+                     <div>
+                       <p className="text-sm font-semibold text-gray-800">{selected.formResponses["CompletedFormPDF"][0].name}</p>
+                       <p className="text-xs text-gray-400 mt-0.5">Generated PDF document</p>
+                     </div>
                    </div>
-                   <iframe 
-                     src={selected.formResponses["CompletedFormPDF"][0].url} 
-                     className="w-full h-[650px] border border-gray-200 rounded-md bg-white"
-                     title="Generated Document"
-                   />
+                   <div className="flex items-center gap-2">
+                     <a
+                       href={selected.formResponses["CompletedFormPDF"][0].url}
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       className="flex items-center gap-1.5 px-4 py-2 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors shadow-sm"
+                     >
+                       <FileDown className="w-3.5 h-3.5" /> Open PDF
+                     </a>
+                     <a
+                       href={selected.formResponses["CompletedFormPDF"][0].url}
+                       download
+                       className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors shadow-sm"
+                     >
+                       Download
+                     </a>
+                   </div>
                  </div>
                </div>
             )}
-
-            {/* Signatures */}
-            <div>
-               <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Digitally Signed By</h3>
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-6 sm:gap-y-8">
-                  {selected.signatories.map((sig, i) => (
-                    <div key={i} className="border-b border-gray-100 pb-2">
-                      <div className="flex justify-between items-end mb-1">
-                        <span className="text-xs font-bold text-gray-900">{sig.userName}</span>
-                        <span className="text-[8px] text-gray-400">{new Date(sig.signedAt).toLocaleDateString()}</span>
-                      </div>
-                      <div className="text-[10px] text-gray-500 mb-2">{sig.email}</div>
-                      <div className="h-8 flex items-center">
-                         <span className="font-signature text-xl text-[#B50938] opacity-60">~{sig.userName.split(' ')[0]}</span>
-                      </div>
-                    </div>
-                  ))}
-               </div>
-            </div>
-
-            {/* QR Seal Mockup */}
-            <div className="absolute bottom-12 right-12 opacity-10">
-               <div className="w-16 h-16 border-4 border-gray-900 flex items-center justify-center p-1">
-                  <div className="grid grid-cols-3 grid-rows-3 gap-0.5 w-full h-full">
-                     {[...Array(9)].map((_, i) => (
-                       <div key={i} className={`bg-gray-900 ${i % 3 === 0 ? 'opacity-100' : 'opacity-40'}`}></div>
-                     ))}
-                  </div>
-               </div>
-            </div>
 
           </div>
         </div>

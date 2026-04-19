@@ -39,35 +39,45 @@ export default function FormBuilderClient({
   const [formOwner, setFormOwner] = useState(initialTemplate?.formOwner || "");
   const [formTreater, setFormTreater] = useState(initialTemplate?.formTreater || "");
   const [pdfTemplateId, setPdfTemplateId] = useState(initialTemplate?.pdfTemplateId || "");
+  const [pdfType, setPdfType] = useState<"document" | "html" | "">(initialTemplate?.pdfTemplateId ? "" : "");
   const [pdfFields, setPdfFields] = useState<any[]>([]);
+  const [filteredTemplates, setFilteredTemplates] = useState<any[]>(availableTemplates);
   const [fields, setFields] = useState<Field[]>(initialTemplate?.fields || [
     { id: "f1", label: "", type: "text", required: true, description: "", mappedPdfField: "" },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  // Fetch fields corresponding to the selected PDF template
+  // Fetch templates filtered by type whenever pdfType changes
   useEffect(() => {
-    if (pdfTemplateId) {
-       // Check if fields were already fed from initialTemplate if editing
-       if (initialTemplate?.pdfTemplateId === pdfTemplateId && initialTemplate?.pdfFields) {
-           setPdfFields(initialTemplate.pdfFields);
-       } else {
-           fetch(`/api/v1/templates/${pdfTemplateId}`)
-             .then(res => res.json())
-             .then(data => {
-                if (data.success && data.data?.fields) {
-                   setPdfFields(data.data.fields);
-                } else {
-                   setPdfFields([]);
-                }
-             })
-             .catch(() => setPdfFields([]));
-       }
-    } else {
-      setPdfFields([]);
+    setPdfTemplateId("");
+    setPdfFields([]);
+    if (!pdfType) {
+      setFilteredTemplates(availableTemplates);
+      return;
     }
+    fetch(`/api/v1/templates?type=${pdfType}`)
+      .then(r => r.json())
+      .then(data => setFilteredTemplates(Array.isArray(data.data) ? data.data : []))
+      .catch(() => setFilteredTemplates([]));
+  }, [pdfType]);
+
+  // Fetch template fields when template selection changes
+  useEffect(() => {
+    if (!pdfTemplateId) { setPdfFields([]); return; }
+    if (initialTemplate?.pdfTemplateId === pdfTemplateId && initialTemplate?.pdfFields) {
+      setPdfFields(initialTemplate.pdfFields);
+      return;
+    }
+    fetch(`/api/v1/templates/${pdfTemplateId}`)
+      .then(r => r.json())
+      .then(data => setPdfFields(data.success && data.data?.fields ? data.data.fields : []))
+      .catch(() => setPdfFields([]));
   }, [pdfTemplateId, initialTemplate]);
+
+  // Split by mappingPath: null = needs Form Builder pairing; non-null = auto-populated
+  const unmappedPdfFields = pdfFields.filter((pf: any) => pf.mappingPath === null || pf.mappingPath === undefined);
+  const autoMappedPdfFields = pdfFields.filter((pf: any) => pf.mappingPath && pf.mappingPath !== "FormInput");
 
   if (!isAdmin) {
     return (
@@ -213,50 +223,113 @@ export default function FormBuilderClient({
               </div>
 
               {/* PDF Template Configuration */}
-              <div className="md:col-span-2 space-y-3 bg-gray-50 border border-gray-100 rounded-lg p-5 mt-2">
-                <div className="space-y-1">
-                  <Label htmlFor="form-pdf-template" className="font-semibold text-gray-800">
-                    PDF Generator Template
-                  </Label>
-                  <p className="text-xs text-gray-500 pb-2">Select a predefined PDF template layout to automatically map answers submitted for this form.</p>
-                  <select
-                    id="form-pdf-template"
-                    value={pdfTemplateId}
-                    onChange={(e) => setPdfTemplateId(e.target.value)}
-                    className={SELECT_CLASS}
+              <div className="md:col-span-2 space-y-4 bg-gray-50 border border-gray-100 rounded-lg p-5 mt-2">
+                <Label className="font-semibold text-gray-800">PDF Generator Template</Label>
+                <p className="text-xs text-gray-500">Select a predefined PDF template to automatically generate a document when this form is fully signed.</p>
+
+                {/* Step 1 – Type selector */}
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPdfType("")}
+                    className={`py-2 px-3 rounded-lg border text-xs font-medium transition-colors ${
+                      pdfType === "" ? "border-gray-900 bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-600 hover:border-gray-400"
+                    }`}
                   >
-                    <option value="">— No PDF Integration —</option>
-                    {availableTemplates.map((tpl) => (
-                      <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
-                    ))}
-                  </select>
+                    No PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPdfType("document")}
+                    className={`py-2 px-3 rounded-lg border text-xs font-medium transition-colors ${
+                      pdfType === "document" ? "border-primary bg-primary text-white" : "border-gray-200 bg-white text-gray-600 hover:border-gray-400"
+                    }`}
+                  >
+                    📄 Document PDF
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPdfType("html")}
+                    className={`py-2 px-3 rounded-lg border text-xs font-medium transition-colors ${
+                      pdfType === "html" ? "border-purple-600 bg-purple-600 text-white" : "border-gray-200 bg-white text-gray-600 hover:border-gray-400"
+                    }`}
+                  >
+                    {'</>'} HTML PDF
+                  </button>
                 </div>
 
+                {/* Step 2 – Template dropdown (only when type is selected) */}
+                {pdfType && (
+                  <div className="space-y-1">
+                    <Label htmlFor="form-pdf-template" className="text-xs font-semibold text-gray-700">
+                      Select {pdfType === "html" ? "HTML" : "Document"} Template
+                    </Label>
+                    <select
+                      id="form-pdf-template"
+                      value={pdfTemplateId}
+                      onChange={(e) => setPdfTemplateId(e.target.value)}
+                      className={SELECT_CLASS}
+                    >
+                      <option value="">— Select template —</option>
+                      {filteredTemplates.map((tpl: any) => (
+                        <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+                      ))}
+                    </select>
+                    {filteredTemplates.length === 0 && (
+                      <p className="text-xs text-amber-600 mt-1">No {pdfType} templates found. <a href="/dashboard/templates/new" className="underline">Create one first.</a></p>
+                    )}
+                  </div>
+                )}
+
                 {pdfTemplateId && pdfFields.length > 0 && (
-                  <div className="pt-3 border-t border-gray-200">
-                    <Label className="text-xs font-semibold text-gray-600 block mb-2">Required Template Mappings</Label>
-                    <div className="flex flex-wrap gap-2">
-                      {pdfFields.map(pf => {
-                        const isPaired = fields.some(f => f.mappedPdfField === pf.name);
-                        return (
-                          <div 
-                            key={pf.id} 
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border shadow-sm transition-colors ${
-                              isPaired 
-                                ? 'bg-green-50 text-green-700 border-green-200' 
-                                : 'bg-red-50 text-red-700 border-red-200'
-                            }`}
-                          >
-                             {isPaired ? <CheckCircle className="w-3 h-3 text-green-500" /> : <XCircle className="w-3 h-3 text-red-500" />}
-                             {pf.name}
-                          </div>
-                        );
-                      })}
-                    </div>
-                    {pdfFields.every(pf => fields.some(f => f.mappedPdfField === pf.name)) ? (
-                      <p className="text-xs text-green-600 font-medium mt-2">All PDF fields have been successfully paired! 🎉</p>
+                  <div className="pt-3 border-t border-gray-200 space-y-4">
+
+                    {/* Auto-populated fields — green info badges, no pairing needed */}
+                    {autoMappedPdfFields.length > 0 && (
+                      <div>
+                        <Label className="text-xs font-semibold text-gray-600 block mb-2">Auto-populated Variables</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {autoMappedPdfFields.map((pf: any) => (
+                            <div key={pf.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                              <CheckCircle className="w-3 h-3 text-green-500" />
+                              <code className="font-mono">{`{{${pf.name}}}`}</code>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-xs text-green-600 mt-1.5">These are filled automatically — no pairing needed.</p>
+                      </div>
+                    )}
+
+                    {/* Unmapped fields — need Form Builder pairing */}
+                    {unmappedPdfFields.length > 0 ? (
+                      <div>
+                        <Label className="text-xs font-semibold text-gray-600 block mb-2">Required Mappings</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {unmappedPdfFields.map((pf: any) => {
+                            const isPaired = fields.some(f => f.mappedPdfField === pf.name);
+                            return (
+                              <div
+                                key={pf.id}
+                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border shadow-sm transition-colors ${
+                                  isPaired ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+                                }`}
+                              >
+                                {isPaired ? <CheckCircle className="w-3 h-3 text-green-500" /> : <XCircle className="w-3 h-3 text-red-500" />}
+                                {pf.name}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {unmappedPdfFields.every((pf: any) => fields.some(f => f.mappedPdfField === pf.name)) ? (
+                          <p className="text-xs text-green-600 font-medium mt-2">All fields paired! 🎉</p>
+                        ) : (
+                          <p className="text-xs text-red-500 mt-2">Pair every red field with a form input below using the &quot;Assign to PDF Template Field&quot; selector.</p>
+                        )}
+                      </div>
                     ) : (
-                      <p className="text-xs text-red-500 mt-2">Please ensure you pair every red template field with a form input below to guarantee generation logic.</p>
+                      pdfFields.length > 0 && autoMappedPdfFields.length === pdfFields.length && (
+                        <p className="text-xs text-green-600 font-medium">All template variables are auto-populated. No form pairing needed. 🎉</p>
+                      )
                     )}
                   </div>
                 )}
@@ -298,7 +371,7 @@ export default function FormBuilderClient({
                         </select>
                       </div>
                       
-                      {pdfTemplateId && pdfFields?.length > 0 && (
+                      {pdfTemplateId && unmappedPdfFields.length > 0 && (
                         <div className="md:col-span-2 space-y-1.5 bg-blue-50/50 p-3 rounded-md border border-blue-100">
                           <Label className="text-xs font-semibold text-blue-800">Assign to PDF Template Field</Label>
                           <select
@@ -307,7 +380,7 @@ export default function FormBuilderClient({
                             className={SELECT_CLASS}
                           >
                             <option value="">— Do not map —</option>
-                            {pdfFields.map(pf => (
+                            {unmappedPdfFields.map((pf: any) => (
                               <option key={pf.id} value={pf.name}>{pf.name} ({pf.type})</option>
                             ))}
                           </select>
