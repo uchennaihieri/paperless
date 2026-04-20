@@ -120,6 +120,12 @@ function DetailPanel({
   const [showDeclineModal, setShowDeclineModal]  = useState(false);
   const [declineReason, setDeclineReason]        = useState("");
 
+  // Final approver modals
+  const [showApproverTokenModal, setShowApproverTokenModal]   = useState(false);
+  const [approverToken, setApproverToken]                     = useState("");
+  const [approverTokenError, setApproverTokenError]           = useState("");
+  const [showFinalDeclineConfirm, setShowFinalDeclineConfirm] = useState(false);
+
   // Remind state: track which signatoryId is being reminded
   const [remindingId, setRemindingId]            = useState<string | null>(null);
   const [remindFeedback, setRemindFeedback]      = useState<Record<string, string>>({}); // signatoryId → "sent" | error
@@ -371,24 +377,17 @@ function DetailPanel({
                 <Button
                   variant="outline"
                   className="flex-1 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 cursor-pointer"
-                  disabled={isPendingApp}
-                  onClick={() => setShowDeclineModal(true)}
+                  disabled={isPendingApp || isPendingDec}
+                  onClick={() => setShowFinalDeclineConfirm(true)}
                 >
                   <XCircle className="w-4 h-4 mr-2" /> Decline
                 </Button>
                 <Button
                   className="flex-1 cursor-pointer bg-green-600 hover:bg-green-700 text-white"
-                  disabled={isPendingApp}
-                  onClick={() => {
-                    startApproveTransition(async () => {
-                      const res = await approveSubmission(item.id);
-                      if (res.success) onSigned(item.id);
-                      else setError(res.error || "Failed to approve.");
-                    });
-                  }}
+                  disabled={isPendingApp || isPendingDec}
+                  onClick={() => { setApproverToken(""); setApproverTokenError(""); setShowApproverTokenModal(true); }}
                 >
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                  {isPendingApp ? "Approving…" : "Approve & Complete"}
+                  <CheckCircle2 className="w-4 h-4 mr-2" /> Approve &amp; Complete
                 </Button>
               </div>
             </div>
@@ -421,8 +420,8 @@ function DetailPanel({
           )}
         </div>
 
-        {/* ── Decline Reason Modal ── */}
-        {showDeclineModal && (
+        {/* ── Decline Reason Modal (regular signatories only) ── */}
+        {showDeclineModal && item.status !== "Awaiting Final Approval" && (
           <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
               <div className="p-6 space-y-4">
@@ -473,6 +472,110 @@ function DetailPanel({
                       ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Declining…</>
                       : "Confirm Decline"
                     }
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Final Approver: Token Modal (Approve) ── */}
+        {showApproverTokenModal && (
+          <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+              <div className="p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-green-100">
+                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900">Approve &amp; Complete</h3>
+                    <p className="text-xs text-gray-400">{item.formName} · {item.reference || item.id.slice(-8).toUpperCase()}</p>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Enter your 8-character signature token to confirm your approval.
+                </p>
+                <Input
+                  autoFocus
+                  type="password"
+                  maxLength={8}
+                  value={approverToken}
+                  onChange={(e) => { setApproverToken(e.target.value); setApproverTokenError(""); }}
+                  placeholder="e.g. 1a2b3c4d"
+                  className="text-center tracking-widest font-mono text-lg h-12"
+                />
+                {approverTokenError && (
+                  <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">
+                    <AlertTriangle className="w-4 h-4 shrink-0" /> {approverTokenError}
+                  </div>
+                )}
+                {error && (
+                  <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">
+                    <AlertTriangle className="w-4 h-4 shrink-0" /> {error}
+                  </div>
+                )}
+                <div className="flex gap-3 pt-1">
+                  <Button variant="outline" className="flex-1" onClick={() => { setShowApproverTokenModal(false); setApproverTokenError(""); }} disabled={isPendingApp}>
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                    disabled={approverToken.length !== 8 || isPendingApp}
+                    onClick={() => {
+                      startApproveTransition(async () => {
+                        const res = await approveSubmission(item.id, approverToken);
+                        if (res.success) { setShowApproverTokenModal(false); onSigned(item.id); onClose(); }
+                        else { setApproverTokenError(res.error || "Failed to approve."); }
+                      });
+                    }}
+                  >
+                    {isPendingApp ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Approving…</> : "Confirm Approval"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Final Approver: Simple Decline Confirmation ── */}
+        {showFinalDeclineConfirm && (
+          <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+              <div className="p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-red-100">
+                    <XCircle className="w-5 h-5 text-red-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900">Decline Approval</h3>
+                    <p className="text-xs text-gray-400">{item.formName} · {item.reference || item.id.slice(-8).toUpperCase()}</p>
+                  </div>
+                </div>
+                <p className="text-sm text-gray-600">
+                  Are you sure you want to decline this form? It will be returned to <strong>Processing</strong> status.
+                </p>
+                {error && (
+                  <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">
+                    <AlertTriangle className="w-4 h-4 shrink-0" /> {error}
+                  </div>
+                )}
+                <div className="flex gap-3 pt-1">
+                  <Button variant="outline" className="flex-1" onClick={() => setShowFinalDeclineConfirm(false)} disabled={isPendingDec}>
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                    disabled={isPendingDec}
+                    onClick={() => {
+                      startDeclineTransition(async () => {
+                        const res = await declineFinalApproval(item.id);
+                        if (res.success) { setShowFinalDeclineConfirm(false); onDeclined(item.id); onClose(); }
+                        else { setError(res.error ?? "Failed to decline."); }
+                      });
+                    }}
+                  >
+                    {isPendingDec ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Declining…</> : "Yes, Decline"}
                   </Button>
                 </div>
               </div>

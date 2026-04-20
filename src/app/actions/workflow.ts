@@ -18,11 +18,11 @@ export async function assignToSelf(submissionId: string) {
   }
 }
 
-export async function completeProcessWithApprover(submissionId: string, approverEmail?: string, approverName?: string) {
+export async function completeProcessWithApprover(submissionId: string, approverEmail?: string, approverName?: string, signatureToken?: string) {
   try {
     const result = await apiClient(`/workflow/${submissionId}/complete`, {
       method: "POST",
-      body: JSON.stringify({ approverEmail, approverName })
+      body: JSON.stringify({ approverEmail, approverName, signatureToken })
     });
     revalidatePath("/dashboard/action");
     revalidatePath("/dashboard/workflow");
@@ -32,9 +32,12 @@ export async function completeProcessWithApprover(submissionId: string, approver
   }
 }
 
-export async function approveSubmission(submissionId: string) {
+export async function approveSubmission(submissionId: string, signatureToken: string) {
   try {
-    const result = await apiClient(`/workflow/${submissionId}/approve`, { method: "POST" });
+    const result = await apiClient(`/workflow/${submissionId}/approve`, {
+      method: "POST",
+      body: JSON.stringify({ signatureToken }),
+    });
     revalidatePath("/dashboard/workflow");
     return result;
   } catch (e: any) {

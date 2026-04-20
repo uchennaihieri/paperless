@@ -56,6 +56,9 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
   const [isChanging, setIsChanging] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regenError, setRegenError] = useState("");
+  const [showTreaterTokenModal, setShowTreaterTokenModal] = useState(false);
+  const [treaterToken, setTreaterToken] = useState("");
+  const [treaterTokenError, setTreaterTokenError] = useState("");
 
   const handleRegenerate = async (id: string) => {
     setIsRegenerating(true);
@@ -106,24 +109,35 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
     }
   };
 
-  const handleCompleteProcess = async () => {
+  const handleCompleteProcess = async (signatureToken?: string) => {
     setIsChanging(true);
     const isNone = selectedApprover?._none;
     const email = isNone ? undefined : selectedApprover?.finca_email;
-    const name = isNone ? undefined : selectedApprover?.user_name;
-    const res = await completeProcessWithApprover(selected!.id, email, name);
+    const name  = isNone ? undefined : selectedApprover?.user_name;
+    const res = await completeProcessWithApprover(selected!.id, email, name, signatureToken);
     setIsChanging(false);
     if (res.success) {
-      const isNoneFinal = selectedApprover?._none;
-      const newStatus = isNoneFinal ? "Completed" : "Awaiting Final Approval";
+      const newStatus = isNone ? "Completed" : "Awaiting Final Approval";
       updateItemStatus(selected!.id, newStatus);
       setSelected(null);
       setShowStatusModal(false);
+      setShowTreaterTokenModal(false);
       setStatusMode("");
       setSelectedApprover(null);
       setSearchResults([]);
       setSearchQuery("");
+      setTreaterToken("");
+      setTreaterTokenError("");
+    } else {
+      setTreaterTokenError(res.error || "Failed. Please check your token.");
     }
+  };
+
+  const handleConfirmAndSubmit = () => {
+    // Token always required — open the modal regardless of approver selection
+    setTreaterToken("");
+    setTreaterTokenError("");
+    setShowTreaterTokenModal(true);
   };
 
   return (
@@ -395,12 +409,60 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                   <Button
                     className="w-full cursor-pointer"
                     disabled={!selectedApprover || isChanging}
-                    onClick={handleCompleteProcess}
+                    onClick={handleConfirmAndSubmit}
                   >
                     {isChanging ? "Saving..." : "Confirm & Submit"}
                   </Button>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Treater Signature Token Modal */}
+      {showTreaterTokenModal && selected && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="p-6 space-y-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-full bg-green-100">
+                  <CheckSquare className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900">Sign &amp; Confirm</h3>
+                  <p className="text-xs text-gray-400">{selected.formName} · {selected.reference || selected.id.slice(-8).toUpperCase()}</p>
+                </div>
+              </div>
+              <p className="text-sm text-gray-600">
+                Enter your 8-character signature token to confirm this action.
+              </p>
+              <input
+                autoFocus
+                type="password"
+                maxLength={8}
+                value={treaterToken}
+                onChange={(e) => { setTreaterToken(e.target.value); setTreaterTokenError(""); }}
+                placeholder="e.g. 1a2b3c4d"
+                className="w-full text-center tracking-widest font-mono text-lg h-12 border border-gray-300 rounded-xl px-3 focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              {treaterTokenError && (
+                <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">
+                  <AlertTriangle className="w-4 h-4 shrink-0" /> {treaterTokenError}
+                </div>
+              )}
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => { setShowTreaterTokenModal(false); setTreaterTokenError(""); }} disabled={isChanging}>
+                  Cancel
+                </Button>
+                <Button
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  disabled={treaterToken.length !== 8 || isChanging}
+                  onClick={() => handleCompleteProcess(treaterToken)}
+                >
+                  {isChanging ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Completing…</> : "Confirm & Complete"}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
