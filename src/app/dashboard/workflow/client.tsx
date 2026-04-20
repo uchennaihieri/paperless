@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   signSubmission, declineSubmission,
-  approveSubmission, remindSignatory, getMyQueue,
+  approveSubmission, declineFinalApproval, remindSignatory, getMyQueue,
 } from "@/app/actions/workflow";
 import { getMySignature } from "@/app/actions/security";
 
@@ -154,9 +154,16 @@ function DetailPanel({
   const handleDeclineConfirm = () => {
     setError("");
     startDeclineTransition(async () => {
-      const res = await declineSubmission(item.id, declineReason);
-      if (res.success) { onDeclined(item.id); onClose(); }
-      else { setError(res.error ?? "Failed to decline."); }
+      // Final approvers don't have a signatory row — use the dedicated endpoint
+      if (item.status === "Awaiting Final Approval") {
+        const res = await declineFinalApproval(item.id);
+        if (res.success) { onDeclined(item.id); onClose(); }
+        else { setError(res.error ?? "Failed to decline."); }
+      } else {
+        const res = await declineSubmission(item.id, declineReason);
+        if (res.success) { onDeclined(item.id); onClose(); }
+        else { setError(res.error ?? "Failed to decline."); }
+      }
     });
   };
 
@@ -360,20 +367,30 @@ function DetailPanel({
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 This document is awaiting your final approval.
               </div>
-              <Button
-                className="w-full cursor-pointer bg-green-600 hover:bg-green-700 text-white"
-                disabled={isPendingApp}
-                onClick={() => {
-                  startApproveTransition(async () => {
-                    const res = await approveSubmission(item.id);
-                    if (res.success) onSigned(item.id);
-                    else setError(res.error || "Failed to approve.");
-                  });
-                }}
-              >
-                <CheckCircle2 className="w-4 h-4 mr-2" />
-                {isPendingApp ? "Approving…" : "Approve & Complete"}
-              </Button>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 cursor-pointer"
+                  disabled={isPendingApp}
+                  onClick={() => setShowDeclineModal(true)}
+                >
+                  <XCircle className="w-4 h-4 mr-2" /> Decline
+                </Button>
+                <Button
+                  className="flex-1 cursor-pointer bg-green-600 hover:bg-green-700 text-white"
+                  disabled={isPendingApp}
+                  onClick={() => {
+                    startApproveTransition(async () => {
+                      const res = await approveSubmission(item.id);
+                      if (res.success) onSigned(item.id);
+                      else setError(res.error || "Failed to approve.");
+                    });
+                  }}
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  {isPendingApp ? "Approving…" : "Approve & Complete"}
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="flex gap-3">

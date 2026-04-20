@@ -42,6 +42,16 @@ export async function approveSubmission(submissionId: string) {
   }
 }
 
+export async function declineFinalApproval(submissionId: string) {
+  try {
+    const result = await apiClient(`/workflow/${submissionId}/decline-final`, { method: "POST" });
+    revalidatePath("/dashboard/workflow");
+    return result;
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
 export async function getMyQueue() {
   const result = await apiClient("/workflow/queue", { method: "GET" }).catch(e => ({ data: [] }));
   return result.data || [];
