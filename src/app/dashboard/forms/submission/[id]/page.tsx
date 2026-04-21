@@ -6,6 +6,7 @@ import { ArrowLeft, FileText, FileDown } from "lucide-react";
 import { AttachmentLink } from "./attachment-link";
 import { RegeneratePdfButton } from "./regenerate-button";
 import { RemindButton } from "./remind-button";
+import { FormResponseCell } from "./form-response-cell";
 
 function statusVariant(status: string) {
   switch (status) {
@@ -64,25 +65,14 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredResponses.map(([q, a], i) => {
-                const isAttachmentArray = Array.isArray(a) && a.every(item => item && item.isAttachment);
-                return (
-                  <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                    <td className="px-4 py-3 font-medium text-gray-700">{q}</td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {isAttachmentArray ? (
-                        <div className="flex flex-col gap-2">
-                          {(a as any[]).map((file, idx) => (
-                            <AttachmentLink key={idx} file={file} />
-                          ))}
-                        </div>
-                      ) : (
-                        String(a) || <span className="italic text-gray-300">—</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+              {filteredResponses.map(([q, a], i) => (
+                <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                  <td className="px-4 py-3 font-medium text-gray-700">{q}</td>
+                  <td className="px-4 py-3 text-gray-600">
+                    <FormResponseCell label={q} value={a} />
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -141,7 +131,7 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
                   s.status === "Signed" ? "success" :
                   s.status === "Declined" ? "destructive" : "secondary"
                 }>{s.status}</Badge>
-                {s.signedAt && <span className="text-xs text-gray-400">{new Date(s.signedAt).toLocaleDateString()}</span>}
+                {s.signedAt && <span className="text-xs text-gray-400">{new Date(s.signedAt).toLocaleString()}</span>}
                 {/* Show Send Reminder only when signatory is pending AND is not the submitter themselves */}
                 {s.status === "Pending" && s.email !== submitterEmail && (
                   <RemindButton submissionId={submission.id} signatoryId={s.id} />

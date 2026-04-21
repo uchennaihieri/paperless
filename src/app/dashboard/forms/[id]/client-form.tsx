@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { isFormReferenceField } from "@/components/FormReferenceLink";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { submitForm, searchUsers, SignatoryInput, SigningType } from "@/app/actions/form";
-import { X, Search, Check, ChevronRight, GitBranch, Layers, Send, UserPlus, ArrowLeft, KeyRound } from "lucide-react";
+import { X, Search, Check, ChevronRight, GitBranch, Layers, Send, UserPlus, ArrowLeft, KeyRound, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -77,36 +79,135 @@ function FormFieldsStep({
   onChange: (id: string, value: any) => void;
   onNext: () => void;
 }) {
+  const { data: session } = useSession();
+  const token = (session?.user as any)?.backendToken ?? "";
+  const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
+
   const fields: Field[] = typeof template.fields === "string"
     ? JSON.parse(template.fields)
     : template.fields ?? [];
 
+  // Form reference auto-fill logic
+  const formReferenceField = fields.find(f => isFormReferenceField(f.label));
+  const referenceValue = formReferenceField ? formData[formReferenceField.id] : undefined;
+
+  const [referenceData, setReferenceData] = useState<Record<string, any> | null>(null);
+  const [loadingReference, setLoadingReference] = useState(false);
+
+  useEffect(() => {
+    if (!formReferenceField || !referenceValue || typeof referenceValue !== "string" || referenceValue.trim().length <= 2) {
+      setReferenceData(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setLoadingReference(true);
+      try {
+        const res = await fetch(`${BASE_URL}/api/v1/submissions/by-reference/${encodeURIComponent(referenceValue.trim())}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success && data.data) {
+          setReferenceData(data.data.formResponses);
+        } else {
+          setReferenceData(null);
+        }
+      } catch (e) {
+        setReferenceData(null);
+      } finally {
+        setLoadingReference(false);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [referenceValue, token, BASE_URL]);
+
+  useEffect(() => {
+    if (referenceData && fields.length > 0) {
+      fields.forEach(field => {
+        if (field.description) {
+          const match = field.description.match(/Referenced\s+"([^"]+)"/i);
+          if (match && match[1]) {
+            const sourceLabel = match[1];
+            const sourceValue = referenceData[sourceLabel];
+            if (sourceValue !== undefined && sourceValue !== null && sourceValue !== "") {
+              if (formData[field.id] !== sourceValue) {
+                onChange(field.id, sourceValue);
+              }
+            }
+          }
+        }
+      });
+    }
+  }, [referenceData]);
+
+  // Derived fields auto-calculation logic
+  useEffect(() => {
+    fields.forEach(field => {
+      if (field.type === "derived_arithmetically" && (field as any).derivedFirstField && (field as any).derivedSecondField) {
+        const val1 = Number(formData[(field as any).derivedFirstField] || 0);
+        const val2 = Number(formData[(field as any).derivedSecondField] || 0);
+        let result = 0;
+        switch ((field as any).derivedOperator) {
+           case "+": result = val1 + val2; break;
+           case "-": result = val1 - val2; break;
+           case "*": result = val1 * val2; break;
+           case "/": result = val2 !== 0 ? val1 / val2 : 0; break;
+        }
+        if (formData[field.id] !== result) {
+           onChange(field.id, result);
+        }
+      }
+    });
+  }, [formData, fields]);
+
   return (
     <form onSubmit={(e) => { e.preventDefault(); onNext(); }}>
       <CardContent className="space-y-8 pt-8">
-        {fields.map((field, idx) => (
-          <div key={field.id} className="space-y-2">
-            <div>
-              <Label htmlFor={field.id} className="text-base font-semibold flex gap-2">
-                <span className="text-primary text-sm">{idx + 1}.</span>
-                {field.label}
-                {field.required && <span className="text-red-500">*</span>}
-              </Label>
-              {field.description && (
-                <p className="text-xs text-gray-400 mt-0.5">{field.description}</p>
-              )}
-            </div>
+        {fields.map((field, idx) => {
+          let hasReferenceValue = false;
+          if (referenceData && field.description) {
+            const match = field.description.match(/Referenced\s+"([^"]+)"/i);
+            if (match && match[1]) {
+              const sourceLabel = match[1];
+              const sourceValue = referenceData[sourceLabel];
+              if (sourceValue !== undefined && sourceValue !== null && sourceValue !== "") {
+                hasReferenceValue = true;
+              }
+            }
+          }
 
-            {field.type === "textarea" ? (
-              <textarea
-                id={field.id}
-                required={field.required}
-                rows={4}
-                value={formData[field.id] ?? ""}
-                onChange={(e) => onChange(field.id, e.target.value)}
-                className="flex w-full max-w-xl rounded-md border border-neutral-300 bg-transparent px-3 py-2 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-              />
-            ) : field.type === "file" ? (
+          return (
+            <div key={field.id} className="space-y-2">
+              <div>
+                <Label htmlFor={field.id} className="text-base font-semibold flex items-center justify-between gap-2">
+                  <span className="flex gap-2">
+                    <span className="text-primary text-sm">{idx + 1}.</span>
+                    {field.label}
+                    {field.required && <span className="text-red-500">*</span>}
+                  </span>
+                  {isFormReferenceField(field.label) && loadingReference && (
+                    <span className="text-xs text-primary animate-pulse flex items-center gap-1">
+                      <Loader2 className="w-3 h-3 animate-spin"/> Resolving reference...
+                    </span>
+                  )}
+                </Label>
+                {field.description && (
+                  <p className="text-xs text-gray-400 mt-0.5">{field.description}</p>
+                )}
+              </div>
+
+              {field.type === "textarea" ? (
+                <textarea
+                  id={field.id}
+                  required={field.required}
+                  rows={4}
+                  value={formData[field.id] ?? ""}
+                  onChange={(e) => onChange(field.id, e.target.value)}
+                  readOnly={hasReferenceValue}
+                  className={`flex w-full max-w-xl rounded-md border border-neutral-300 px-3 py-2 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all ${
+                    hasReferenceValue ? "bg-gray-100 text-gray-500 cursor-not-allowed" : "bg-transparent"
+                  }`}
+                />
+              ) : field.type === "file" ? (
               <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 bg-gray-50 hover:bg-gray-100 transition-colors max-w-xl">
                 <Input
                   id={field.id}
@@ -139,19 +240,37 @@ function FormFieldsStep({
                 )}
                 <p id={`label-${field.id}`} className="text-xs text-gray-400 mt-2">{field.description}</p>
               </div>
+            ) : field.type === "derived_arithmetically" ? (
+                <div className="relative max-w-md">
+                  <Input
+                    id={field.id}
+                    type="number"
+                    required={field.required}
+                    value={formData[field.id] ?? ""}
+                    readOnly
+                    className="bg-purple-50 text-purple-700 font-semibold cursor-not-allowed border-purple-200 shadow-inner"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-400 text-xs font-mono">
+                    CALCULATED
+                  </span>
+                </div>
             ) : (
-              <Input
-                id={field.id}
-                type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
-                required={field.required}
-                maxLength={field.maxLength}
-                value={formData[field.id] ?? ""}
-                onChange={(e) => onChange(field.id, e.target.value)}
-                className="max-w-md"
-              />
-            )}
-          </div>
-        ))}
+                <Input
+                  id={field.id}
+                  type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
+                  required={field.required}
+                  maxLength={field.maxLength}
+                  value={formData[field.id] ?? ""}
+                  onChange={(e) => onChange(field.id, e.target.value)}
+                  readOnly={hasReferenceValue}
+                  className={`max-w-md ${
+                    hasReferenceValue ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""
+                  }`}
+                />
+              )}
+            </div>
+          );
+        })}
       </CardContent>
       <CardFooter className="bg-gray-50 border-t border-gray-100 p-6 flex justify-end">
         <Button type="submit" size="lg" className="cursor-pointer">

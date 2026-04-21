@@ -14,6 +14,7 @@ import {
 import { getMySignature } from "@/app/actions/security";
 
 import { useSmartFetch } from "@/hooks/useSmartFetch";
+import { FormReferenceLink, isFormReferenceField } from "@/components/FormReferenceLink";
 
 import {
   Clock, CheckCircle2, XCircle, ChevronRight, X,
@@ -257,11 +258,14 @@ function DetailPanel({
                 <tbody className="divide-y divide-gray-100">
                   {Object.entries(responses).map(([q, a], i) => {
                     const isAttachmentArray = Array.isArray(a) && a.every(v => v && v.isAttachment);
+                    const isRef = isFormReferenceField(q);
                     return (
                       <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                         <td className="px-4 py-2.5 font-medium text-gray-700 align-top">{q}</td>
                         <td className="px-4 py-2.5 text-gray-600 align-top">
-                          {isAttachmentArray ? (
+                          {isRef && typeof a === "string" ? (
+                            <FormReferenceLink value={a} token={token} backendUrl={BASE_URL} />
+                          ) : isAttachmentArray ? (
                             <div className="flex flex-col gap-2">
                               {(a as any[]).map((file, idx) => (
                                 <button
@@ -284,6 +288,7 @@ function DetailPanel({
               </table>
             </div>
           </div>
+
 
           {/* ── Signatories ── */}
           <div>
@@ -520,7 +525,8 @@ function DetailPanel({
                     Cancel
                   </Button>
                   <Button
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                    className="flex-1 text-white"
+                    style={{ background: "#b50938" }}
                     disabled={approverToken.length !== 8 || isPendingApp}
                     onClick={() => {
                       startApproveTransition(async () => {
@@ -530,7 +536,7 @@ function DetailPanel({
                       });
                     }}
                   >
-                    {isPendingApp ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Approving…</> : "Confirm Approval"}
+                    {isPendingApp ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Confirming…</> : "Confirm"}
                   </Button>
                 </div>
               </div>

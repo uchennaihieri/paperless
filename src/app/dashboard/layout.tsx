@@ -5,12 +5,13 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import {
   Building2, FileText, CheckSquare, PenTool, LayoutDashboard,
-  LogOut, Users, BarChart2, Menu, X, History, Settings,
+  LogOut, Users, BarChart2, Menu, X, History, Settings, ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
 import { HistoryModal } from "@/components/HistoryModal";
 import { SettingsModal } from "@/components/SettingsModal";
+import { AuditTrailModal } from "@/components/AuditTrailModal";
 
 const navigation = [
   { name: "Workflow", href: "/dashboard/workflow", icon: LayoutDashboard },
@@ -42,6 +43,7 @@ export default function DashboardLayout({
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen]       = useState(false);
   const [isSettingsOpen, setIsSettingsOpen]     = useState(false);
+  const [isAuditOpen, setIsAuditOpen]           = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement>(null);
 
   // Close avatar menu when clicking outside
@@ -165,6 +167,12 @@ export default function DashboardLayout({
                     <History className="w-4 h-4 text-gray-400" /> History
                   </button>
                   <button
+                    onClick={() => { setIsAuditOpen(true); setIsAvatarMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <ShieldCheck className="w-4 h-4 text-gray-400" /> Audit Trail
+                  </button>
+                  <button
                     onClick={() => { setIsSettingsOpen(true); setIsAvatarMenuOpen(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                   >
@@ -193,6 +201,7 @@ export default function DashboardLayout({
     {/* Global Modals */}
     <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
     <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+    <AuditTrailModal isOpen={isAuditOpen} onClose={() => setIsAuditOpen(false)} />
     </>
   );
 }

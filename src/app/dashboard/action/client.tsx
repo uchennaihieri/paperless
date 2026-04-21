@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,7 @@ import { FileDown, ChevronRight, CheckSquare, X, User, RefreshCw, AlertTriangle,
 import { assignToSelf, completeProcessWithApprover, searchActiveWorkflowUsers, regeneratePdf } from "@/app/actions/workflow";
 import { getActionItems } from "@/app/actions/form";
 import { useSmartFetch } from "@/hooks/useSmartFetch";
+import { FormReferenceLink, isFormReferenceField } from "@/components/FormReferenceLink";
 
 type ActionItem = {
   id: string;
@@ -25,6 +27,9 @@ type ActionItem = {
 };
 
 export default function ActionClient({ items }: { items: ActionItem[] }) {
+  const { data: session } = useSession();
+  const token = (session?.user as any)?.backendToken ?? "";
+  const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
   const [selected, setSelected] = useState<ActionItem | null>(null);
 
   const {
@@ -63,14 +68,19 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
   const handleRegenerate = async (id: string) => {
     setIsRegenerating(true);
     setRegenError("");
-    const res = await regeneratePdf(id);
-    setIsRegenerating(false);
-    if (!res.success) {
-      setRegenError(res.error || "Failed to regenerate.");
+    try {
+      const res = await regeneratePdf(id);
+      if (!res.success) {
+        setRegenError(res.error || "Failed to regenerate.");
+        setTimeout(() => setRegenError(""), 5000);
+      } else {
+        updateItemStatus(id, selected!.status);
+      }
+    } catch {
+      setRegenError("Unexpected error. Please try again.");
       setTimeout(() => setRegenError(""), 5000);
-    } else {
-      updateItemStatus(id, selected!.status); // Just to force a trick re-render locally if we needed, though revalidatePath works for server.
-      // Easiest is to let server component refresh since `revalidatePath("/dashboard/action")` will just pass down new `items`.
+    } finally {
+      setIsRegenerating(false);
     }
   };
 
@@ -100,36 +110,44 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
 
   const handleAssignSelf = async () => {
     setIsChanging(true);
-    const res = await assignToSelf(selected!.id);
-    setIsChanging(false);
-    if (res.success && res.newStatus) {
-      updateItemStatus(selected!.id, res.newStatus);
-      setShowStatusModal(false);
-      setStatusMode("");
+    try {
+      const res = await assignToSelf(selected!.id);
+      if (res.success && res.newStatus) {
+        updateItemStatus(selected!.id, res.newStatus);
+        setShowStatusModal(false);
+        setStatusMode("");
+      }
+    } finally {
+      setIsChanging(false);
     }
   };
 
   const handleCompleteProcess = async (signatureToken?: string) => {
     setIsChanging(true);
-    const isNone = selectedApprover?._none;
-    const email = isNone ? undefined : selectedApprover?.finca_email;
-    const name  = isNone ? undefined : selectedApprover?.user_name;
-    const res = await completeProcessWithApprover(selected!.id, email, name, signatureToken);
-    setIsChanging(false);
-    if (res.success) {
-      const newStatus = isNone ? "Completed" : "Awaiting Final Approval";
-      updateItemStatus(selected!.id, newStatus);
-      setSelected(null);
-      setShowStatusModal(false);
-      setShowTreaterTokenModal(false);
-      setStatusMode("");
-      setSelectedApprover(null);
-      setSearchResults([]);
-      setSearchQuery("");
-      setTreaterToken("");
-      setTreaterTokenError("");
-    } else {
-      setTreaterTokenError(res.error || "Failed. Please check your token.");
+    try {
+      const isNone = selectedApprover?._none;
+      const email = isNone ? undefined : selectedApprover?.finca_email;
+      const name  = isNone ? undefined : selectedApprover?.user_name;
+      const res = await completeProcessWithApprover(selected!.id, email, name, signatureToken);
+      if (res.success) {
+        const newStatus = isNone ? "Completed" : "Awaiting Final Approval";
+        updateItemStatus(selected!.id, newStatus);
+        setSelected(null);
+        setShowStatusModal(false);
+        setShowTreaterTokenModal(false);
+        setStatusMode("");
+        setSelectedApprover(null);
+        setSearchResults([]);
+        setSearchQuery("");
+        setTreaterToken("");
+        setTreaterTokenError("");
+      } else {
+        setTreaterTokenError(res.error || "Failed. Please check your token.");
+      }
+    } catch {
+      setTreaterTokenError("Unexpected error. Please try again.");
+    } finally {
+      setIsChanging(false);
     }
   };
 
@@ -247,14 +265,18 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                   <div className="w-1/2">VALUE/RESPONSE</div>
                </div>
                <div className="border-x border-b rounded-b-lg border-gray-100 divide-y divide-gray-100">
-                  {Object.entries(selected.formResponses).filter(([k]) => k !== "CompletedFormPDF").map(([key, val], i) => (
-                    <div key={i} className="flex px-4 py-3 text-xs flex-col sm:flex-row gap-2 sm:gap-0">
-                      <div className="w-full sm:w-1/2 font-semibold text-gray-700">{key}</div>
-                       <div className="w-full sm:w-1/2 text-gray-600 break-words">
-                          {Array.isArray(val) && val.length > 0 && val[0]?.isAttachment 
-                             ? val.map((v: any, i: number) => (
+                  {Object.entries(selected.formResponses).filter(([k]) => k !== "CompletedFormPDF").map(([key, val], i) => {
+                     const isRef = isFormReferenceField(key);
+                     return (
+                       <div key={i} className="flex px-4 py-3 text-xs flex-col sm:flex-row gap-2 sm:gap-0">
+                         <div className="w-full sm:w-1/2 font-semibold text-gray-700">{key}</div>
+                         <div className="w-full sm:w-1/2 text-gray-600 break-words">
+                           {isRef && typeof val === "string" ? (
+                             <FormReferenceLink value={val} token={token} backendUrl={BASE_URL} />
+                           ) : Array.isArray(val) && val.length > 0 && val[0]?.isAttachment
+                             ? val.map((v: any, idx: number) => (
                                  <a
-                                   key={i}
+                                   key={idx}
                                    href={v.url}
                                    target="_blank"
                                    rel="noopener noreferrer"
@@ -267,9 +289,10 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                                  </a>
                                ))
                              : String(val)}
+                         </div>
                        </div>
-                    </div>
-                  ))}
+                     );
+                   })}
                </div>
             </div>
 
@@ -456,11 +479,12 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                   Cancel
                 </Button>
                 <Button
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                  className="flex-1 text-white"
+                  style={{ background: "#b50938" }}
                   disabled={treaterToken.length !== 8 || isChanging}
                   onClick={() => handleCompleteProcess(treaterToken)}
                 >
-                  {isChanging ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Completing…</> : "Confirm & Complete"}
+                  {isChanging ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Confirming…</> : "Confirm"}
                 </Button>
               </div>
             </div>

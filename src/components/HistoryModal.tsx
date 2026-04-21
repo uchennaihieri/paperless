@@ -6,14 +6,14 @@ import { useRouter } from "next/navigation";
 import {
   X, Search, ChevronLeft, ChevronRight, Loader2,
   FileText, Clock, CheckCircle2, XCircle, PenTool, ShieldCheck, AlertTriangle,
-  ExternalLink,
+  ExternalLink, Link2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type MyRole = "submitted" | "signed" | "declined" | "treated" | "approved";
+type MyRole = "submitted" | "signed" | "declined" | "treated" | "approved" | "shared";
 
 type HistoryItem = {
   id: string;
@@ -42,11 +42,12 @@ const STATUS_OPTIONS = [
 ];
 
 const ROLE_OPTIONS: { value: MyRole; label: string; icon: React.ReactNode }[] = [
-  { value: "submitted", label: "I Submitted",  icon: <FileText className="w-3 h-3" /> },
-  { value: "signed",    label: "I Signed",     icon: <PenTool className="w-3 h-3" /> },
-  { value: "declined",  label: "I Declined",   icon: <XCircle className="w-3 h-3" /> },
-  { value: "treated",   label: "I Treated",    icon: <CheckCircle2 className="w-3 h-3" /> },
-  { value: "approved",  label: "I Approved",   icon: <ShieldCheck className="w-3 h-3" /> },
+  { value: "submitted", label: "I Submitted",      icon: <FileText className="w-3 h-3" /> },
+  { value: "signed",    label: "I Signed",         icon: <PenTool className="w-3 h-3" /> },
+  { value: "declined",  label: "I Declined",       icon: <XCircle className="w-3 h-3" /> },
+  { value: "treated",   label: "I Treated",        icon: <CheckCircle2 className="w-3 h-3" /> },
+  { value: "approved",  label: "I Approved",       icon: <ShieldCheck className="w-3 h-3" /> },
+  { value: "shared",   label: "Shared with me",   icon: <Link2 className="w-3 h-3" /> },
 ];
 
 function statusVariant(status: string) {
@@ -67,6 +68,7 @@ const ROLE_COLORS: Record<MyRole, string> = {
   declined:  "bg-red-100 text-red-600",
   treated:   "bg-purple-100 text-purple-700",
   approved:  "bg-amber-100 text-amber-700",
+  shared:    "bg-gray-100 text-gray-600",
 };
 
 const SIG_COLORS: Record<string, string> = {
@@ -93,6 +95,9 @@ function getDestinationUrl(item: HistoryItem): string {
   }
   if (item.myRoles.includes("treated") || item.myRoles.includes("approved")) {
     return `/dashboard/action`;
+  }
+  if (item.myRoles.includes("shared")) {
+    return `/dashboard/forms/submission/${item.id}`;
   }
   // signed or declined → workflow queue
   return `/dashboard/workflow`;
@@ -273,7 +278,9 @@ export function HistoryModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
           ) : items.length === 0 ? (
             <div className="text-center py-20 text-gray-400">
               <Clock className="w-12 h-12 mx-auto mb-3 opacity-20" />
-              <p className="text-sm">No activity found.</p>
+              <p className="text-sm">
+                {role === "shared" ? "No forms have been shared with you yet." : "No activity found."}
+              </p>
             </div>
           ) : (
             <div className="space-y-3">

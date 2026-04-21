@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createFormTemplate, updateFormTemplate } from "@/app/actions/form";
-import { ArrowLeft, Plus, Trash2, Save, CheckCircle, XCircle } from "lucide-react";
+import { ArrowLeft, ArrowUp, ArrowDown, Plus, Trash2, Save, CheckCircle, XCircle } from "lucide-react";
 import Link from "next/link";
 import { apiClient } from "@/lib/apiClient";
 
@@ -18,6 +18,9 @@ type Field = {
   required: boolean;
   description: string;
   mappedPdfField?: string;
+  derivedOperator?: string;
+  derivedFirstField?: string;
+  derivedSecondField?: string;
 };
 
 const SELECT_CLASS = "flex h-10 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all cursor-pointer shadow-sm";
@@ -102,6 +105,24 @@ export default function FormBuilderClient({
 
   const removeField = (index: number) => {
     setFields(fields.filter((_, i) => i !== index));
+  };
+
+  const moveFieldUp = (index: number) => {
+    if (index === 0) return;
+    const updated = [...fields];
+    const temp = updated[index - 1];
+    updated[index - 1] = updated[index];
+    updated[index] = temp;
+    setFields(updated);
+  };
+
+  const moveFieldDown = (index: number) => {
+    if (index === fields.length - 1) return;
+    const updated = [...fields];
+    const temp = updated[index + 1];
+    updated[index + 1] = updated[index];
+    updated[index] = temp;
+    setFields(updated);
   };
 
   const updateField = (index: number, key: keyof Field, value: any) => {
@@ -344,11 +365,19 @@ export default function FormBuilderClient({
                   <div key={field.id} className="p-5 border border-gray-200 rounded-lg bg-white group hover:border-primary/40 focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/10 transition-all shadow-sm">
                     <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
                       <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Field {idx + 1}</span>
-                      {fields.length > 1 && (
-                        <button type="button" onClick={() => removeField(idx)} className="text-gray-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded cursor-pointer transition-colors">
-                          <Trash2 className="w-4 h-4" />
+                      <div className="flex items-center gap-1">
+                        <button type="button" onClick={() => moveFieldUp(idx)} disabled={idx === 0} className="text-gray-400 hover:text-primary hover:bg-gray-50 disabled:opacity-30 disabled:hover:bg-transparent p-1.5 rounded cursor-pointer transition-colors" title="Move Up">
+                          <ArrowUp className="w-4 h-4" />
                         </button>
-                      )}
+                        <button type="button" onClick={() => moveFieldDown(idx)} disabled={idx === fields.length - 1} className="text-gray-400 hover:text-primary hover:bg-gray-50 disabled:opacity-30 disabled:hover:bg-transparent p-1.5 rounded cursor-pointer transition-colors" title="Move Down">
+                          <ArrowDown className="w-4 h-4" />
+                        </button>
+                        {fields.length > 1 && (
+                          <button type="button" onClick={() => removeField(idx)} className="text-gray-300 hover:text-red-500 hover:bg-red-50 p-1.5 rounded cursor-pointer transition-colors ml-2 border-l border-gray-100 pl-3">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -368,8 +397,59 @@ export default function FormBuilderClient({
                           <option value="number">Number</option>
                           <option value="date">Date</option>
                           <option value="file">File Upload</option>
+                          <option 
+                            value="derived_arithmetically" 
+                            disabled={fields.filter(f => f.type === 'number' && f.id !== field.id).length < 2 && field.type !== "derived_arithmetically"}
+                          >
+                            Derived Arithmetically {fields.filter(f => f.type === 'number' && f.id !== field.id).length < 2 && field.type !== "derived_arithmetically" ? "(requires 2 numeric fields)" : ""}
+                          </option>
                         </select>
                       </div>
+
+                      {field.type === "derived_arithmetically" && (
+                        <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 bg-purple-50/50 p-4 rounded-md border border-purple-100">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-semibold text-purple-800">First Field</Label>
+                            <select
+                              value={field.derivedFirstField || ""}
+                              onChange={(e) => updateField(idx, "derivedFirstField", e.target.value)}
+                              className={SELECT_CLASS}
+                            >
+                              <option value="">— Select numeric field —</option>
+                              {fields.filter(f => f.type === 'number' && f.id !== field.id).map(f => (
+                                <option key={f.id} value={f.id}>{f.label || `Field ${f.id}`}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-semibold text-purple-800">Operator</Label>
+                            <select
+                              value={field.derivedOperator || ""}
+                              onChange={(e) => updateField(idx, "derivedOperator", e.target.value)}
+                              className={SELECT_CLASS}
+                            >
+                              <option value="">— Select operator —</option>
+                              <option value="+">+ (Add)</option>
+                              <option value="-">- (Subtract)</option>
+                              <option value="*">× (Multiply)</option>
+                              <option value="/">÷ (Divide)</option>
+                            </select>
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-semibold text-purple-800">Second Field</Label>
+                            <select
+                              value={field.derivedSecondField || ""}
+                              onChange={(e) => updateField(idx, "derivedSecondField", e.target.value)}
+                              className={SELECT_CLASS}
+                            >
+                              <option value="">— Select numeric field —</option>
+                              {fields.filter(f => f.type === 'number' && f.id !== field.id).map(f => (
+                                <option key={f.id} value={f.id}>{f.label || `Field ${f.id}`}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
                       
                       {pdfTemplateId && unmappedPdfFields.length > 0 && (
                         <div className="md:col-span-2 space-y-1.5 bg-blue-50/50 p-3 rounded-md border border-blue-100">

@@ -12,12 +12,17 @@ export function RegeneratePdfButton({ submissionId }: { submissionId: string }) 
   const handleRegenerate = async () => {
     setIsRegenerating(true);
     setError("");
-    const res = await regeneratePdf(submissionId);
-    setIsRegenerating(false);
-    
-    if (!res?.success) {
-      setError(res?.error || "Failed to connect to generation service.");
+    try {
+      const res = await regeneratePdf(submissionId);
+      if (!res?.success) {
+        setError(res?.error || "Failed to connect to generation service.");
+        setTimeout(() => setError(""), 5000);
+      }
+    } catch {
+      setError("Unexpected error. Please try again.");
       setTimeout(() => setError(""), 5000);
+    } finally {
+      setIsRegenerating(false);
     }
   };
 
