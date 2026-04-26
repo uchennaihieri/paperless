@@ -4,6 +4,7 @@ import { apiClient } from "@/lib/apiClient";
 
 export type AuditRecord = {
   id: string;
+  submissionId: string;
   formReference: string | null;
   prevStatus: string;
   newStatus: string;
@@ -44,4 +45,11 @@ export async function getAuditTrail(params: {
     data: result.data || [],
     meta: result.meta || { total: 0, page: 1, limit: 50, pages: 0 },
   };
+}
+
+export async function getAuditTrailDetails(submissionId: string): Promise<AuditRecord[]> {
+  const result = await apiClient(`/audit/${submissionId}`, { method: "GET" }).catch(() => ({
+    data: [],
+  }));
+  return result.data || [];
 }

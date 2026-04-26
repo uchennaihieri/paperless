@@ -5,7 +5,7 @@ import {
   X, Search, ChevronLeft, ChevronRight, Loader2,
   ShieldCheck, Filter, Calendar, User, Hash,
 } from "lucide-react";
-import { getAuditTrail, AuditRecord, AuditMeta } from "@/app/actions/audit";
+import { getAuditTrail, getAuditTrailDetails, AuditRecord, AuditMeta } from "@/app/actions/audit";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +51,12 @@ export function AuditTrailModal({ isOpen, onClose }: { isOpen: boolean; onClose:
   const [meta, setMeta]           = useState<AuditMeta>({ total: 0, page: 1, limit: PAGE_SIZE, pages: 0 });
   const [loading, setLoading]     = useState(false);
 
+  // Detail View State
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
+  const [selectedFormReference, setSelectedFormReference] = useState<string | null>(null);
+  const [fullTrail, setFullTrail] = useState<AuditRecord[]>([]);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+
   // Filters
   const [reference, setReference] = useState("");
   const [email, setEmail]         = useState("");
@@ -83,8 +89,29 @@ export function AuditTrailModal({ isOpen, onClose }: { isOpen: boolean; onClose:
 
   // Load on open
   useEffect(() => {
-    if (isOpen) fetchAudit(1, { reference: "", email: "", status: "", date: "" });
+    if (isOpen) {
+      setSelectedSubmissionId(null);
+      fetchAudit(1, { reference: "", email: "", status: "", date: "" });
+    }
   }, [isOpen, fetchAudit]);
+
+  // Load details when a row is clicked
+  useEffect(() => {
+    if (!selectedSubmissionId) return;
+
+    const fetchDetails = async () => {
+      setLoadingDetails(true);
+      try {
+        const details = await getAuditTrailDetails(selectedSubmissionId);
+        setFullTrail(details);
+      } catch (err) {
+        console.error("Failed to load audit trail details", err);
+      } finally {
+        setLoadingDetails(false);
+      }
+    };
+    fetchDetails();
+  }, [selectedSubmissionId]);
 
   const handleSearch = () => {
     const filters = { reference, email, status, date };
@@ -117,13 +144,27 @@ export function AuditTrailModal({ isOpen, onClose }: { isOpen: boolean; onClose:
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-[#b50938]/10">
-              <ShieldCheck className="w-5 h-5 text-[#b50938]" />
-            </div>
+            {selectedSubmissionId ? (
+              <button
+                onClick={() => setSelectedSubmissionId(null)}
+                className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                title="Back to table"
+              >
+                <ChevronLeft className="w-5 h-5 text-gray-600" />
+              </button>
+            ) : (
+              <div className="p-2 rounded-lg bg-[#b50938]/10">
+                <ShieldCheck className="w-5 h-5 text-[#b50938]" />
+              </div>
+            )}
             <div>
-              <h2 className="text-lg font-bold text-gray-900">Audit Trail</h2>
+              <h2 className="text-lg font-bold text-gray-900">
+                {selectedSubmissionId ? `Audit Trail: ${selectedFormReference || "Unknown Reference"}` : "Audit Trail"}
+              </h2>
               <p className="text-xs text-gray-400">
-                {meta.total > 0 ? `${meta.total} event${meta.total !== 1 ? "s" : ""} recorded` : "Full system event log"}
+                {selectedSubmissionId
+                  ? "Full history of this submission"
+                  : meta.total > 0 ? `${meta.total} form${meta.total !== 1 ? "s" : ""} recorded` : "Latest form statuses"}
               </p>
             </div>
           </div>
@@ -132,7 +173,64 @@ export function AuditTrailModal({ isOpen, onClose }: { isOpen: boolean; onClose:
           </button>
         </div>
 
-        {/* Filters */}
+        {/* Content Area */}
+        {selectedSubmissionId ? (
+          <div className="flex-1 overflow-auto p-6 bg-gray-50">
+            {loadingDetails ? (
+              <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-3">
+                <Loader2 className="w-6 h-6 animate-spin text-[#b50938]" />
+                <p className="text-sm">Loading full history…</p>
+              </div>
+            ) : (
+              <div className="max-w-2xl mx-auto space-y-6">
+                <div className="relative border-l-2 border-gray-200 ml-4 space-y-8">
+                  {fullTrail.map((activity, index) => {
+                    const isLatest = index === fullTrail.length - 1;
+                    return (
+                      <div key={activity.id} className="relative pl-6">
+                        <div className={`absolute -left-[9px] top-1 h-4 w-4 rounded-full border-2 border-white ${isLatest ? 'bg-[#b50938]' : 'bg-gray-300'}`}></div>
+                        <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                          <div className="flex items-start justify-between gap-4 mb-2">
+                            <div>
+                              <ActionBadge action={activity.action} />
+                            </div>
+                            <div className="text-xs text-gray-500 font-mono whitespace-nowrap">
+                              {fmt(activity.createdAt)}
+                            </div>
+                          </div>
+                          
+                          <div className="mb-2">
+                            <span className="text-sm text-gray-600">Status changed to: </span>
+                            <span className="text-sm font-semibold text-gray-900">{activity.newStatus}</span>
+                            {activity.prevStatus && activity.prevStatus !== "—" && (
+                              <span className="text-xs text-gray-400 ml-2">(was {activity.prevStatus})</span>
+                            )}
+                          </div>
+                          
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <User className="w-4 h-4 text-gray-400" />
+                            <span>
+                              <span className="font-medium text-gray-900">{activity.actorName || "System"}</span>
+                              {activity.actorEmail && <span className="text-gray-500"> ({activity.actorEmail})</span>}
+                            </span>
+                          </div>
+                          
+                          {activity.note && (
+                            <div className="mt-3 p-3 bg-gray-50 rounded text-sm text-gray-600 italic border border-gray-100">
+                              {activity.note}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Filters */}
         <div className="px-6 py-3 border-b border-gray-100 bg-gray-50 shrink-0">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
             <div className="relative">
@@ -218,7 +316,14 @@ export function AuditTrailModal({ isOpen, onClose }: { isOpen: boolean; onClose:
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {records.map((r, i) => (
-                  <tr key={r.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                  <tr 
+                    key={r.id} 
+                    className={`${i % 2 === 0 ? "bg-white" : "bg-gray-50"} cursor-pointer hover:bg-gray-100 transition-colors`}
+                    onClick={() => {
+                      setSelectedSubmissionId(r.submissionId);
+                      setSelectedFormReference(r.formReference);
+                    }}
+                  >
                     <td className="px-4 py-3 font-mono text-xs text-gray-700 font-semibold">
                       {r.formReference || <span className="text-gray-300">—</span>}
                     </td>
@@ -227,10 +332,6 @@ export function AuditTrailModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                          {r.prevStatus || "—"}
-                        </span>
-                        <span className="text-gray-300 text-xs">→</span>
                         <span className="text-xs font-semibold text-gray-800 bg-gray-100 px-2 py-0.5 rounded">
                           {r.newStatus}
                         </span>
@@ -290,6 +391,8 @@ export function AuditTrailModal({ isOpen, onClose }: { isOpen: boolean; onClose:
               </Button>
             </div>
           </div>
+        )}
+          </>
         )}
       </div>
     </div>
