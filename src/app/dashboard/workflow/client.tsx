@@ -15,6 +15,7 @@ import { getMySignature } from "@/app/actions/security";
 
 import { useSmartFetch } from "@/hooks/useSmartFetch";
 import { FormReferenceLink, isFormReferenceField } from "@/components/FormReferenceLink";
+import { RegeneratePdfButton } from "../forms/submission/[id]/regenerate-button";
 
 import {
   Clock, CheckCircle2, XCircle, ChevronRight, X,
@@ -328,9 +329,14 @@ function DetailPanel({
 
           {/* Form Responses */}
           <div>
-            <h3 className="text-xs font-semibold text-primary uppercase tracking-widest mb-3 flex items-center gap-1">
-              <FileText className="w-3 h-3" /> Form Responses
-            </h3>
+            <div className="flex justify-between items-center mb-3 border-b border-gray-100 pb-2">
+              <h3 className="text-xs font-semibold text-primary uppercase tracking-widest flex items-center gap-1">
+                <FileText className="w-3 h-3" /> Form Responses
+              </h3>
+              {(item.status === "Completed" || item.status === "Processing") && (
+                <RegeneratePdfButton submissionId={item.id} />
+              )}
+            </div>
             <div className="rounded-xl border border-gray-200 overflow-x-auto">
               <table className="w-full text-sm min-w-[350px]">
                 <thead>
