@@ -19,7 +19,7 @@ import { FormReferenceLink, isFormReferenceField } from "@/components/FormRefere
 import {
   Clock, CheckCircle2, XCircle, ChevronRight, X,
   GitBranch, Layers, User, FileText, AlertTriangle,
-  Pen, Bell, Loader2, RefreshCw
+  Pen, Bell, Loader2, RefreshCw, Link2
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -46,6 +46,14 @@ type QueueItem = {
   formResponses: Record<string, any>;
   signatories: Signatory[];
   submittedBy: { user_name: string | null; finca_email: string | null; branch: string | null } | null;
+  prerequisites?: {
+    id: string;
+    targetForm: { name: string };
+    prereqSubmissionId: string | null;
+    prereqSubmission: { reference: string | null; status: string } | null;
+    targetEmail: string;
+    status: string;
+  }[];
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -93,6 +101,20 @@ async function openFile(url: string, fileName: string, token: string) {
       newWindow.document.write(`<div style="color:red;padding:20px;">Failed to load file.</div>`);
     }
   }
+}
+
+function prereqStatusColor(status: string) {
+  switch (status) {
+    case "Approved": return "bg-green-50 text-green-700 border-green-200";
+    case "Submitted": return "bg-blue-50 text-blue-700 border-blue-200";
+    default: return "bg-amber-50 text-amber-700 border-amber-200";
+  }
+}
+
+function PrereqStatusIcon({ status }: { status: string }) {
+  if (status === "Approved") return <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />;
+  if (status === "Submitted") return <Clock className="w-3.5 h-3.5 text-blue-500" />;
+  return <Clock className="w-3.5 h-3.5 text-amber-500" />;
 }
 
 // ─── Detail Panel ──────────────────────────────────────────────────────────────
@@ -211,7 +233,7 @@ function DetailPanel({
             <p className="text-sm text-gray-400 mt-0.5 break-words">
               Ref: {item.reference || item.id.slice(-8).toUpperCase()} <br className="sm:hidden" />
               <span className="hidden sm:inline">· </span>
-              <span title={item.createdAt}>{formatDateTime(item.createdAt)}</span>
+              <span title={item.createdAt} suppressHydrationWarning>{formatDateTime(item.createdAt)}</span>
             </p>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-auto">
@@ -238,6 +260,68 @@ function DetailPanel({
                 <span className="text-gray-500">Submitted by </span>
                 <span className="font-medium text-gray-900">{item.submittedBy.user_name}</span>
                 <span className="text-gray-400"> · {item.submittedBy.branch}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Blocked banner */}
+          {item.status === "Blocked - Awaiting Prerequisites" && (
+            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-amber-800">Awaiting Prerequisite Forms</p>
+                <p className="text-xs text-amber-700 mt-0.5">
+                  This submission is blocked until all linked prerequisite forms below have been
+                  independently filled and approved. Signatories will be notified automatically once
+                  all prerequisites are met.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Prerequisites section */}
+          {item.prerequisites && item.prerequisites.length > 0 && (
+            <div>
+              <h3 className="text-xs font-semibold text-orange-700 uppercase tracking-widest border-b border-orange-100 pb-2 mb-3 flex items-center gap-2">
+                <Link2 className="w-3.5 h-3.5" /> Prerequisite Forms
+              </h3>
+              <div className="space-y-2">
+                {item.prerequisites.map((pr) => (
+                  <div
+                    key={pr.id}
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-gray-200 rounded-lg px-4 py-3 shadow-sm"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+                        <FileText className="w-4 h-4 text-orange-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {pr.targetForm?.name ?? "Prerequisite Form"}
+                        </p>
+                        <p className="text-xs text-gray-400">Required from: {pr.targetEmail}</p>
+                        {pr.prereqSubmission?.reference && (
+                          <p className="text-xs text-gray-400">Ref: {pr.prereqSubmission.reference}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${prereqStatusColor(pr.status)}`}>
+                        <PrereqStatusIcon status={pr.status} />
+                        {pr.status}
+                      </span>
+                      {pr.prereqSubmissionId && (
+                        <a
+                          href={`/dashboard/forms/submission/${pr.prereqSubmissionId}`}
+                          className="text-xs text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
+                          target="_blank" rel="noreferrer"
+                        >
+                          View →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -331,7 +415,7 @@ function DetailPanel({
 
                   {/* Signed/declined timestamp */}
                   {s.signedAt && (
-                    <p className="text-xs text-gray-400 pl-9">
+                    <p className="text-xs text-gray-400 pl-9" suppressHydrationWarning>
                       {s.status === "Declined" ? "Declined" : "Signed"}: {formatDateTime(s.signedAt)}
                     </p>
                   )}
@@ -417,7 +501,7 @@ function DetailPanel({
                   }
                   setShowSignModal(true);
                 }}
-                disabled={isPendingSig || isPendingDec}
+                disabled={isPendingSig || isPendingDec || item.status === "Blocked - Awaiting Prerequisites"}
               >
                 <Pen className="w-4 h-4 mr-2" /> Sign & Approve
               </Button>
@@ -720,7 +804,7 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
                       {item.submittedBy && (
                         <span>By: {item.submittedBy.user_name ?? item.submittedBy.finca_email}</span>
                       )}
-                      <span>{formatDateTime(item.createdAt)}</span>
+                      <span suppressHydrationWarning>{formatDateTime(item.createdAt)}</span>
                       <span className="font-medium text-amber-600">
                         {item.signatories.filter((s) => s.status === "Signed").length}/
                         {item.signatories.length} signed

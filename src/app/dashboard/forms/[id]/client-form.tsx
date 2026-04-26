@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { isFormReferenceField } from "@/components/FormReferenceLink";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { submitForm, searchUsers, SignatoryInput, SigningType } from "@/app/actions/form";
 import { X, Search, Check, ChevronRight, GitBranch, Layers, Send, UserPlus, ArrowLeft, KeyRound, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { numberToWords } from "@/lib/toWords";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,120 @@ type UserResult = {
   branch: string | null;
   user_role: string | null;
 };
+
+// ─── Section helpers ─────────────────────────────────────────────────────────
+
+interface Section { id: string; title: string; subtitle?: string; fields: any[]; }
+
+function groupIntoSections(fields: any[]): Section[] {
+  const out: Section[] = [];
+  let cur: Section = { id: '__start', title: '', fields: [] };
+  for (const f of fields) {
+    if (f.type === 'section_header') {
+      out.push(cur);
+      cur = { id: f.id, title: f.label || 'Section', subtitle: f.sectionSubtitle, fields: [] };
+    } else {
+      cur.fields.push(f);
+    }
+  }
+  out.push(cur);
+  return out.filter(s => s.title || s.fields.length > 0);
+}
+
+// Interpolate {{tokens}} in an HTML string from the WYSIWYG editor
+function htmlInterpolate(html: string, fields: any[], formData: Record<string, any>, user: any): string {
+  const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+  const sys: Record<string, string> = {
+    date: today,
+    'user.name': user?.user_name || user?.name || '',
+    'user.email': user?.finca_email || user?.email || '',
+    'user.branch': user?.branch || '',
+  };
+  return html.replace(/\{\{([^}]+)\}\}/g, (_, key) => {
+    const k = key.trim();
+    if (k in sys) return sys[k] ? `<strong style="text-decoration:underline dotted">${sys[k]}</strong>` : `<em style="color:#b50938;opacity:.6">[${k}]</em>`;
+    const f = fields.find((f: any) => f.type !== 'section_header' && f.type !== 'instructions' && f.label?.toLowerCase() === k.toLowerCase());
+    if (!f) return `<em style="color:#b50938;opacity:.6">[${k}]</em>`;
+    const val = formData[f.id];
+    return val !== undefined && val !== null && val !== '' ? `<strong style="text-decoration:underline dotted">${val}</strong>` : `<em style="color:#b50938;opacity:.6">[${k}]</em>`;
+  });
+}
+
+// ─── Instruction Token Interpolation ─────────────────────────────────────────
+
+type Segment = { type: "text"; value: string } | { type: "token"; key: string };
+
+function parseSegments(content: string): Segment[] {
+  const parts = content.split(/(\{\{[^}]+\}\})/g);
+  return parts.map((p) => {
+    const m = p.match(/^\{\{([^}]+)\}\}$/);
+    if (m) return { type: "token", key: m[1].trim() };
+    return { type: "text", value: p };
+  });
+}
+
+function resolveToken(
+  key: string,
+  fields: any[],
+  formData: Record<string, any>,
+  user: any
+): string | null {
+  const today = new Date().toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  const sys: Record<string, string> = {
+    date: today,
+    "user.name": user?.user_name || user?.name || "",
+    "user.email": user?.finca_email || user?.email || "",
+    "user.branch": user?.branch || "",
+  };
+  if (key in sys) return sys[key] || null;
+  // Match against field label
+  const field = fields.find(
+    (f: any) =>
+      f.type !== "section_header" &&
+      f.type !== "instructions" &&
+      f.label?.toLowerCase() === key.toLowerCase()
+  );
+  if (!field) return null;
+  const val = formData[field.id];
+  return val !== undefined && val !== null && val !== "" ? String(val) : null;
+}
+
+function InterpolatedContent({
+  content,
+  fields,
+  formData,
+  user,
+}: {
+  content: string;
+  fields: any[];
+  formData: Record<string, any>;
+  user: any;
+}) {
+  const segments = parseSegments(content);
+  return (
+    <span className="text-xs text-gray-700 leading-relaxed font-sans whitespace-pre-wrap">
+      {segments.map((seg, i) => {
+        if (seg.type === "text") return <span key={i}>{seg.value}</span>;
+        const value = resolveToken(seg.key, fields, formData, user);
+        if (value)
+          return (
+            <strong key={i} className="text-gray-900 underline decoration-dotted decoration-primary/50">
+              {value}
+            </strong>
+          );
+        return (
+          <span key={i} className="italic text-primary/60 bg-primary/5 px-0.5 rounded">
+            [{seg.key}]
+          </span>
+        );
+      })}
+    </span>
+  );
+}
 
 // ─── Step Indicator ───────────────────────────────────────────────────────────
 
@@ -66,6 +181,109 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
   );
 }
 
+// ─── Searchable Select Component ───────────────────────────────────────────────
+
+function SearchableSelect({
+  id,
+  options,
+  value,
+  onChange,
+  required,
+  placeholder = "Select an option...",
+  disabled = false,
+}: {
+  id: string;
+  options: { label: string; value: string }[];
+  value: string;
+  onChange: (val: string) => void;
+  required?: boolean;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Close when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter(o => 
+    o.label.toLowerCase().includes(search.toLowerCase()) || 
+    o.value.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const selectedOption = options.find(o => o.value === value);
+
+  return (
+    <div className="relative max-w-md" ref={containerRef}>
+      <div 
+        className={`flex w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent transition-all cursor-pointer shadow-sm ${disabled ? "opacity-50 cursor-not-allowed bg-gray-50" : ""}`}
+        onClick={() => { if (!disabled) setOpen(!open); }}
+      >
+        <span className={`block truncate flex-1 ${!selectedOption ? "text-neutral-500" : "text-neutral-900"}`}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <ChevronRight className={`w-4 h-4 text-neutral-400 transition-transform ${open ? "rotate-90" : "rotate-0"}`} />
+      </div>
+
+      {open && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 flex flex-col overflow-hidden">
+          <div className="p-2 border-b border-gray-100 flex items-center shrink-0">
+            <Search className="w-4 h-4 text-gray-400 mr-2 shrink-0" />
+            <input 
+              className="w-full text-sm outline-none bg-transparent" 
+              placeholder="Search..." 
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              autoFocus
+            />
+          </div>
+          <div className="overflow-y-auto p-1">
+            {filteredOptions.length === 0 ? (
+              <div className="p-2 text-sm text-gray-500 text-center">No options found.</div>
+            ) : (
+              filteredOptions.map((opt) => (
+                <div 
+                  key={opt.value}
+                  className={`px-3 py-2 text-sm cursor-pointer rounded-sm flex items-center justify-between hover:bg-gray-100 ${value === opt.value ? "bg-primary/5 text-primary font-medium" : "text-gray-700"}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChange(opt.value);
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {value === opt.value && <Check className="w-4 h-4 shrink-0" />}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+      
+      {/* Hidden native input for required validation */}
+      <input 
+        type="text" 
+        id={id} 
+        value={value} 
+        onChange={() => {}} 
+        required={required} 
+        className="opacity-0 absolute -z-10 w-0 h-0" 
+      />
+    </div>
+  );
+}
+
 // ─── Step 1: Form Fields ──────────────────────────────────────────────────────
 
 function FormFieldsStep({
@@ -83,9 +301,18 @@ function FormFieldsStep({
   const token = (session?.user as any)?.backendToken ?? "";
   const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
 
-  const fields: Field[] = typeof template.fields === "string"
+  const fields: any[] = typeof template.fields === "string"
     ? JSON.parse(template.fields)
     : template.fields ?? [];
+
+  // ── Section navigation ────────────────────────────────────────────────────
+  const sections = useMemo(() => groupIntoSections(fields), []); // eslint-disable-line
+  const [sectionIdx, setSectionIdx] = useState(0);
+  const [sectionError, setSectionError] = useState('');
+  const section = sections[sectionIdx];
+  const isLastSection = sectionIdx === sections.length - 1;
+  const hasSections = sections.length > 1 || !!sections[0]?.title;
+
 
   // Form reference auto-fill logic
   const formReferenceField = fields.find(f => isFormReferenceField(f.label));
@@ -139,9 +366,11 @@ function FormFieldsStep({
     }
   }, [referenceData]);
 
-  // Derived fields auto-calculation logic
+  // Derived + To-Words auto-calculation
   useEffect(() => {
     fields.forEach(field => {
+      if ((field as any).type === 'section_header' || (field as any).type === 'instructions') return;
+
       if (field.type === "derived_arithmetically" && (field as any).derivedFirstField && (field as any).derivedSecondField) {
         const val1 = Number(formData[(field as any).derivedFirstField] || 0);
         const val2 = Number(formData[(field as any).derivedSecondField] || 0);
@@ -152,17 +381,135 @@ function FormFieldsStep({
            case "*": result = val1 * val2; break;
            case "/": result = val2 !== 0 ? val1 / val2 : 0; break;
         }
-        if (formData[field.id] !== result) {
-           onChange(field.id, result);
-        }
+        if (formData[field.id] !== result) onChange(field.id, result);
+      }
+
+      if ((field as any).type === 'to_words' && (field as any).sourceFieldId) {
+        const srcVal = formData[(field as any).sourceFieldId];
+        const words = numberToWords(srcVal ?? '');
+        if (formData[field.id] !== words) onChange(field.id, words);
       }
     });
   }, [formData, fields]);
 
+  // Dynamic Options Fetching
+  const [dynamicOptions, setDynamicOptions] = useState<Record<string, {label: string, value: string}[]>>({});
+  
+  useEffect(() => {
+    const fetchOptions = async () => {
+      const newOptions: Record<string, {label: string, value: string}[]> = {};
+      
+      for (const field of fields) {
+        if ((field.type === "select" || field.type === "searchable_select") && field.optionsSource === "database" && field.optionsTable) {
+          try {
+            const res = await fetch(`${BASE_URL}/api/v1/forms/dynamic-options?table=${encodeURIComponent(field.optionsTable)}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.success && data.data) {
+              newOptions[field.id] = data.data;
+            } else {
+              newOptions[field.id] = [];
+            }
+          } catch (e) {
+            console.error("Failed to fetch options for", field.id, e);
+            newOptions[field.id] = [];
+          }
+        } else if ((field.type === "select" || field.type === "searchable_select") && field.optionsSource !== "database" && field.optionsArray) {
+          // Parse static array
+          newOptions[field.id] = field.optionsArray.split(",").map((s: string) => s.trim()).filter(Boolean).map((s: string) => ({ label: s, value: s }));
+        }
+      }
+      
+      setDynamicOptions(prev => ({ ...prev, ...newOptions }));
+    };
+    
+    fetchOptions();
+  }, [fields, token, BASE_URL]);
+
+  const handleSectionNext = () => {
+    const missing = (section?.fields ?? []).filter((f: any) =>
+      f.type !== 'instructions' && f.required &&
+      (formData[f.id] === undefined || formData[f.id] === null || formData[f.id] === '' ||
+        (Array.isArray(formData[f.id]) && formData[f.id].length === 0))
+    );
+    if (missing.length > 0) {
+      setSectionError(`Please fill in: ${missing.map((f: any) => f.label).join(', ')}`);
+      return;
+    }
+    setSectionError('');
+    if (!isLastSection) {
+      setSectionIdx(i => i + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      onNext();
+    }
+  };
+
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onNext(); }}>
+    <form onSubmit={(e) => { e.preventDefault(); handleSectionNext(); }}>
+      {/* ── Section sub-step indicator ── */}
+      {hasSections && (
+        <div className="px-6 pt-4 border-b border-gray-100 pb-3">
+          <div className="flex items-center gap-2 overflow-x-auto">
+            {sections.map((sec, i) => (
+              <span key={sec.id} className="flex items-center gap-2 shrink-0">
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all
+                  ${i < sectionIdx ? 'bg-primary border-primary text-white' :
+                    i === sectionIdx ? 'bg-white border-primary text-primary' :
+                    'bg-white border-gray-200 text-gray-400'}`}>
+                  {i < sectionIdx ? '✓' : i + 1}
+                </span>
+                <span className={`text-xs font-medium whitespace-nowrap hidden sm:block
+                  ${i === sectionIdx ? 'text-primary font-semibold' : i < sectionIdx ? 'text-gray-600' : 'text-gray-400'}`}>
+                  {sec.title || 'General'}
+                </span>
+                {i < sections.length - 1 && <span className={`h-px w-8 flex-shrink-0 ${i < sectionIdx ? 'bg-primary' : 'bg-gray-200'}`} />}
+              </span>
+            ))}
+          </div>
+          {section?.subtitle && <p className="text-xs text-gray-500 mt-2">{section.subtitle}</p>}
+        </div>
+      )}
+
       <CardContent className="space-y-8 pt-8">
-        {fields.map((field, idx) => {
+        {(() => {
+          let questionNum = 0;
+          return (section?.fields ?? fields).map((field: any) => {
+          // Layout-only fields have no input
+          if ((field as any).type === 'section_header') {
+            return (
+              <div key={field.id} className="pt-4 pb-2">
+                <div className="flex items-center gap-3">
+                  <div className="h-px flex-1 bg-gradient-to-r from-primary/30 to-transparent" />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-primary uppercase tracking-widest">{field.label}</span>
+                    {(field as any).sectionSubtitle && (
+                      <span className="text-xs text-gray-500 mt-0.5">{(field as any).sectionSubtitle}</span>
+                    )}
+                  </div>
+                  <div className="h-px flex-1 bg-gradient-to-l from-primary/30 to-transparent" />
+                </div>
+              </div>
+            );
+          }
+
+          if ((field as any).type === 'instructions') {
+            const raw: string = (field as any).instructionsContent || '';
+            const sessionUser = (session?.user as any) ?? {};
+            const processedHtml = htmlInterpolate(raw, fields, formData, sessionUser);
+            return (
+              <div key={field.id} className="space-y-2">
+                {field.label && <p className="text-sm font-semibold text-gray-800">{field.label}</p>}
+                <div
+                  className="bg-gray-50 border border-gray-200 rounded-xl p-5 max-h-80 overflow-y-auto text-sm text-gray-700 leading-relaxed [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold [&_h3]:font-bold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_blockquote]:border-l-4 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-gray-500 [&_hr]:border-gray-200 [&_p]:my-1"
+                  dangerouslySetInnerHTML={{ __html: processedHtml }}
+                />
+                <p className="text-xs text-gray-400 italic">Please read the above carefully before proceeding.</p>
+              </div>
+            );
+          }
+
           let hasReferenceValue = false;
           if (referenceData && field.description) {
             const match = field.description.match(/Referenced\s+"([^"]+)"/i);
@@ -175,12 +522,13 @@ function FormFieldsStep({
             }
           }
 
+          questionNum++;
           return (
             <div key={field.id} className="space-y-2">
               <div>
                 <Label htmlFor={field.id} className="text-base font-semibold flex items-center justify-between gap-2">
                   <span className="flex gap-2">
-                    <span className="text-primary text-sm">{idx + 1}.</span>
+                    <span className="text-primary text-sm">{questionNum}.</span>
                     {field.label}
                     {field.required && <span className="text-red-500">*</span>}
                   </span>
@@ -254,6 +602,40 @@ function FormFieldsStep({
                     CALCULATED
                   </span>
                 </div>
+            ) : (field as any).type === "to_words" ? (
+                <div className="relative max-w-2xl">
+                  <div className="rounded-md border border-teal-200 bg-teal-50 px-3 py-2.5 text-sm text-teal-800 font-medium leading-relaxed min-h-[40px] pr-28">
+                    {formData[field.id] || <span className="text-teal-400 italic">Waiting for a value in the source field…</span>}
+                  </div>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-teal-400 text-xs font-mono whitespace-nowrap">
+                    IN WORDS
+                  </span>
+                </div>
+            ) : field.type === "select" ? (
+                <select
+                  id={field.id}
+                  required={field.required}
+                  value={formData[field.id] ?? ""}
+                  onChange={(e) => onChange(field.id, e.target.value)}
+                  disabled={hasReferenceValue}
+                  className={`flex h-10 w-full max-w-md rounded-md border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all shadow-sm ${
+                    hasReferenceValue ? "bg-gray-100 text-gray-500 cursor-not-allowed" : "bg-white cursor-pointer"
+                  }`}
+                >
+                  <option value="">— Select an option —</option>
+                  {(dynamicOptions[field.id] || []).map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+            ) : field.type === "searchable_select" ? (
+                <SearchableSelect
+                  id={field.id}
+                  options={dynamicOptions[field.id] || []}
+                  value={formData[field.id] ?? ""}
+                  onChange={(val) => onChange(field.id, val)}
+                  required={field.required}
+                  disabled={hasReferenceValue}
+                />
             ) : (
                 <Input
                   id={field.id}
@@ -270,11 +652,24 @@ function FormFieldsStep({
               )}
             </div>
           );
-        })}
+        }); // end fields.map
+        })() /* end IIFE */}
+        {sectionError && (
+          <div className="mx-6 mb-0 mt-2 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+            {sectionError}
+          </div>
+        )}
       </CardContent>
-      <CardFooter className="bg-gray-50 border-t border-gray-100 p-6 flex justify-end">
+      <CardFooter className="bg-gray-50 border-t border-gray-100 p-6 flex justify-between">
+        {sectionIdx > 0 ? (
+          <Button type="button" variant="outline" className="cursor-pointer" onClick={() => { setSectionError(''); setSectionIdx(i => i - 1); }}>
+            <ArrowLeft className="w-4 h-4 mr-1" /> Back
+          </Button>
+        ) : <span />}
         <Button type="submit" size="lg" className="cursor-pointer">
-          Next: Add Signatories <ChevronRight className="w-4 h-4 ml-1" />
+          {isLastSection
+            ? <>Next: Add Signatories <ChevronRight className="w-4 h-4 ml-1" /></>
+            : <>Next: {sections[sectionIdx + 1]?.title || 'Next Section'} <ChevronRight className="w-4 h-4 ml-1" /></>}
         </Button>
       </CardFooter>
     </form>
@@ -530,7 +925,9 @@ function ReviewStep({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {fields.map((f, i) => (
+                {fields
+                  .filter((f: any) => f.type !== 'section_header' && f.type !== 'instructions')
+                  .map((f, i) => (
                   <tr key={f.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                     <td className="px-4 py-3 font-medium text-gray-700">{f.label}</td>
                     <td className="px-4 py-3 text-gray-600">
@@ -592,10 +989,10 @@ function ReviewStep({
 
 // ─── Main Wizard ──────────────────────────────────────────────────────────────
 
-export default function FormFillerClient({ template, currentUser }: { template: any, currentUser: { userName: string; email: string } }) {
+export default function FormFillerClient({ template, currentUser, draftId, initialFormData }: { template: any, currentUser: { userName: string; email: string }, draftId?: string, initialFormData?: Record<string, any> }) {
   const router = useRouter();
   const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [formData, setFormData] = useState<Record<string, any>>(initialFormData || {});
   const [signatories, setSignatories] = useState<SignatoryInput[]>([{
     position: 1,
     userName: currentUser.userName,
@@ -646,6 +1043,7 @@ export default function FormFillerClient({ template, currentUser }: { template: 
     const fileFields: Record<string, File[]> = {};
 
     fields.forEach((f) => {
+      if ((f as any).type === 'section_header' || (f as any).type === 'instructions') return;
       if (f.type === "file") {
         if (formData[f.id]) {
           fileFields[f.label] = formData[f.id] as File[];
@@ -662,7 +1060,8 @@ export default function FormFillerClient({ template, currentUser }: { template: 
       formResponses: textOnlyResponses,
       signatories,
       signingType,
-      ...(signatureToken ? { initiatorToken: signatureToken } : {})
+      initiatorToken: signatureToken || undefined,
+      draftId,
     }));
 
     for (const [fieldName, files] of Object.entries(fileFields)) {

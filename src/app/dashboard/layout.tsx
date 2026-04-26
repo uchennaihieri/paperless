@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import {
   Building2, FileText, CheckSquare, PenTool, LayoutDashboard,
-  LogOut, Users, BarChart2, Menu, X, History, Settings, ShieldCheck,
+  LogOut, Users, BarChart2, Menu, X, History, Settings, ShieldCheck, UserCog
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
@@ -16,6 +16,7 @@ import { AuditTrailModal } from "@/components/AuditTrailModal";
 const navigation = [
   { name: "Workflow", href: "/dashboard/workflow", icon: LayoutDashboard },
   { name: "Forms", href: "/dashboard/forms", icon: FileText },
+  { name: "Account Services", href: "/dashboard/account-services", icon: UserCog },
   { name: "Action", href: "/dashboard/action", icon: CheckSquare },
   { name: "Signature", href: "/dashboard/signature", icon: PenTool },
   { name: "Reports", href: "/dashboard/reports", icon: BarChart2 },

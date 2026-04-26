@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +46,9 @@ export default function FormsClientPage({
   const { data: session } = useSession();
   const currentUserId = session?.user?.id ? Number(session.user.id) : null;
 
-  const [activeTab, setActiveTab]           = useState<"available" | "submitted">("available");
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get("tab") as any) || "submitted";
+  const [activeTab, setActiveTab]           = useState<"back_office" | "account_services" | "submitted">(initialTab);
   const [searchQuery, setSearchQuery]        = useState("");
 
   // ── Template delete modal ──
@@ -66,12 +68,31 @@ export default function FormsClientPage({
 
   const [formNavError, setFormNavError]             = useState("");
 
-  const filteredForms = templates.filter((f: any) =>
+  const allFilteredForms = templates.filter((f: any) =>
     f.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+  
+  const backOfficeForms = allFilteredForms.filter((f: any) => !f.accountServicesEnabled);
+  const accountServicesForms = allFilteredForms.filter((f: any) => f.accountServicesEnabled);
 
-  // Exclude Completed submissions — users can review those via Activity History
-  const activeSubmissions = submissions.filter((s: any) => s.status !== "Completed");
+  const mobileFilter = searchParams.get("mobile") === "true";
+  const statusFilter = searchParams.get("status");
+
+  const activeSubmissions = submissions.filter((s: any) => {
+    // If status is specified, only show that status. Otherwise exclude Completed.
+    if (statusFilter) {
+      if (s.status !== statusFilter) return false;
+    } else {
+      if (s.status === "Completed") return false;
+    }
+    
+    // If mobile filter is true, only show submissions for mobile-enabled forms
+    if (mobileFilter) {
+      if (!s.template?.mobileEnabled) return false;
+    }
+    
+    return true;
+  });
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
@@ -142,20 +163,19 @@ export default function FormsClientPage({
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-4 border-b border-gray-200">
-        {(["available", "submitted"] as const).map((tab) => (
+      <div className="flex gap-4 border-b border-gray-200 overflow-x-auto">
+        {(["submitted", "back_office", "account_services"] as const).map((tab) => (
           <button
             key={tab}
             id={`forms-tab-${tab}`}
-            className={`pb-3 font-medium text-sm transition-colors relative cursor-pointer ${
+            className={`pb-3 font-medium text-sm transition-colors relative cursor-pointer whitespace-nowrap ${
               activeTab === tab ? "text-primary" : "text-gray-500 hover:text-gray-700"
             }`}
             onClick={() => setActiveTab(tab)}
           >
-            {tab === "available"
-              ? "Available Forms"
-              : `My Submissions (${activeSubmissions.length})`
-            }
+            {tab === "back_office" && "Back Office Forms"}
+            {tab === "account_services" && "Account Forms"}
+            {tab === "submitted" && `My Submissions (${activeSubmissions.length})`}
             {activeTab === tab && (
               <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary rounded-t-md" />
             )}
@@ -163,57 +183,60 @@ export default function FormsClientPage({
         ))}
       </div>
 
-      {/* ── Available forms tab ── */}
-      {activeTab === "available" && (
-        <div className="space-y-4">
-          {formNavError && (
-            <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl">
-              <AlertTriangle className="w-5 h-5 shrink-0" />
-              {formNavError}
-            </div>
-          )}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredForms.map((form) => (
-            <Card
-              key={form.id}
-              className="hover:shadow-md transition-all cursor-pointer border-l-4 border-l-primary group relative overflow-hidden"
-              onClick={() => handleFormClick(form.id)}
-            >
-              <CardContent className="p-5">
-                {isAdmin && (
-                  <div className="absolute top-3 right-3 flex items-center justify-end gap-1 opacity-0 shrink-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/forms/builder?id=${form.id}`); }}
-                      className="p-1.5 bg-gray-50 border border-gray-200 hover:bg-gray-100 rounded-md text-gray-500 hover:text-primary transition-colors cursor-pointer shadow-sm"
-                      title="Edit Template"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setTemplateToDelete(form); }}
-                      className="p-1.5 bg-red-50 border border-red-100 hover:bg-red-100 rounded-md text-red-500 hover:text-red-600 transition-colors cursor-pointer shadow-sm"
-                      title="Delete Template"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+      {/* ── Back Office & Account Services tabs ── */}
+      {(activeTab === "back_office" || activeTab === "account_services") && (() => {
+        const displayedForms = activeTab === "back_office" ? backOfficeForms : accountServicesForms;
+        return (
+          <div className="space-y-4">
+            {formNavError && (
+              <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl">
+                <AlertTriangle className="w-5 h-5 shrink-0" />
+                {formNavError}
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {displayedForms.map((form: any) => (
+              <Card
+                key={form.id}
+                className={`hover:shadow-md transition-all cursor-pointer border-l-4 group relative overflow-hidden ${activeTab === 'account_services' ? 'border-l-indigo-500' : 'border-l-primary'}`}
+                onClick={() => handleFormClick(form.id)}
+              >
+                <CardContent className="p-5">
+                  {isAdmin && (
+                    <div className="absolute top-3 right-3 flex items-center justify-end gap-1 opacity-0 shrink-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/forms/builder?id=${form.id}`); }}
+                        className="p-1.5 bg-gray-50 border border-gray-200 hover:bg-gray-100 rounded-md text-gray-500 hover:text-primary transition-colors cursor-pointer shadow-sm"
+                        title="Edit Template"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setTemplateToDelete(form); }}
+                        className="p-1.5 bg-red-50 border border-red-100 hover:bg-red-100 rounded-md text-red-500 hover:text-red-600 transition-colors cursor-pointer shadow-sm"
+                        title="Delete Template"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                  <div className={`${activeTab === 'account_services' ? 'bg-indigo-100 text-indigo-600' : 'bg-primary/10 text-primary'} w-9 h-9 rounded-lg flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
+                    <FilePlus className="w-5 h-5" />
                   </div>
-                )}
-                <div className="bg-primary/10 w-9 h-9 rounded-lg flex items-center justify-center text-primary mb-3 group-hover:scale-110 transition-transform">
-                  <FilePlus className="w-5 h-5" />
-                </div>
-                <h3 className="font-semibold text-gray-900 line-clamp-2 mb-1 leading-tight">{form.name}</h3>
-                <p className="text-xs text-gray-400 line-clamp-2">{form.description}</p>
-              </CardContent>
-            </Card>
-          ))}
-          {filteredForms.length === 0 && (
-            <div className="col-span-full py-16 text-center text-gray-400">
-              No forms match your search.
-            </div>
-          )}
-        </div>
-        </div>
-      )}
+                  <h3 className="font-semibold text-gray-900 line-clamp-2 mb-1 leading-tight">{form.name}</h3>
+                  <p className="text-xs text-gray-400 line-clamp-2">{form.description}</p>
+                </CardContent>
+              </Card>
+            ))}
+            {displayedForms.length === 0 && (
+              <div className="col-span-full py-16 text-center text-gray-400">
+                No forms found in this category.
+              </div>
+            )}
+          </div>
+          </div>
+        );
+      })()}
 
       {/* ── My Submissions tab ── */}
       {activeTab === "submitted" && (
