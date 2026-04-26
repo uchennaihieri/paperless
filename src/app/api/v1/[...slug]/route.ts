@@ -3,7 +3,7 @@ import { auth } from "@/auth";
 
 const BACKEND_API_URL = process.env.BACKEND_API_URL || "https://paperlessbackend-production.up.railway.app/api/v1";
 
-async function proxyRequest(req: NextRequest, { params }: { params: { slug: string[] } }) {
+async function proxyRequest(req: NextRequest, { params }: { params: Promise<{ slug: string[] }> }) {
   const session = await auth().catch(() => null);
   const backendToken = (session?.user as any)?.backendToken;
   
