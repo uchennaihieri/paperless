@@ -174,7 +174,7 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
       <div>
         <div className="flex justify-between items-center border-b border-gray-200 pb-2 mb-3">
           <h3 className="text-xs font-semibold text-primary uppercase tracking-widest">Form Responses</h3>
-          {submission.status === "Completed" && (
+          {(submission.status === "Completed" || submission.status === "Processing") && (
             <RegeneratePdfButton submissionId={submission.id} />
           )}
         </div>
