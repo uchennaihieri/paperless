@@ -420,7 +420,17 @@ export default function EditSubmissionModal({
                             <tr key={f.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                               <td className="px-4 py-2.5 font-medium text-gray-700">{f.label}</td>
                               <td className="px-4 py-2.5 text-gray-600">
-                                {formData[f.id] || <span className="italic text-gray-300">—</span>}
+                                {Array.isArray(formData[f.id]) ? (
+                                  <div className="flex flex-col gap-1">
+                                    {(formData[f.id] as any[]).map((file, idx) => (
+                                      <span key={idx} className="text-primary text-xs font-medium">
+                                        📎 {file.name || "Attachment"}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  formData[f.id] || <span className="italic text-gray-300">—</span>
+                                )}
                               </td>
                             </tr>
                           ))}
