@@ -53,3 +53,17 @@ export async function updateUserInformation(
   });
   revalidatePath("/dashboard/teams");
 }
+
+export async function getUserFormAccess(email: string) {
+  const result = await apiClient(`/forms-access/user/${encodeURIComponent(email)}`);
+  return result;
+}
+
+export async function updateUserFormAccess(email: string, templateIds: string[]) {
+  const result = await apiClient(`/forms-access/user/${encodeURIComponent(email)}`, {
+    method: "POST",
+    body: JSON.stringify({ templateIds })
+  });
+  revalidatePath("/dashboard/teams");
+  return result;
+}

@@ -2,15 +2,20 @@
 
 import { useState, useMemo } from "react";
 import { Search, Plus, Trash2, Power, Shield, Activity, X, User as UserIcon, Edit2 } from "lucide-react";
-import { updateUserRoleStatus, removeUserRole, addUserRole, updateUserInformation } from "@/app/actions/team";
+import { updateUserRoleStatus, removeUserRole, addUserRole, updateUserInformation, getUserFormAccess, updateUserFormAccess } from "@/app/actions/team";
+import { FileText, CheckCircle2 } from "lucide-react";
 
 // I will build a nice UI. 
 
-export default function TeamsClientPage({ users, branches }: { users: any[], branches: string[] }) {
+export default function TeamsClientPage({ users, branches, templates }: { users: any[], branches: string[], templates: any[] }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isAddingRole, setIsAddingRole] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  const [isManagingForms, setIsManagingForms] = useState(false);
+  const [isLoadingForms, setIsLoadingForms] = useState(false);
+  const [assignedTemplates, setAssignedTemplates] = useState<Set<string>>(new Set());
 
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [isEditingUser, setIsEditingUser] = useState(false);
@@ -170,15 +175,63 @@ export default function TeamsClientPage({ users, branches }: { users: any[], bra
     }
   };
 
+  const handleOpenManageForms = async () => {
+    if (!activeUser?.email) {
+      showError("User email is missing");
+      return;
+    }
+    setIsManagingForms(true);
+    setIsLoadingForms(true);
+    try {
+      const res = await getUserFormAccess(activeUser.email);
+      if (res.success) {
+        const assignedIds = res.data.map((r: any) => r.templateId);
+        setAssignedTemplates(new Set(assignedIds));
+      } else {
+        showError(res.error || "Failed to load assigned forms");
+      }
+    } catch (e: any) {
+      showError(e.message || "Failed to load assigned forms");
+    } finally {
+      setIsLoadingForms(false);
+    }
+  };
+
+  const handleSaveForms = async () => {
+    if (!activeUser?.email) return;
+    try {
+      setIsLoadingForms(true);
+      const res = await updateUserFormAccess(activeUser.email, Array.from(assignedTemplates));
+      if (res.success) {
+        setIsManagingForms(false);
+      } else {
+        showError(res.error || "Failed to save form access");
+      }
+    } catch (e: any) {
+      showError(e.message || "Failed to save form access");
+    } finally {
+      setIsLoadingForms(false);
+    }
+  };
+
+  const toggleFormAccess = (id: string) => {
+    setAssignedTemplates(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-gray-900">Teams Management</h2>
           <p className="text-sm text-gray-500 mt-1">Manage users, their roles, and branches.</p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="relative w-72">
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+          <div className="relative w-full sm:w-72">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
@@ -190,7 +243,7 @@ export default function TeamsClientPage({ users, branches }: { users: any[], bra
           </div>
           <button
             onClick={() => setIsCreatingUser(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors"
+            className="w-full sm:w-auto flex justify-center items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors"
           >
             <Plus className="h-4 w-4" /> New User
           </button>
@@ -246,33 +299,45 @@ export default function TeamsClientPage({ users, branches }: { users: any[], bra
         <div className="lg:col-span-2">
           {activeUser ? (
             <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-              <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                <div className="flex items-center gap-4">
-                  <div className="h-16 w-16 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xl font-bold uppercase shrink-0">
-                    {(activeUser.user_name || "U")[0]}
-                  </div>
-                  <div className="flex-1">
-                    <h2 className="text-xl font-bold text-gray-900">{activeUser.user_name || "Unknown User"}</h2>
-                    <div className="flex items-center gap-4 mt-2 text-sm text-gray-500 flex-wrap">
-                      <span className="flex items-center gap-1">
-                        <Shield className="h-4 w-4" /> EMP: {activeUser.employee_id || "N/A"}
-                      </span>
-                      <span>•</span>
-                      <span>Email: {activeUser.email || "N/A"}</span>
-                      <span>•</span>
-                      <span>Auth DB ID: {activeUser.login_id || "N/A"}</span>
+              <div className="p-5 sm:p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                <div className="flex flex-col gap-5">
+                  <div className="flex items-start sm:items-center gap-4 w-full">
+                    <div className="h-14 w-14 sm:h-16 sm:w-16 bg-primary/10 text-primary rounded-full flex items-center justify-center text-xl font-bold uppercase shrink-0">
+                      {(activeUser.user_name || "U")[0]}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h2 className="text-xl font-bold text-gray-900 truncate">{activeUser.user_name || "Unknown User"}</h2>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-3 mt-1.5 text-sm text-gray-500">
+                        <span className="flex items-center gap-1 shrink-0">
+                          <Shield className="h-4 w-4" /> EMP: {activeUser.employee_id || "N/A"}
+                        </span>
+                        <span className="hidden sm:inline text-gray-300">•</span>
+                        <span className="truncate" title={activeUser.email || ""}>
+                          Email: {activeUser.email || "N/A"}
+                        </span>
+                        <span className="hidden sm:inline text-gray-300">•</span>
+                        <span className="truncate shrink-0">
+                          ID: {activeUser.login_id || "N/A"}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="flex flex-col sm:flex-row flex-wrap gap-3 w-full border-t border-gray-100/50 pt-2">
                     <button
                       onClick={openEditUser}
-                      className="flex items-center gap-2 px-4 py-2 text-primary hover:bg-primary/10 text-sm font-medium rounded-lg transition-colors"
+                      className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-4 py-2 text-primary hover:bg-primary/10 text-sm font-medium rounded-lg transition-colors border border-primary/20 hover:border-primary/40 bg-white"
                     >
                       <Edit2 className="h-4 w-4" /> Edit Info
                     </button>
                     <button
+                      onClick={handleOpenManageForms}
+                      className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-4 py-2 text-primary hover:bg-primary/10 text-sm font-medium rounded-lg transition-colors border border-primary/20 hover:border-primary/40 bg-white"
+                    >
+                      <FileText className="h-4 w-4" /> Manage Forms
+                    </button>
+                    <button
                       onClick={() => setIsAddingRole(true)}
-                      className="flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors"
+                      className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors"
                     >
                       <Plus className="h-4 w-4" /> Add Role
                     </button>
@@ -578,6 +643,96 @@ export default function TeamsClientPage({ users, branches }: { users: any[], bra
               >
                 Okay
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage Forms Modal */}
+      {isManagingForms && activeUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100 shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-primary" /> Manage Form Access
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">Assign available forms to <span className="font-semibold text-gray-800">{activeUser.user_name}</span>.</p>
+              </div>
+              <button 
+                onClick={() => setIsManagingForms(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto bg-gray-50 flex-1">
+              {isLoadingForms ? (
+                <div className="flex flex-col items-center justify-center h-40 text-gray-400">
+                  <div className="h-8 w-8 border-4 border-gray-200 border-t-primary rounded-full animate-spin mb-3"></div>
+                  <p>Loading assigned forms...</p>
+                </div>
+              ) : templates.length === 0 ? (
+                <div className="text-center py-10 text-gray-500 bg-white rounded-xl border border-dashed border-gray-200">
+                  No forms available in the system.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {templates.map((tpl: any) => {
+                    const isSelected = assignedTemplates.has(tpl.id);
+                    return (
+                      <div
+                        key={tpl.id}
+                        onClick={() => toggleFormAccess(tpl.id)}
+                        className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
+                          isSelected 
+                            ? "bg-white border-primary/40 shadow-sm ring-1 ring-primary/10" 
+                            : "bg-white border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        <div className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center shrink-0 border ${
+                          isSelected 
+                            ? "bg-primary border-primary text-white" 
+                            : "bg-white border-gray-300 text-transparent"
+                        }`}>
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        </div>
+                        <div>
+                          <h4 className={`text-sm font-semibold mb-0.5 ${isSelected ? "text-gray-900" : "text-gray-700"}`}>
+                            {tpl.name}
+                          </h4>
+                          <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
+                            {tpl.description || "No description"}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 sm:p-6 border-t border-gray-100 bg-white shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <span className="text-sm text-gray-500 font-medium text-center sm:text-left">
+                {assignedTemplates.size} form{assignedTemplates.size === 1 ? "" : "s"} selected
+              </span>
+              <div className="flex gap-3 w-full sm:w-auto">
+                <button
+                  onClick={() => setIsManagingForms(false)}
+                  disabled={isLoadingForms}
+                  className="flex-1 sm:flex-none justify-center px-5 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveForms}
+                  disabled={isLoadingForms}
+                  className="flex-1 sm:flex-none justify-center px-5 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 flex items-center gap-2"
+                >
+                  {isLoadingForms ? "Saving..." : "Save Access"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
