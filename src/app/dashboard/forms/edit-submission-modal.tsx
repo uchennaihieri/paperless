@@ -18,7 +18,7 @@ import {
 type Field = {
   id: string;
   label: string;
-  type: "text" | "number" | "date" | "textarea" | "file";
+  type: "text" | "number" | "date" | "textarea" | "file" | "section_header" | "instructions";
   required: boolean;
   description?: string;
   maxLength?: number;
