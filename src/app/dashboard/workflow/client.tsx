@@ -20,7 +20,7 @@ import { RegeneratePdfButton } from "../forms/submission/[id]/regenerate-button"
 import {
   Clock, CheckCircle2, XCircle, ChevronRight, X,
   GitBranch, Layers, User, FileText, AlertTriangle,
-  Pen, Bell, Loader2, RefreshCw, Link2
+  Pen, Bell, Loader2, RefreshCw, Link2, Eye, EyeOff
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -157,6 +157,7 @@ function DetailPanel({
   // Sign modal state
   const [showSignModal, setShowSignModal]        = useState(false);
   const [signatureToken, setSignatureToken]      = useState("");
+  const [showToken, setShowToken]                = useState(false);
 
   const responses = item.formResponses || {};
 
@@ -692,13 +693,23 @@ function DetailPanel({
             <div className="flex-1 mb-6">
               <div className="space-y-4">
                 <p className="text-sm text-gray-500">Enter your 8-character secure signature token.</p>
-                <Input
-                  value={signatureToken}
-                  onChange={(e) => setSignatureToken(e.target.value)}
-                  maxLength={8}
-                  placeholder="e.g. 1a2b3c4d"
-                  className="text-center tracking-widest font-mono text-lg h-12"
-                />
+                <div className="relative">
+                  <Input
+                    type={showToken ? "text" : "password"}
+                    value={signatureToken}
+                    onChange={(e) => setSignatureToken(e.target.value)}
+                    maxLength={8}
+                    placeholder="e.g. 1a2b3c4d"
+                    className="text-center tracking-widest font-mono text-lg h-12 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowToken(!showToken)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                  >
+                    {showToken ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
               </div>
               {error && <p className="text-red-500 text-sm mt-4">{error}</p>}
             </div>

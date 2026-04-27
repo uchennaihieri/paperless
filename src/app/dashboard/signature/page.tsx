@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { PenTool, Save, Eraser, CheckCircle2, Upload, ImageIcon, AlertCircle, X } from "lucide-react";
+import { PenTool, Save, Eraser, CheckCircle2, Upload, ImageIcon, AlertCircle, X, Eye, EyeOff } from "lucide-react";
 import { saveSecuritySignature, getMySignature } from "@/app/actions/security";
 
 type ActiveTab = "view" | "draw" | "upload";
@@ -37,7 +37,9 @@ export default function SignaturePage() {
   // Token prompt (shared by draw + upload)
   const [showTokenPrompt, setShowTokenPrompt] = useState(false);
   const [inputToken, setInputToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
   const [confirmToken, setConfirmToken] = useState("");
+  const [showConfirmToken, setShowConfirmToken] = useState(false);
   const [tokenError, setTokenError] = useState("");
   const [pendingBlob, setPendingBlob] = useState<string | null>(null);
 
@@ -367,25 +369,45 @@ export default function SignaturePage() {
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="token-input">Token (8 characters)</Label>
-                <Input
-                  id="token-input"
-                  value={inputToken}
-                  onChange={(e) => { setInputToken(e.target.value); setTokenError(""); }}
-                  maxLength={8}
-                  placeholder="e.g. A1B2C3D4"
-                  className="text-center tracking-[0.4em] font-mono text-lg"
-                />
+                <div className="relative">
+                  <Input
+                    id="token-input"
+                    type={showToken ? "text" : "password"}
+                    value={inputToken}
+                    onChange={(e) => { setInputToken(e.target.value); setTokenError(""); }}
+                    maxLength={8}
+                    placeholder="e.g. A1B2C3D4"
+                    className="text-center tracking-[0.4em] font-mono text-lg pr-12"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowToken(!showToken)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                  >
+                    {showToken ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="token-confirm-input">Confirm Token</Label>
-                <Input
-                  id="token-confirm-input"
-                  value={confirmToken}
-                  onChange={(e) => { setConfirmToken(e.target.value); setTokenError(""); }}
-                  maxLength={8}
-                  placeholder="Re-enter your token"
-                  className="text-center tracking-[0.4em] font-mono text-lg"
-                />
+                <div className="relative">
+                  <Input
+                    id="token-confirm-input"
+                    type={showConfirmToken ? "text" : "password"}
+                    value={confirmToken}
+                    onChange={(e) => { setConfirmToken(e.target.value); setTokenError(""); }}
+                    maxLength={8}
+                    placeholder="Re-enter your token"
+                    className="text-center tracking-[0.4em] font-mono text-lg pr-12"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmToken(!showConfirmToken)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                  >
+                    {showConfirmToken ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
               </div>
               {tokenError && (
                 <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">

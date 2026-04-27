@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileDown, ChevronRight, CheckSquare, X, User, RefreshCw, AlertTriangle, Loader2 } from "lucide-react";
+import { FileDown, ChevronRight, CheckSquare, X, User, RefreshCw, AlertTriangle, Loader2, Eye, EyeOff } from "lucide-react";
 import { assignToSelf, completeProcessWithApprover, searchActiveWorkflowUsers, regeneratePdf } from "@/app/actions/workflow";
 import { getActionItems } from "@/app/actions/form";
 import { useSmartFetch } from "@/hooks/useSmartFetch";
@@ -64,6 +64,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
   const [showTreaterTokenModal, setShowTreaterTokenModal] = useState(false);
   const [treaterToken, setTreaterToken] = useState("");
   const [treaterTokenError, setTreaterTokenError] = useState("");
+  const [showToken, setShowToken] = useState(false);
 
   const handleRegenerate = async (id: string) => {
     setIsRegenerating(true);
@@ -460,15 +461,24 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
               <p className="text-sm text-gray-600">
                 Enter your 8-character signature token to confirm this action.
               </p>
-              <input
-                autoFocus
-                type="password"
-                maxLength={8}
-                value={treaterToken}
-                onChange={(e) => { setTreaterToken(e.target.value); setTreaterTokenError(""); }}
-                placeholder="e.g. 1a2b3c4d"
-                className="w-full text-center tracking-widest font-mono text-lg h-12 border border-gray-300 rounded-xl px-3 focus:outline-none focus:ring-2 focus:ring-primary"
-              />
+              <div className="relative">
+                <input
+                  autoFocus
+                  type={showToken ? "text" : "password"}
+                  maxLength={8}
+                  value={treaterToken}
+                  onChange={(e) => { setTreaterToken(e.target.value); setTreaterTokenError(""); }}
+                  placeholder="e.g. 1a2b3c4d"
+                  className="w-full text-center tracking-widest font-mono text-lg h-12 border border-gray-300 rounded-xl px-3 pr-12 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowToken(!showToken)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                >
+                  {showToken ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
               {treaterTokenError && (
                 <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">
                   <AlertTriangle className="w-4 h-4 shrink-0" /> {treaterTokenError}

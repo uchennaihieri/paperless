@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { submitForm, searchUsers, SignatoryInput, SigningType } from "@/app/actions/form";
-import { X, Search, Check, ChevronRight, GitBranch, Layers, Send, UserPlus, ArrowLeft, KeyRound, Loader2 } from "lucide-react";
+import { X, Search, Check, ChevronRight, GitBranch, Layers, Send, UserPlus, ArrowLeft, KeyRound, Loader2, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { numberToWords } from "@/lib/toWords";
 
@@ -1000,8 +1000,9 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
   }]);
   const [signingType, setSigningType] = useState<SigningType>("sequential");
   const [submitting, setSubmitting] = useState(false);
-  const [showTokenModal, setShowTokenModal] = useState(false);
   const [signatureToken, setSignatureToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
+  const [showTokenModal, setShowTokenModal] = useState(false);
   const [error, setError] = useState("");
 
   const fields: Field[] = typeof template.fields === "string"
@@ -1147,14 +1148,23 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
               <p className="text-sm text-gray-500">
                 You are listed as the first signatory. Enter your 8-character token to securely apply your signature to this submission simultaneously.
               </p>
-              <Input
-                type="text"
-                placeholder="Token (e.g. 1a2b3c4d)"
-                value={signatureToken}
-                onChange={(e) => setSignatureToken(e.target.value)}
-                maxLength={8}
-                className="text-center tracking-widest font-mono text-lg py-6"
-              />
+              <div className="relative">
+                <Input
+                  type={showToken ? "text" : "password"}
+                  placeholder="Token (e.g. 1a2b3c4d)"
+                  value={signatureToken}
+                  onChange={(e) => setSignatureToken(e.target.value)}
+                  maxLength={8}
+                  className="text-center tracking-widest font-mono text-lg py-6 pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowToken(!showToken)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                >
+                  {showToken ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
               <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
                 <Button variant="ghost" onClick={() => setShowTokenModal(false)}>Cancel</Button>
                 <Button 
