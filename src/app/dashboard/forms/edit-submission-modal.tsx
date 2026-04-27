@@ -276,7 +276,9 @@ export default function EditSubmissionModal({
   const handleResubmit = () => {
     setError("");
     const labeledData: Record<string, any> = {};
-    fields.forEach((f) => { labeledData[f.label] = formData[f.id] ?? ""; });
+    fields
+      .filter((f) => f.type !== "section_header" && f.type !== "instructions")
+      .forEach((f) => { labeledData[f.label] = formData[f.id] ?? ""; });
 
     startSave(async () => {
       const res = await editSubmission(submission.id, {
@@ -337,7 +339,9 @@ export default function EditSubmissionModal({
                   onSubmit={(e) => { e.preventDefault(); setStep(2); }}
                   className="space-y-6"
                 >
-                  {fields.map((field, idx) => (
+                  {fields
+                    .filter((f) => f.type !== "section_header" && f.type !== "instructions")
+                    .map((field, idx) => (
                     <div key={field.id} className="space-y-1.5">
                       <Label htmlFor={`edit-${field.id}`} className="font-semibold text-sm flex gap-2">
                         <span className="text-primary">{idx + 1}.</span>
@@ -410,7 +414,9 @@ export default function EditSubmissionModal({
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {fields.map((f, i) => (
+                          {fields
+                            .filter((f) => f.type !== "section_header" && f.type !== "instructions")
+                            .map((f, i) => (
                             <tr key={f.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                               <td className="px-4 py-2.5 font-medium text-gray-700">{f.label}</td>
                               <td className="px-4 py-2.5 text-gray-600">

@@ -117,12 +117,16 @@ export async function editSubmission(
     signingType?: SigningType;
   }
 ) {
-  const result = await apiClient(`/submissions/${id}`, {
-    method: "PUT",
-    body: JSON.stringify(body),
-  });
-  revalidatePath("/dashboard/forms");
-  return result;
+  try {
+    const result = await apiClient(`/submissions/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
+    revalidatePath("/dashboard/forms");
+    return { success: true, data: result };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to edit submission" };
+  }
 }
 
 // ── DELETE /api/v1/submissions/:id ────────────────────────────────────────────
