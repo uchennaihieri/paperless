@@ -386,7 +386,12 @@ function FormFieldsStep({
 
       if ((field as any).type === 'to_words' && (field as any).sourceFieldId) {
         const srcVal = formData[(field as any).sourceFieldId];
-        const words = numberToWords(srcVal ?? '');
+        let valToConvert = srcVal;
+        if (srcVal !== undefined && srcVal !== null && srcVal !== "") {
+          const num = Number(srcVal);
+          if (!isNaN(num)) valToConvert = Math.abs(num);
+        }
+        const words = numberToWords(valToConvert ?? '');
         if (formData[field.id] !== words) onChange(field.id, words);
       }
 
