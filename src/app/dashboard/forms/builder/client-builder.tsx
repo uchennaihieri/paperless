@@ -112,6 +112,14 @@ type Field = {
   derivedSecondField?: string;
   isPrerequisite?: boolean;
   targetFormTemplateId?: string;
+  // conditional logic extras
+  conditionSourceFieldId?: string;
+  conditionOperator?: string;
+  conditionCompareValue?: string;
+  trueResultType?: "fixed" | "field" | "absolute_field";
+  trueResultValue?: string;
+  falseResultType?: "fixed" | "field" | "absolute_field";
+  falseResultValue?: string;
   // select / searchable_select extras
   optionsSource?: "array" | "database";
   optionsArray?: string;
@@ -627,6 +635,12 @@ export default function FormBuilderClient({
                              >
                                🔤 Number to Words {fields.filter(f => f.type === 'number' && f.id !== field.id).length === 0 && field.type !== 'to_words' ? '(requires a numeric field)' : ''}
                              </option>
+                             <option
+                               value="conditional"
+                               disabled={fields.filter(f => f.type === 'number' || f.type === 'derived_arithmetically').length === 0 && field.type !== 'conditional'}
+                             >
+                               🔀 Conditional Logic {fields.filter(f => f.type === 'number' || f.type === 'derived_arithmetically').length === 0 && field.type !== 'conditional' ? '(requires a numeric field)' : ''}
+                             </option>
                            </optgroup>
                            <optgroup label="Layout & Content">
                              <option value="section_header">📌 Section Header</option>
@@ -676,6 +690,140 @@ export default function FormBuilderClient({
                                 <option key={f.id} value={f.id}>{f.label || `Field ${f.id}`}</option>
                               ))}
                             </select>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Conditional logic config */}
+                      {field.type === 'conditional' && (
+                        <div className="md:col-span-2 bg-amber-50/50 p-4 rounded-md border border-amber-100 space-y-4">
+                          <h4 className="text-xs font-bold text-amber-800 uppercase tracking-widest border-b border-amber-200 pb-2 mb-3">IF Condition</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-semibold text-amber-800">Source Field <span className="text-red-500">*</span></Label>
+                              <select
+                                value={(field as any).conditionSourceFieldId || ""}
+                                onChange={(e) => updateField(idx, "conditionSourceFieldId" as any, e.target.value)}
+                                className={SELECT_CLASS}
+                              >
+                                <option value="">— Select field —</option>
+                                {fields.filter(f => (f.type === 'number' || f.type === 'derived_arithmetically') && f.id !== field.id).map(f => (
+                                  <option key={f.id} value={f.id}>{f.label || `Field ${f.id}`}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-semibold text-amber-800">Operator <span className="text-red-500">*</span></Label>
+                              <select
+                                value={(field as any).conditionOperator || ""}
+                                onChange={(e) => updateField(idx, "conditionOperator" as any, e.target.value)}
+                                className={SELECT_CLASS}
+                              >
+                                <option value="">— Operator —</option>
+                                <option value="<">Less Than (&lt;)</option>
+                                <option value=">">Greater Than (&gt;)</option>
+                                <option value="<=">Less or Equal (&lt;=)</option>
+                                <option value=">=">Greater or Equal (&gt;=)</option>
+                                <option value="==">Equals (==)</option>
+                                <option value="!=">Not Equals (!=)</option>
+                              </select>
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-semibold text-amber-800">Compare Value <span className="text-red-500">*</span></Label>
+                              <Input
+                                type="number"
+                                className="bg-white border-neutral-300"
+                                placeholder="e.g. 0"
+                                value={(field as any).conditionCompareValue || ""}
+                                onChange={(e) => updateField(idx, "conditionCompareValue" as any, e.target.value)}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                            {/* THEN */}
+                            <div className="space-y-3 border-r border-amber-200 pr-4">
+                              <h4 className="text-xs font-bold text-green-700 uppercase tracking-widest">THEN (If True)</h4>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold text-green-800">Output Type</Label>
+                                <select
+                                  value={(field as any).trueResultType || "fixed"}
+                                  onChange={(e) => {
+                                    updateField(idx, "trueResultType" as any, e.target.value);
+                                    updateField(idx, "trueResultValue" as any, ""); // Reset value on type change
+                                  }}
+                                  className={SELECT_CLASS}
+                                >
+                                  <option value="fixed">Fixed Value (Number/Text)</option>
+                                  <option value="field">Value of Another Field</option>
+                                  <option value="absolute_field">Absolute Value of Another Field</option>
+                                </select>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold text-green-800">Output Value <span className="text-red-500">*</span></Label>
+                                {((field as any).trueResultType || "fixed") === "field" || ((field as any).trueResultType || "fixed") === "absolute_field" ? (
+                                  <select
+                                    value={(field as any).trueResultValue || ""}
+                                    onChange={(e) => updateField(idx, "trueResultValue" as any, e.target.value)}
+                                    className={SELECT_CLASS}
+                                  >
+                                    <option value="">— Select field —</option>
+                                    {fields.filter(f => f.id !== field.id && f.type !== "section_header" && f.type !== "instructions").map(f => (
+                                      <option key={f.id} value={f.id}>{f.label || `Field ${f.id}`}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <Input
+                                    className="bg-white border-neutral-300"
+                                    placeholder="e.g. 500 or N/A"
+                                    value={(field as any).trueResultValue || ""}
+                                    onChange={(e) => updateField(idx, "trueResultValue" as any, e.target.value)}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                            
+                            {/* ELSE */}
+                            <div className="space-y-3">
+                              <h4 className="text-xs font-bold text-red-700 uppercase tracking-widest">ELSE (If False)</h4>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold text-red-800">Output Type</Label>
+                                <select
+                                  value={(field as any).falseResultType || "fixed"}
+                                  onChange={(e) => {
+                                    updateField(idx, "falseResultType" as any, e.target.value);
+                                    updateField(idx, "falseResultValue" as any, "");
+                                  }}
+                                  className={SELECT_CLASS}
+                                >
+                                  <option value="fixed">Fixed Value (Number/Text)</option>
+                                  <option value="field">Value of Another Field</option>
+                                  <option value="absolute_field">Absolute Value of Another Field</option>
+                                </select>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold text-red-800">Output Value <span className="text-red-500">*</span></Label>
+                                {((field as any).falseResultType || "fixed") === "field" || ((field as any).falseResultType || "fixed") === "absolute_field" ? (
+                                  <select
+                                    value={(field as any).falseResultValue || ""}
+                                    onChange={(e) => updateField(idx, "falseResultValue" as any, e.target.value)}
+                                    className={SELECT_CLASS}
+                                  >
+                                    <option value="">— Select field —</option>
+                                    {fields.filter(f => f.id !== field.id && f.type !== "section_header" && f.type !== "instructions").map(f => (
+                                      <option key={f.id} value={f.id}>{f.label || `Field ${f.id}`}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <Input
+                                    className="bg-white border-neutral-300"
+                                    placeholder="e.g. 0"
+                                    value={(field as any).falseResultValue || ""}
+                                    onChange={(e) => updateField(idx, "falseResultValue" as any, e.target.value)}
+                                  />
+                                )}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       )}

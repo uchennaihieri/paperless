@@ -12,13 +12,14 @@ import {
   editSubmission, searchUsers, getFormTemplate,
   type SignatoryInput, type SigningType,
 } from "@/app/actions/form";
+import { numberToWords } from "@/lib/toWords";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Field = {
   id: string;
   label: string;
-  type: "text" | "number" | "date" | "textarea" | "file" | "section_header" | "instructions";
+  type: "text" | "number" | "date" | "textarea" | "file" | "section_header" | "instructions" | "conditional";
   required: boolean;
   description?: string;
   maxLength?: number;
@@ -259,6 +260,66 @@ export default function EditSubmissionModal({
   const handleFieldChange = (id: string, value: any) =>
     setFormData((p) => ({ ...p, [id]: value }));
 
+  // Auto-calculation
+  useEffect(() => {
+    fields.forEach(field => {
+      if ((field as any).type === 'section_header' || (field as any).type === 'instructions') return;
+
+      if (field.type === "derived_arithmetically" && (field as any).derivedFirstField && (field as any).derivedSecondField) {
+        const val1 = Number(formData[(field as any).derivedFirstField] || 0);
+        const val2 = Number(formData[(field as any).derivedSecondField] || 0);
+        let result = 0;
+        switch ((field as any).derivedOperator) {
+           case "+": result = val1 + val2; break;
+           case "-": result = val1 - val2; break;
+           case "*": result = val1 * val2; break;
+           case "/": result = val2 !== 0 ? val1 / val2 : 0; break;
+        }
+        if (formData[field.id] !== result) handleFieldChange(field.id, result);
+      }
+
+      if ((field as any).type === 'to_words' && (field as any).sourceFieldId) {
+        const srcVal = formData[(field as any).sourceFieldId];
+        const words = numberToWords(srcVal ?? '');
+        if (formData[field.id] !== words) handleFieldChange(field.id, words);
+      }
+
+      if (field.type === "conditional" && (field as any).conditionSourceFieldId && (field as any).conditionOperator) {
+        const srcVal = Number(formData[(field as any).conditionSourceFieldId] || 0);
+        const compVal = Number((field as any).conditionCompareValue || 0);
+        let isTrue = false;
+        switch ((field as any).conditionOperator) {
+          case "<": isTrue = srcVal < compVal; break;
+          case ">": isTrue = srcVal > compVal; break;
+          case "<=": isTrue = srcVal <= compVal; break;
+          case ">=": isTrue = srcVal >= compVal; break;
+          case "==": isTrue = srcVal === compVal; break;
+          case "!=": isTrue = srcVal !== compVal; break;
+        }
+
+        const resolveResult = (type: string, val: string) => {
+          if (!val) return "";
+          if (type === "field") {
+            const refVal = formData[val];
+            return refVal !== undefined && refVal !== null ? refVal : 0;
+          }
+          if (type === "absolute_field") {
+            const refVal = formData[val];
+            const num = Number(refVal);
+            return isNaN(num) ? 0 : Math.abs(num);
+          }
+          return isNaN(Number(val)) ? val : Number(val);
+        };
+
+        const result = isTrue 
+          ? resolveResult((field as any).trueResultType || "fixed", (field as any).trueResultValue)
+          : resolveResult((field as any).falseResultType || "fixed", (field as any).falseResultValue);
+
+        if (formData[field.id] !== result) handleFieldChange(field.id, result);
+      }
+    });
+  }, [formData, fields]);
+
   const handleAddSignatory = (user: UserResult) => {
     const email = user.finca_email ?? "";
     if (signatories.some((s) => s.email.toLowerCase() === email.toLowerCase())) return;
@@ -364,6 +425,43 @@ export default function EditSubmissionModal({
                         <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg border border-amber-100">
                           ℹ️ File attachments cannot be changed here — existing references are preserved.
                         </p>
+                      ) : field.type === "conditional" ? (
+                        <div className="relative max-w-md">
+                          <Input
+                            id={`edit-${field.id}`}
+                            type="text"
+                            required={field.required}
+                            value={formData[field.id] ?? ""}
+                            readOnly
+                            className="bg-amber-50 text-amber-700 font-semibold cursor-not-allowed border-amber-200 shadow-inner"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-500 text-xs font-mono">
+                            CONDITIONAL
+                          </span>
+                        </div>
+                      ) : field.type === "derived_arithmetically" ? (
+                        <div className="relative max-w-md">
+                          <Input
+                            id={`edit-${field.id}`}
+                            type="number"
+                            required={field.required}
+                            value={formData[field.id] ?? ""}
+                            readOnly
+                            className="bg-purple-50 text-purple-700 font-semibold cursor-not-allowed border-purple-200 shadow-inner"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-400 text-xs font-mono">
+                            CALCULATED
+                          </span>
+                        </div>
+                      ) : (field as any).type === "to_words" ? (
+                        <div className="relative max-w-md">
+                          <div className="rounded-md border border-teal-200 bg-teal-50 px-3 py-2.5 text-sm text-teal-800 font-medium leading-relaxed min-h-[40px] pr-28">
+                            {formData[field.id] || <span className="text-teal-400 italic">Waiting...</span>}
+                          </div>
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-teal-400 text-xs font-mono whitespace-nowrap">
+                            IN WORDS
+                          </span>
+                        </div>
                       ) : (
                         <Input
                           id={`edit-${field.id}`}
