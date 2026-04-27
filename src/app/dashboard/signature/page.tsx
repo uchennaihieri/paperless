@@ -131,7 +131,7 @@ export default function SignaturePage() {
       const res = await saveSecuritySignature(inputToken, pendingBlob);
       if (res.success) {
         setSavedSignature(pendingBlob);
-        setSignatureToken(inputToken);
+        setSignatureToken("••••••••");
         setActiveTab("view");
         setShowTokenPrompt(false);
         setInputToken("");
