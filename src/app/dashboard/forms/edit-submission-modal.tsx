@@ -470,7 +470,7 @@ export default function EditSubmissionModal({
                             CONDITIONAL
                           </span>
                         </div>
-                      ) : field.type === "derived_arithmetically" ? (
+                      ) : (field as any).type === "derived_arithmetically" ? (
                         <div className="relative max-w-md">
                           <Input
                             id={`edit-${field.id}`}
