@@ -1,23 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Eye, EyeOff, Smartphone, AlertTriangle, CheckCircle2, ArrowLeft, Loader2 } from "lucide-react";
-import { getDeviceId, getDeviceName } from "@/lib/deviceId";
+import { Building2, Eye, EyeOff, AlertTriangle, ArrowLeft, Loader2 } from "lucide-react";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
 
-type Step = "credentials" | "otp" | "device_pending" | "device_rejected";
+type Step = "credentials" | "otp";
 
 export default function LoginPage() {
   const router = useRouter();
 
-  // Step state
   const [step, setStep] = useState<Step>("credentials");
 
   // Credentials step
@@ -34,28 +32,20 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  // Ensure device UUID is created on first render
-  useEffect(() => { getDeviceId(); }, []);
-
   // ── Step 1: Employee ID + Password → /auth/login ─────────────────────────
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMsg("");
     try {
-      const deviceId = getDeviceId();
-      const deviceName = getDeviceName();
-
       const res = await fetch(`${BASE_URL}/api/v1/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ employeeId: employeeId.trim(), password, deviceId, deviceName }),
+        body: JSON.stringify({ employeeId: employeeId.trim(), password }),
       });
       const data = await res.json();
 
       if (!data.success) {
-        if (data.code === "DEVICE_PENDING") { setStep("device_pending"); return; }
-        if (data.code === "DEVICE_REJECTED") { setStep("device_rejected"); return; }
         setErrorMsg(data.error || "Invalid credentials.");
         return;
       }
@@ -100,59 +90,6 @@ export default function LoginPage() {
       setIsLoading(false);
     }
   };
-
-  // ── Device status screens ─────────────────────────────────────────────────
-  if (step === "device_pending") {
-    return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
-        <div className="max-w-md w-full text-center space-y-6">
-          <div className="mx-auto h-20 w-20 bg-amber-100 rounded-full flex items-center justify-center">
-            <Smartphone className="h-10 w-10 text-amber-600" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Device Pending Approval</h1>
-            <p className="mt-3 text-gray-500 leading-relaxed">
-              This device has been registered and is awaiting approval from your administrator.
-              You will receive an email notification once it has been reviewed.
-            </p>
-          </div>
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 text-left">
-            <p className="font-semibold mb-1">What happens next?</p>
-            <ul className="list-disc pl-4 space-y-1 text-amber-700">
-              <li>Your administrator will see this request in the workflow queue.</li>
-              <li>Once approved, you can log in normally from this device.</li>
-              <li>You will receive an email notification of the decision.</li>
-            </ul>
-          </div>
-          <Button variant="outline" className="w-full" onClick={() => { setStep("credentials"); setErrorMsg(""); }}>
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Sign In
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (step === "device_rejected") {
-    return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6">
-        <div className="max-w-md w-full text-center space-y-6">
-          <div className="mx-auto h-20 w-20 bg-red-100 rounded-full flex items-center justify-center">
-            <AlertTriangle className="h-10 w-10 text-red-600" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Device Rejected</h1>
-            <p className="mt-3 text-gray-500 leading-relaxed">
-              This device has been rejected by your administrator and cannot be used to access Paperless.
-              Please contact your administrator if you believe this is a mistake.
-            </p>
-          </div>
-          <Button variant="outline" className="w-full" onClick={() => { setStep("credentials"); setErrorMsg(""); }}>
-            <ArrowLeft className="w-4 h-4 mr-2" /> Back to Sign In
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   // ── Main login card ───────────────────────────────────────────────────────
   return (
