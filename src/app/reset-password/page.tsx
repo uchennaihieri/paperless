@@ -15,10 +15,8 @@ export default function ResetPasswordPage() {
   const router = useRouter();
   const { data: session, update } = useSession();
 
-  const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
 
   const [isLoading, setIsLoading] = useState(false);
@@ -26,19 +24,17 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false);
 
   const token = (session?.user as any)?.backendToken;
-  // Legacy accounts have no passwordHash yet — they got here via OTP, skip current-password field
-  const isLegacyAccount = (session?.user as any)?.isLegacyAccount === true;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg("");
 
     if (newPassword !== confirmPassword) {
-      setErrorMsg("New passwords do not match.");
+      setErrorMsg("Passwords do not match.");
       return;
     }
     if (newPassword.length < 8) {
-      setErrorMsg("New password must be at least 8 characters.");
+      setErrorMsg("Password must be at least 8 characters.");
       return;
     }
 
@@ -50,8 +46,7 @@ export default function ResetPasswordPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        // Send empty string for currentPassword on legacy accounts — backend skips the check
-        body: JSON.stringify({ currentPassword: isLegacyAccount ? "" : currentPassword, newPassword }),
+        body: JSON.stringify({ newPassword }),
       });
       const data = await res.json();
 
@@ -61,7 +56,6 @@ export default function ResetPasswordPage() {
       }
 
       setSuccess(true);
-      // Clear the mustResetPassword flag in the NextAuth session
       await update({ mustResetPassword: false });
       setTimeout(() => router.push("/role-selection"), 2000);
     } catch {
@@ -90,10 +84,10 @@ export default function ResetPasswordPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-5 h-5 text-primary" />
-              <CardTitle>Reset Password</CardTitle>
+              <CardTitle>Create New Password</CardTitle>
             </div>
             <CardDescription>
-              Your account was set up with a default password. Please create a new secure password to continue.
+              Choose a strong password to secure your account.
             </CardDescription>
           </CardHeader>
 
@@ -111,31 +105,6 @@ export default function ResetPasswordPage() {
                     <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
                     {errorMsg}
                   </div>
-                )}
-
-                {!isLegacyAccount && (
-                <div className="space-y-2">
-                  <Label htmlFor="currentPassword">Current (Default) Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="currentPassword"
-                      type={showCurrent ? "text" : "password"}
-                      placeholder="••••••••"
-                      required
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className="pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowCurrent((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      tabIndex={-1}
-                    >
-                      {showCurrent ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
                 )}
 
                 <div className="space-y-2">
@@ -162,7 +131,7 @@ export default function ResetPasswordPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm New Password</Label>
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
                   <Input
                     id="confirmPassword"
                     type="password"
