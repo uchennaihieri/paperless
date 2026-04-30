@@ -294,6 +294,7 @@ function FormFieldsStep({
   onNext,
   onFillInternalForm,
   token,
+  currentUser,
 }: {
   template: any;
   formData: Record<string, any>;
@@ -302,6 +303,7 @@ function FormFieldsStep({
   onNext: () => void;
   onFillInternalForm: (fieldId: string, linkedFormId: string) => void;
   token?: string;
+  currentUser?: { userName: string; email: string };
 }) {
   const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
   const fields: any[] = typeof template.fields === "string"
@@ -540,7 +542,7 @@ function FormFieldsStep({
 
           if ((field as any).type === 'instructions') {
             const raw: string = (field as any).instructionsContent || '';
-            const sessionUser = (session?.user as any) ?? {};
+            const sessionUser = (currentUser as any) ?? {};
             const processedHtml = htmlInterpolate(raw, fields, formData, sessionUser);
             return (
               <div key={field.id} className="space-y-2">
@@ -1264,6 +1266,7 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
             onNext={() => setStep(2)}
             onFillInternalForm={(fieldId, templateId) => setActiveInternalFormTarget({ fieldId, templateId })}
             token={currentUser.token}
+            currentUser={currentUser}
           />
         )}
 
