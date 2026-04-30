@@ -60,6 +60,26 @@ export default function DashboardLayout({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Auto sign-out when the backend returns PASSWORD_CHANGED 401
+  // (happens immediately after an admin resets the user's password)
+  useEffect(() => {
+    const original = window.fetch;
+    window.fetch = async (...args) => {
+      const response = await original(...args);
+      if (response.status === 401) {
+        // Clone so the caller can still read the body
+        const clone = response.clone();
+        clone.json().then((data) => {
+          if (data?.code === "PASSWORD_CHANGED") {
+            signOut({ callbackUrl: "/" });
+          }
+        }).catch(() => {});
+      }
+      return response;
+    };
+    return () => { window.fetch = original; };
+  }, []);
+
   return (
     <>
     <div className="min-h-screen bg-gray-50 flex">

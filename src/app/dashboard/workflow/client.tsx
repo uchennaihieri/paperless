@@ -21,8 +21,9 @@ import { JournalModal } from "@/components/JournalModal";
 import {
   Clock, CheckCircle2, XCircle, ChevronRight, X,
   GitBranch, Layers, User, FileText, AlertTriangle,
-  Pen, Bell, Loader2, RefreshCw, Link2, Eye, EyeOff, BookOpen
+  Pen, Bell, Loader2, RefreshCw, Link2, Eye, EyeOff, BookOpen, Smartphone, ShieldCheck, ShieldX
 } from "lucide-react";
+
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -752,16 +753,193 @@ function DetailPanel({
   );
 }
 
+// ─── Device Approvals Panel ──────────────────────────────────────────────────
+
+type DeviceItem = {
+  id: string; status: string; deviceId: string; deviceName: string | null;
+  registeredAt: string; approvedAt: string | null; approvedBy: string | null;
+  user: { user_name: string | null; finca_email: string | null; employee_id: string | null; branch: string | null };
+};
+
+function DeviceCard({ device, actionId, onAction }: {
+  device: DeviceItem;
+  actionId: string | null;
+  onAction?: (id: string, status: "Approved" | "Rejected") => void;
+}) {
+  return (
+    <Card className={`border-l-4 ${
+      device.status === "Pending" ? "border-l-amber-400" :
+      device.status === "Approved" ? "border-l-emerald-400" : "border-l-red-400"
+    }`}>
+      <CardContent className="p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className={`p-2 rounded-xl shrink-0 ${
+            device.status === "Pending" ? "bg-amber-100 text-amber-600" :
+            device.status === "Approved" ? "bg-emerald-100 text-emerald-600" : "bg-red-100 text-red-500"
+          }`}>
+            <Smartphone className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="font-semibold text-sm text-gray-900 truncate">
+              {device.user.user_name ?? device.user.finca_email ?? "Unknown User"}
+            </p>
+            <p className="text-xs text-gray-500">{device.user.employee_id} · {device.user.branch}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{device.deviceName ?? "Unknown device"}</p>
+            <p className="text-[10px] text-gray-300 font-mono mt-0.5 truncate max-w-xs">{device.deviceId}</p>
+            <p className="text-xs text-gray-400 mt-1">
+              Registered: {new Date(device.registeredAt).toLocaleString()}
+              {device.approvedBy && ` · Actioned by: ${device.approvedBy}`}
+            </p>
+          </div>
+        </div>
+        {onAction && device.status === "Pending" && (
+          <div className="flex gap-2 shrink-0">
+            <button
+              disabled={actionId === device.id}
+              onClick={() => onAction(device.id, "Approved")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition-colors disabled:opacity-50"
+            >
+              {actionId === device.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+              Approve
+            </button>
+            <button
+              disabled={actionId === device.id}
+              onClick={() => onAction(device.id, "Rejected")}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-semibold transition-colors disabled:opacity-50"
+            >
+              <ShieldX className="w-3.5 h-3.5" />
+              Reject
+            </button>
+          </div>
+        )}
+        {device.status !== "Pending" && (
+          <Badge variant="outline" className={device.status === "Approved" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}>
+            {device.status}
+          </Badge>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function DeviceApprovalsPanel({ devices, loading, deviceActionId, onAction }: {
+  devices: DeviceItem[];
+  loading: boolean;
+  deviceActionId: string | null;
+  onAction: (id: string, status: "Approved" | "Rejected") => void;
+}) {
+  const [showHistory, setShowHistory] = useState(false);
+  const pending  = devices.filter(d => d.status === "Pending");
+  const history  = devices.filter(d => d.status !== "Pending");
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="flex items-center justify-center py-16">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* ── Pending (needs action) ─────────────────────────────────────── */}
+      {pending.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <ShieldCheck className="h-12 w-12 text-emerald-300 mb-3" />
+            <h3 className="text-base font-semibold text-gray-900">No pending device requests</h3>
+            <p className="text-sm text-gray-400 mt-1">All device registrations have been reviewed.</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-3">
+          {pending.map(d => (
+            <DeviceCard key={d.id} device={d} actionId={deviceActionId} onAction={onAction} />
+          ))}
+        </div>
+      )}
+
+      {/* ── History (collapsible) ──────────────────────────────────────── */}
+      {history.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowHistory(v => !v)}
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showHistory ? "rotate-90" : ""}`} />
+            {showHistory ? "Hide" : "Show"} history ({history.length} reviewed)
+          </button>
+          {showHistory && (
+            <div className="grid gap-3 mt-3">
+              {history.map(d => (
+                <DeviceCard key={d.id} device={d} actionId={deviceActionId} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Live badge ──────────────────────────────────────────────────────────────
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function WorkflowClient({ initialQueue }: { initialQueue: QueueItem[] }) {
+  const { data: session } = useSession();
+  const token = (session?.user as any)?.backendToken ?? "";
+  const sessionRoles = (session?.user as any)?.roles ? JSON.parse((session.user as any).roles) : [];
+  const activeRoleId = (session?.user as any)?.activeRoleId;
+  const activeRole = sessionRoles.find((r: any) => r.id === activeRoleId) || sessionRoles[0];
+  const isAdmin = activeRole?.user_role?.toLowerCase() === "administrator";
+  const BASE_URL_MAIN = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
+
   const [queue, setQueue] = useState<QueueItem[]>(initialQueue);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"queue" | "devices">("queue");
+
+  const [devices, setDevices] = useState<DeviceItem[]>([]);
+  const [loadingDevices, setLoadingDevices] = useState(false);
+  const [deviceActionId, setDeviceActionId] = useState<string | null>(null);
+
+  const fetchDevices = useCallback(async () => {
+    if (!isAdmin || !token) return;
+    setLoadingDevices(true);
+    try {
+      const res = await fetch(`${BASE_URL_MAIN}/api/v1/auth/devices`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) setDevices(data.data);
+    } catch { /* silent */ } finally {
+      setLoadingDevices(false);
+    }
+  }, [isAdmin, token, BASE_URL_MAIN]);
+
+  useEffect(() => {
+    if (activeTab === "devices") fetchDevices();
+  }, [activeTab, fetchDevices]);
+
+  const handleDeviceAction = async (id: string, status: "Approved" | "Rejected") => {
+    setDeviceActionId(id);
+    try {
+      await fetch(`${BASE_URL_MAIN}/api/v1/auth/devices/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status }),
+      });
+      await fetchDevices();
+    } catch { /* silent */ } finally {
+      setDeviceActionId(null);
+    }
+  };
 
   // Always derive selected item from live queue so the panel reflects updates
   const selected = selectedId ? queue.find((q) => q.id === selectedId) ?? null : null;
+
 
   const { 
     data: fetchedQueue, 
@@ -810,6 +988,46 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
         </div>
       </div>
 
+      {/* Tab switcher — Devices tab only for admins */}
+      {isAdmin && (
+        <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
+          <button
+            onClick={() => setActiveTab("queue")}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${
+              activeTab === "queue" ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Workflow Queue
+          </button>
+          <button
+            onClick={() => setActiveTab("devices")}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all flex items-center gap-1.5 ${
+              activeTab === "devices" ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <Smartphone className="w-3.5 h-3.5" />
+            Device Approvals
+            {devices.filter(d => d.status === "Pending").length > 0 && (
+              <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                {devices.filter(d => d.status === "Pending").length}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {activeTab === "devices" && isAdmin && (
+        <DeviceApprovalsPanel
+          devices={devices}
+          loading={loadingDevices}
+          deviceActionId={deviceActionId}
+          onAction={handleDeviceAction}
+        />
+      )}
+
+      {/* ─── Workflow Queue Panel ──────────────────────────────────────── */}
+      {activeTab === "queue" && (
+        <>
       {queue.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-20 text-center">
@@ -863,8 +1081,10 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
           ))}
         </div>
       )}
+      </>
+      )}
 
-      {selected && (
+      {activeTab === "queue" && selected && (
         <DetailPanel
           item={selected}
           onClose={() => setSelectedId(null)}

@@ -8,6 +8,7 @@ declare module "next-auth" {
       roles: string;
       activeRoleId: string;
       backendToken: string;
+      mustResetPassword: boolean;
     } & DefaultSession["user"]
   }
 }
@@ -37,7 +38,7 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
             throw new Error(result.error || "Invalid OTP or account inactive");
           }
 
-          // Express backend returns: { success, token, user: { id, name, email, roles, ... } }
+          // Express backend returns: { success, token, mustResetPassword, user: { id, name, email, roles, ... } }
           const user = result.user;
           return {
             id: user.id.toString(),
@@ -45,7 +46,9 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
             name: user.name || "User",
             roles: JSON.stringify(user.roles || []),
             activeRoleId: user.roles?.[0]?.id?.toString() ?? user.id.toString(),
-            backendToken: result.token,  // ← Express JWT stored here
+            backendToken: result.token,
+            mustResetPassword: result.mustResetPassword ?? false,
+            isLegacyAccount: result.isLegacyAccount ?? false,
           };
         } catch (err: any) {
            throw new Error(err.message || "Failed to authenticate");
@@ -58,10 +61,13 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
       if (user) {
         token.roles = (user as any).roles;
         token.activeRoleId = (user as any).activeRoleId ?? user.id;
-        token.backendToken = (user as any).backendToken;  // ← persist Express JWT
+        token.backendToken = (user as any).backendToken;
+        token.mustResetPassword = (user as any).mustResetPassword ?? false;
+        token.isLegacyAccount = (user as any).isLegacyAccount ?? false;
       }
-      if (trigger === "update" && session?.activeRoleId) {
-        token.activeRoleId = session.activeRoleId;
+      if (trigger === "update") {
+        if (session?.activeRoleId) token.activeRoleId = session.activeRoleId;
+        if (session?.mustResetPassword !== undefined) token.mustResetPassword = session.mustResetPassword;
       }
       return token;
     },
@@ -70,7 +76,9 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
         session.user.id = token.sub as string;
         (session.user as any).roles = token.roles;
         (session.user as any).activeRoleId = token.activeRoleId;
-        (session.user as any).backendToken = token.backendToken; // ← expose to server actions
+        (session.user as any).backendToken = token.backendToken;
+        (session.user as any).mustResetPassword = token.mustResetPassword ?? false;
+        (session.user as any).isLegacyAccount = token.isLegacyAccount ?? false;
       }
       return session;
     }

@@ -1,14 +1,21 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useSession } from "next-auth/react";
 import { Search, Plus, Trash2, Power, Shield, Activity, X, User as UserIcon, Edit2 } from "lucide-react";
 import { updateUserRoleStatus, removeUserRole, addUserRole, updateUserInformation, getUserFormAccess, updateUserFormAccess } from "@/app/actions/team";
-import { FileText, CheckCircle2 } from "lucide-react";
+import { FileText, CheckCircle2, KeyRound } from "lucide-react";
+
+const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
+
 
 // I will build a nice UI. 
 
 export default function TeamsClientPage({ users, branches, templates }: { users: any[], branches: string[], templates: any[] }) {
+  const { data: session } = useSession();
+  const token = (session?.user as any)?.backendToken;
   const [searchTerm, setSearchTerm] = useState("");
+
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [isAddingRole, setIsAddingRole] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -28,7 +35,9 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
     user_no: "",
     user_role: "",
     branch: branches[0] || "",
+    defaultPassword: "",
   });
+
 
   // New role form state
   const [newRole, setNewRole] = useState({
@@ -127,12 +136,39 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!userForm.defaultPassword || userForm.defaultPassword.length < 6) {
+      showError("Please enter a default password (minimum 6 characters).");
+      return;
+    }
     try {
       setIsLoading(true);
-      await addUserRole(userForm);
+      const result = await addUserRole(userForm);
+      // result should include the newly created user id — but addUserRole may not return it.
+      // We fetch the users list after creation via revalidatePath, so we find the user by employee_id.
+      // Instead, call set-password via a separate step using the userId returned if available,
+      // or we rely on the backend to handle it. For now, pass employee_id to a lookup or
+      // call set-password from a server action.
+      // ── Set the default password ──────────────────────────────────────────
+      if (token) {
+        // Find the user by employee_id after creation — backend returns id in the action
+        // We make a best-effort call; the admin can always retry from the user detail panel
+        try {
+          const userRes = await fetch(`${BASE_URL}/api/v1/teams/user-by-employee-id/${encodeURIComponent(userForm.employee_id.trim())}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const userData = await userRes.json();
+          if (userData?.data?.id) {
+            await fetch(`${BASE_URL}/api/v1/auth/set-password`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ userId: userData.data.id, password: userForm.defaultPassword }),
+            });
+          }
+        } catch { /* silent — admin can set password from user panel */ }
+      }
       setIsCreatingUser(false);
       setUserForm({
-        user_name: "", finca_email: "", employee_id: "", login_id: "", user_no: "", user_role: "", branch: branches[0] || ""
+        user_name: "", finca_email: "", employee_id: "", login_id: "", user_no: "", user_role: "", branch: branches[0] || "", defaultPassword: ""
       });
     } catch(e: any) {
       showError(e.message || "Failed to create user");
@@ -140,6 +176,7 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
       setIsLoading(false);
     }
   };
+
 
   const openEditUser = () => {
     if (!activeUser) return;
@@ -149,10 +186,12 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
       employee_id: activeUser.employee_id || "",
       login_id: activeUser.login_id || "",
       user_no: activeUser.user_no || "",
-      user_role: "", branch: ""
+      user_role: "", branch: "",
+      defaultPassword: "",  // clear — admin fills only if they want to reset
     });
     setIsEditingUser(true);
   };
+
 
   const handleEditUser = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -167,6 +206,22 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
         login_id: userForm.login_id,
         user_no: userForm.user_no,
       });
+      // Optional password reset during edit
+      if (userForm.defaultPassword.trim() && token) {
+        try {
+          const userRes = await fetch(`${BASE_URL}/api/v1/teams/user-by-employee-id/${encodeURIComponent(userForm.employee_id.trim())}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const userData = await userRes.json();
+          if (userData?.data?.id) {
+            await fetch(`${BASE_URL}/api/v1/auth/set-password`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ userId: userData.data.id, password: userForm.defaultPassword }),
+            });
+          }
+        } catch { /* silent */ }
+      }
       setIsEditingUser(false);
     } catch(e: any) {
       showError(e.message || "Failed to update user");
@@ -174,6 +229,7 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
       setIsLoading(false);
     }
   };
+
 
   const handleOpenManageForms = async () => {
     if (!activeUser?.email) {
@@ -566,8 +622,7 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
                   </div>
                 </div>
 
-                {/* Only show these if creating brand new user (first role setup) */}
-                {isCreatingUser && (
+                {isCreatingUser && (<>
                   <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-5 mt-2 border-t border-gray-100 pt-5">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Initial Role</label>
@@ -594,7 +649,30 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
                       </select>
                     </div>
                   </div>
-                )}
+                </>)}
+
+                {/* Default password — required on creation, optional on edit */}
+                <div className="md:col-span-2 bg-amber-50 border border-amber-200 rounded-xl p-4 mt-2">
+                  <label className="block text-sm font-semibold text-amber-800 mb-1 flex items-center gap-1.5">
+                    <KeyRound className="h-4 w-4 inline mr-1" />
+                    {isCreatingUser ? <>Default Password <span className="text-red-500">*</span></> : "Reset Password (optional)"}
+                  </label>
+                  <input
+                    type="text"
+                    required={isCreatingUser}
+                    minLength={6}
+                    value={userForm.defaultPassword}
+                    onChange={(e) => setUserForm({ ...userForm, defaultPassword: e.target.value })}
+                    className="w-full border border-amber-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-amber-400 focus:border-amber-400 font-mono"
+                    placeholder={isCreatingUser ? "e.g. Welcome2025!" : "Leave blank to keep current password"}
+                  />
+                  <p className="text-xs text-amber-700 mt-1.5">
+                    {isCreatingUser
+                      ? "The user must change this on their first login. Share it with them securely."
+                      : "If filled, the user's password will be reset and they will be required to change it on next login."}
+                  </p>
+                </div>
+
               </div>
 
               <div className="flex justify-end gap-3 mt-8">
