@@ -891,7 +891,7 @@ function DeviceApprovalsPanel({ devices, loading, deviceActionId, onAction }: {
 export default function WorkflowClient({ initialQueue }: { initialQueue: QueueItem[] }) {
   const { data: session } = useSession();
   const token = (session?.user as any)?.backendToken ?? "";
-  const sessionRoles = (session?.user as any)?.roles ? JSON.parse((session.user as any).roles) : [];
+  const sessionRoles = (session?.user as any)?.roles ? JSON.parse((session?.user as any).roles) : [];
   const activeRoleId = (session?.user as any)?.activeRoleId;
   const activeRole = sessionRoles.find((r: any) => r.id === activeRoleId) || sessionRoles[0];
   const isAdmin = activeRole?.user_role?.toLowerCase() === "administrator";
