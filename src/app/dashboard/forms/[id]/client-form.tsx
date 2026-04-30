@@ -289,18 +289,21 @@ function SearchableSelect({
 function FormFieldsStep({
   template,
   formData,
+  internalFormsData,
   onChange,
   onNext,
+  onFillInternalForm,
+  token,
 }: {
   template: any;
   formData: Record<string, any>;
+  internalFormsData: Record<string, any>;
   onChange: (id: string, value: any) => void;
   onNext: () => void;
+  onFillInternalForm: (fieldId: string, linkedFormId: string) => void;
+  token?: string;
 }) {
-  const { data: session } = useSession();
-  const token = (session?.user as any)?.backendToken ?? "";
   const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
-
   const fields: any[] = typeof template.fields === "string"
     ? JSON.parse(template.fields)
     : template.fields ?? [];
@@ -309,6 +312,7 @@ function FormFieldsStep({
   const sections = useMemo(() => groupIntoSections(fields), []); // eslint-disable-line
   const [sectionIdx, setSectionIdx] = useState(0);
   const [sectionError, setSectionError] = useState('');
+  const [attachmentMode, setAttachmentMode] = useState<Record<string, 'file' | 'custom'>>({});
   const section = sections[sectionIdx];
   const isLastSection = sectionIdx === sections.length - 1;
   const hasSections = sections.length > 1 || !!sections[0]?.title;
@@ -596,39 +600,129 @@ function FormFieldsStep({
                   }`}
                 />
               ) : field.type === "file" ? (
-              <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 bg-gray-50 hover:bg-gray-100 transition-colors max-w-xl">
-                <Input
-                  id={field.id}
-                  type="file"
-                  required={field.required && (!formData[field.id] || formData[field.id].length === 0)}
-                  accept={field.accept}
-                  multiple={(field.maxFiles ?? 1) > 1}
-                  className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-                  onChange={async (e) => {
-                    const files = Array.from(e.target.files ?? []);
-                    if (files.length === 0) {
-                      onChange(field.id, null);
-                    } else {
-                      onChange(field.id, files);
-                    }
-                  }}
-                />
-                {formData[field.id] && formData[field.id].length > 0 && (
-                  <ul className="mt-4 space-y-2">
-                    {(formData[field.id] as File[]).map((f, i) => (
-                      <li key={i} className="text-sm text-gray-600 flex items-center justify-between bg-white px-3 py-2 rounded-md border border-gray-200">
-                        <span className="truncate">{f.name}</span>
-                        <button type="button" onClick={() => {
-                           const newFiles = (formData[field.id] as File[]).filter((_, idx) => idx !== i);
-                           onChange(field.id, newFiles.length > 0 ? newFiles : null);
-                        }} className="text-red-400 hover:text-red-600 font-bold">&times;</button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <p id={`label-${field.id}`} className="text-xs text-gray-400 mt-2">{field.description}</p>
-              </div>
-            ) : field.type === "derived_arithmetically" ? (
+                <div className="space-y-3 max-w-xl">
+                  {(field as any).linkedInternalFormId ? (
+                    <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                      <div className="flex bg-gray-50 border-b border-gray-200">
+                        <button 
+                          type="button" 
+                          onClick={() => setAttachmentMode({...attachmentMode, [field.id]: 'custom'})}
+                          className={`flex-1 py-2.5 px-4 text-sm font-semibold text-center transition-colors ${
+                            (attachmentMode[field.id] || 'custom') === 'custom' 
+                              ? 'bg-white text-primary border-b-2 border-primary' 
+                              : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
+                          }`}
+                        >
+                          Fill Custom Form
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => setAttachmentMode({...attachmentMode, [field.id]: 'file'})}
+                          className={`flex-1 py-2.5 px-4 text-sm font-semibold text-center transition-colors ${
+                            attachmentMode[field.id] === 'file' 
+                              ? 'bg-white text-primary border-b-2 border-primary' 
+                              : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
+                          }`}
+                        >
+                          Upload File
+                        </button>
+                      </div>
+                      <div className="p-5">
+                        {(attachmentMode[field.id] || 'custom') === 'custom' ? (
+                          <div className="flex flex-col items-center justify-center text-center space-y-3 py-4">
+                            <Layers className="w-10 h-10 text-orange-200" />
+                            <div>
+                              <h4 className="text-sm font-semibold text-gray-900">Custom Form Attachment</h4>
+                              <p className="text-xs text-gray-500 max-w-sm mt-1">Fill out the designated internal form to proceed with this requirement.</p>
+                            </div>
+                            <Button 
+                              type="button" 
+                              variant={internalFormsData[field.id] ? "default" : "outline"}
+                              className={`mt-2 ${internalFormsData[field.id] ? "bg-orange-600 hover:bg-orange-700 text-white border-none" : "border-orange-300 text-orange-700 hover:bg-orange-100"}`}
+                              onClick={() => onFillInternalForm(field.id, (field as any).linkedInternalFormId)}
+                            >
+                              {internalFormsData[field.id] ? "Edit Filled Form" : "Fill Custom Form"}
+                            </Button>
+                            {field.required && !internalFormsData[field.id] && (
+                              <input type="text" className="opacity-0 absolute w-0 h-0 -z-10" required />
+                            )}
+                          </div>
+                        ) : (
+                          <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 bg-gray-50 hover:bg-gray-100 transition-colors">
+                            <Input
+                              id={field.id}
+                              type="file"
+                              required={field.required && (!formData[field.id] || formData[field.id].length === 0)}
+                              accept={field.accept}
+                              multiple={(field.maxFiles ?? 1) > 1}
+                              className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                              onChange={async (e) => {
+                                const newFiles = Array.from(e.target.files ?? []);
+                                if (newFiles.length === 0) return;
+                                const existing = (formData[field.id] as File[]) || [];
+                                const merged = [...existing, ...newFiles];
+                                onChange(field.id, merged);
+                                e.target.value = "";
+                              }}
+                            />
+                            {(field.maxFiles ?? 1) > 1 && (
+                              <p className="text-xs text-gray-400 mt-2">You can select multiple files. Each pick adds to the list below.</p>
+                            )}
+                            {formData[field.id] && formData[field.id].length > 0 && (
+                              <ul className="mt-4 space-y-2">
+                                {(formData[field.id] as File[]).map((f, i) => (
+                                  <li key={i} className="text-sm text-gray-600 flex items-center justify-between bg-white px-3 py-2 rounded-md border border-gray-200 shadow-sm">
+                                    <span className="truncate">{f.name}</span>
+                                    <button type="button" onClick={() => {
+                                       const newFiles = (formData[field.id] as File[]).filter((_, idx) => idx !== i);
+                                       onChange(field.id, newFiles.length > 0 ? newFiles : null);
+                                    }} className="text-red-400 hover:text-red-600 font-bold p-1">&times;</button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 bg-gray-50 hover:bg-gray-100 transition-colors">
+                      <Input
+                        id={field.id}
+                        type="file"
+                        required={field.required && (!formData[field.id] || formData[field.id].length === 0)}
+                        accept={field.accept}
+                        multiple={(field.maxFiles ?? 1) > 1}
+                        className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                        onChange={async (e) => {
+                          const newFiles = Array.from(e.target.files ?? []);
+                          if (newFiles.length === 0) return;
+                          const existing = (formData[field.id] as File[]) || [];
+                          const merged = [...existing, ...newFiles];
+                          onChange(field.id, merged);
+                          e.target.value = "";
+                        }}
+                      />
+                      {(field.maxFiles ?? 1) > 1 && (
+                        <p className="text-xs text-gray-400 mt-2">You can select multiple files. Each pick adds to the list below.</p>
+                      )}
+                      {formData[field.id] && formData[field.id].length > 0 && (
+                        <ul className="mt-4 space-y-2">
+                          {(formData[field.id] as File[]).map((f, i) => (
+                            <li key={i} className="text-sm text-gray-600 flex items-center justify-between bg-white px-3 py-2 rounded-md border border-gray-200">
+                              <span className="truncate">{f.name}</span>
+                              <button type="button" onClick={() => {
+                                 const newFiles = (formData[field.id] as File[]).filter((_, idx) => idx !== i);
+                                 onChange(field.id, newFiles.length > 0 ? newFiles : null);
+                              }} className="text-red-400 hover:text-red-600 font-bold">&times;</button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : field.type === "derived_arithmetically" ? (
                 <div className="relative max-w-md">
                   <Input
                     id={field.id}
@@ -1043,10 +1137,12 @@ function ReviewStep({
 
 // ─── Main Wizard ──────────────────────────────────────────────────────────────
 
-export default function FormFillerClient({ template, currentUser, draftId, initialFormData }: { template: any, currentUser: { userName: string; email: string }, draftId?: string, initialFormData?: Record<string, any> }) {
+export default function FormFillerClient({ template, currentUser, draftId, initialFormData }: { template: any, currentUser: { userName: string; email: string; token?: string }, draftId?: string, initialFormData?: Record<string, any> }) {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState<Record<string, any>>(initialFormData || {});
+  const [internalFormsData, setInternalFormsData] = useState<Record<string, any>>({});
+  const [activeInternalFormTarget, setActiveInternalFormTarget] = useState<{ fieldId: string, templateId: string } | null>(null);
   const [signatories, setSignatories] = useState<SignatoryInput[]>([{
     position: 1,
     userName: currentUser.userName,
@@ -1102,6 +1198,9 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
       if (f.type === "file") {
         if (formData[f.id]) {
           fileFields[f.label] = formData[f.id] as File[];
+        }
+        if (internalFormsData[f.id]) {
+          textOnlyResponses[f.label] = internalFormsData[f.id];
         }
       } else {
         textOnlyResponses[f.label] = formData[f.id] ?? "";
@@ -1160,8 +1259,11 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
           <FormFieldsStep
             template={template}
             formData={formData}
+            internalFormsData={internalFormsData}
             onChange={handleFieldChange}
             onNext={() => setStep(2)}
+            onFillInternalForm={(fieldId, templateId) => setActiveInternalFormTarget({ fieldId, templateId })}
+            token={currentUser.token}
           />
         )}
 
@@ -1233,6 +1335,165 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
           </div>
         </div>
       )}
+
+      {/* Internal Form Modal */}
+      {activeInternalFormTarget && (
+        <InternalFormModal
+          templateId={activeInternalFormTarget.templateId}
+          initialData={internalFormsData[activeInternalFormTarget.fieldId]?.data}
+          parentFormData={formData}
+          parentTemplate={template}
+          onClose={() => setActiveInternalFormTarget(null)}
+          onSave={(data, tmpl) => {
+            setInternalFormsData(prev => ({
+              ...prev,
+              [activeInternalFormTarget.fieldId]: {
+                type: "internal_form",
+                templateId: tmpl.id,
+                templateName: tmpl.name,
+                data
+              }
+            }));
+            setActiveInternalFormTarget(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function InternalFormModal({ 
+  templateId, 
+  onClose, 
+  onSave, 
+  initialData,
+  parentFormData,
+  parentTemplate
+}: { 
+  templateId: string; 
+  onClose: () => void; 
+  onSave: (data: Record<string, any>, template: any) => void;
+  initialData?: Record<string, any>;
+  parentFormData?: Record<string, any>;
+  parentTemplate?: any;
+}) {
+  const [template, setTemplate] = useState<any>(null);
+  const [formData, setFormData] = useState<Record<string, any>>(initialData || {});
+  
+  useEffect(() => {
+    fetch(`/api/v1/forms/${templateId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data) setTemplate(data.data);
+      });
+  }, [templateId]);
+
+  // Inject parent data for cross-referenced fields
+  useEffect(() => {
+    if (template && parentTemplate && parentFormData) {
+      const fields: any[] = typeof template.fields === "string" ? JSON.parse(template.fields) : template.fields ?? [];
+      const parentFields: any[] = typeof parentTemplate.fields === "string" ? JSON.parse(parentTemplate.fields) : parentTemplate.fields ?? [];
+      
+      let newFormData = { ...formData };
+      let changed = false;
+
+      fields.forEach(field => {
+        if (!field.description) return;
+        const match = field.description.match(/View parent "([^"]+)"/i);
+        if (match && match[1]) {
+          const parentLabel = match[1];
+          const parentField = parentFields.find((f: any) => f.label === parentLabel);
+          if (parentField && parentFormData[parentField.id] !== undefined) {
+            newFormData[field.id] = parentFormData[parentField.id];
+            changed = true;
+          }
+        }
+      });
+
+      if (changed) {
+        setFormData(newFormData);
+      }
+    }
+  }, [template, parentTemplate, parentFormData]);
+
+  if (!template) {
+    return (
+      <div className="fixed inset-0 z-[60] flex justify-center items-center bg-black/50 backdrop-blur-sm">
+        <div className="bg-white p-6 rounded-lg shadow-xl"><Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" /></div>
+      </div>
+    );
+  }
+
+  const fields: any[] = typeof template.fields === "string" ? JSON.parse(template.fields) : template.fields ?? [];
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+        <div className="bg-white z-10 p-4 border-b flex justify-between items-center rounded-t-xl shrink-0">
+          <h3 className="font-bold text-lg text-gray-900">{template.name}</h3>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="overflow-y-auto flex-1 p-6 space-y-6">
+          <form onSubmit={(e) => { e.preventDefault(); onSave(formData, template); }}>
+            <div className="space-y-6">
+              {fields.filter(f => f.type !== "section_header" && f.type !== "instructions").map((field, idx) => {
+                const isParentRef = field.description ? /View parent "([^"]+)"/i.test(field.description) : false;
+                
+                return (
+                <div key={field.id} className="space-y-1.5">
+                  <Label className="font-semibold text-sm flex gap-2">
+                    <span className="text-primary">{idx + 1}.</span>
+                    {field.label}
+                    {field.required && <span className="text-red-500">*</span>}
+                    {isParentRef && <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-blue-100 text-blue-700 uppercase">Auto-filled</span>}
+                  </Label>
+                  {field.description && <p className="text-xs text-gray-400">{field.description}</p>}
+                  
+                  {field.type === "textarea" ? (
+                    <textarea
+                      required={field.required}
+                      rows={4}
+                      value={formData[field.id] ?? ""}
+                      onChange={(e) => setFormData(prev => ({...prev, [field.id]: e.target.value}))}
+                      readOnly={isParentRef}
+                      className={`w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 ${isParentRef ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
+                    />
+                  ) : field.type === "file" || field.type === "derived_arithmetically" || field.type === "conditional" || field.type === "to_words" ? (
+                    <p className="text-xs text-gray-400 italic">This field type is not fully supported in nested internal forms.</p>
+                  ) : field.type === "select" || field.type === "searchable_select" ? (
+                    <select 
+                      required={field.required}
+                      value={formData[field.id] ?? ""}
+                      onChange={(e) => setFormData(prev => ({...prev, [field.id]: e.target.value}))}
+                      disabled={isParentRef}
+                      className={`flex w-full max-w-md rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent transition-all shadow-sm ${isParentRef ? 'bg-gray-100 text-gray-500 cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
+                    >
+                      <option value="">Select option...</option>
+                      {(field.optionsArray || "").split(",").map((s: string) => s.trim()).filter(Boolean).map((s: string) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
+                      required={field.required}
+                      maxLength={field.maxLength}
+                      value={formData[field.id] ?? ""}
+                      onChange={(e) => setFormData(prev => ({...prev, [field.id]: e.target.value}))}
+                      readOnly={isParentRef}
+                      className={`max-w-md ${isParentRef ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
+                    />
+                  )}
+                </div>
+              )})}
+            </div>
+            <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-gray-100">
+               <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+               <Button type="submit">Save Form Attachment</Button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }

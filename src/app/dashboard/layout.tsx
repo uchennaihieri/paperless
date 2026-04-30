@@ -5,13 +5,14 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import {
   Building2, FileText, CheckSquare, PenTool, LayoutDashboard,
-  LogOut, Users, BarChart2, Menu, X, History, Settings, ShieldCheck, UserCog
+  LogOut, Users, BarChart2, Menu, X, History, Settings, ShieldCheck, UserCog, BookOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
 import { HistoryModal } from "@/components/HistoryModal";
 import { SettingsModal } from "@/components/SettingsModal";
 import { AuditTrailModal } from "@/components/AuditTrailModal";
+import { JournalLedgerModal } from "@/components/JournalLedgerModal";
 
 const navigation = [
   { name: "Workflow", href: "/dashboard/workflow", icon: LayoutDashboard },
@@ -45,6 +46,7 @@ export default function DashboardLayout({
   const [isHistoryOpen, setIsHistoryOpen]       = useState(false);
   const [isSettingsOpen, setIsSettingsOpen]     = useState(false);
   const [isAuditOpen, setIsAuditOpen]           = useState(false);
+  const [isJournalLedgerOpen, setIsJournalLedgerOpen] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement>(null);
 
   // Close avatar menu when clicking outside
@@ -174,6 +176,12 @@ export default function DashboardLayout({
                     <ShieldCheck className="w-4 h-4 text-gray-400" /> Audit Trail
                   </button>
                   <button
+                    onClick={() => { setIsJournalLedgerOpen(true); setIsAvatarMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <BookOpen className="w-4 h-4 text-gray-400" /> Journal Ledger
+                  </button>
+                  <button
                     onClick={() => { setIsSettingsOpen(true); setIsAvatarMenuOpen(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                   >
@@ -203,6 +211,7 @@ export default function DashboardLayout({
     <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
     <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     <AuditTrailModal isOpen={isAuditOpen} onClose={() => setIsAuditOpen(false)} />
+    <JournalLedgerModal isOpen={isJournalLedgerOpen} onClose={() => setIsJournalLedgerOpen(false)} />
     </>
   );
 }

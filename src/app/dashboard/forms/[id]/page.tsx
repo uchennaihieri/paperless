@@ -15,5 +15,7 @@ export default async function FillFormPage({ params }: { params: Promise<{ id: s
   const userName = session?.user?.name || "Unknown";
   const email = session?.user?.email || "";
 
-  return <FormFillerClient template={template} currentUser={{ userName, email }} />;
+  const token = (session?.user as any)?.backendToken ?? "";
+
+  return <FormFillerClient template={template} currentUser={{ userName, email, token }} />;
 }

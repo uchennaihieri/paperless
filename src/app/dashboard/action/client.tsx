@@ -5,11 +5,12 @@ import { useSession } from "next-auth/react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileDown, ChevronRight, CheckSquare, X, User, RefreshCw, AlertTriangle, Loader2, Eye, EyeOff } from "lucide-react";
+import { FileDown, ChevronRight, CheckSquare, X, User, RefreshCw, AlertTriangle, Loader2, Eye, EyeOff, BookOpen } from "lucide-react";
 import { assignToSelf, completeProcessWithApprover, searchActiveWorkflowUsers, regeneratePdf } from "@/app/actions/workflow";
 import { getActionItems } from "@/app/actions/form";
 import { useSmartFetch } from "@/hooks/useSmartFetch";
 import { FormReferenceLink, isFormReferenceField } from "@/components/FormReferenceLink";
+import { JournalModal } from "@/components/JournalModal";
 
 type ActionItem = {
   id: string;
@@ -65,6 +66,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
   const [treaterToken, setTreaterToken] = useState("");
   const [treaterTokenError, setTreaterTokenError] = useState("");
   const [showToken, setShowToken] = useState(false);
+  const [isJournalOpen, setIsJournalOpen] = useState(false);
 
   const handleRegenerate = async (id: string) => {
     setIsRegenerating(true);
@@ -234,6 +236,11 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                 <Button size="sm" variant="outline" onClick={openStatusModal} className="cursor-pointer">
                   Change Status
                 </Button>
+                {selected.status?.startsWith("Assigned") && (
+                  <Button size="sm" variant="outline" onClick={() => setIsJournalOpen(true)} className="cursor-pointer">
+                    <BookOpen className="w-4 h-4 mr-2" /> Journal
+                  </Button>
+                )}
                 {selected.status === "Completed" && (
                   <Button size="sm" variant="outline" onClick={() => handleRegenerate(selected.id)} disabled={isRegenerating} className="cursor-pointer border-amber-200 text-amber-700 hover:bg-amber-50">
                     <RefreshCw className={`w-4 h-4 mr-2 ${isRegenerating ? "animate-spin" : ""}`} /> 
@@ -500,6 +507,18 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Journal Modal */}
+      {selected && (
+        <JournalModal
+          isOpen={isJournalOpen}
+          onClose={() => setIsJournalOpen(false)}
+          sessionRef={selected.reference ?? selected.id}
+          formName={selected.formName}
+          token={token}
+          baseUrl={BASE_URL}
+        />
       )}
 
     </div>

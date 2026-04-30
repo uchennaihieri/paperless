@@ -226,6 +226,8 @@ export default function EditSubmissionModal({
       email: s.email,
     }))
   );
+  const [internalFormsData, setInternalFormsData] = useState<Record<string, any>>({});
+  const [activeInternalFormTarget, setActiveInternalFormTarget] = useState<{ fieldId: string, templateId: string } | null>(null);
   const [signingType, setSigningType] = useState<SigningType>(
     (submission.signingType as SigningType) ?? "sequential"
   );
@@ -344,7 +346,13 @@ export default function EditSubmissionModal({
     const labeledData: Record<string, any> = {};
     fields
       .filter((f) => f.type !== "section_header" && f.type !== "instructions")
-      .forEach((f) => { labeledData[f.label] = formData[f.id] ?? ""; });
+      .forEach((f) => { 
+        if (f.type === "file" && internalFormsData[f.id]) {
+          labeledData[f.label] = internalFormsData[f.id];
+        } else if (f.type !== "file") {
+          labeledData[f.label] = formData[f.id] ?? ""; 
+        }
+      });
 
     startSave(async () => {
       const res = await editSubmission(submission.id, {
@@ -427,9 +435,27 @@ export default function EditSubmissionModal({
                           className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                         />
                       ) : field.type === "file" ? (
-                        <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg border border-amber-100">
-                          ℹ️ File attachments cannot be changed here — existing references are preserved.
-                        </p>
+                        <div className="space-y-3">
+                          {(field as any).linkedInternalFormId && (
+                            <div className="flex items-center gap-3 bg-orange-50 border border-orange-100 p-4 rounded-lg">
+                              <div className="flex-1">
+                                <h4 className="text-sm font-semibold text-orange-900">Custom Form Attachment</h4>
+                                <p className="text-xs text-orange-700">You can fill out the required internal form. Note: Any previously generated PDF will be replaced.</p>
+                              </div>
+                              <Button 
+                                type="button" 
+                                variant={internalFormsData[field.id] ? "default" : "outline"}
+                                className={`shrink-0 ${internalFormsData[field.id] ? "bg-orange-600 hover:bg-orange-700 text-white border-none" : "border-orange-300 text-orange-700 hover:bg-orange-100"}`}
+                                onClick={() => setActiveInternalFormTarget({ fieldId: field.id, templateId: (field as any).linkedInternalFormId })}
+                              >
+                                {internalFormsData[field.id] ? "Edit Filled Form" : "Re-fill Custom Form"}
+                              </Button>
+                            </div>
+                          )}
+                          <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg border border-amber-100">
+                            ℹ️ Standard file attachments cannot be changed here — existing references are preserved.
+                          </p>
+                        </div>
                       ) : field.type === "conditional" ? (
                         <div className="relative max-w-md">
                           <Input
@@ -580,6 +606,167 @@ export default function EditSubmissionModal({
               )}
             </>
           )}
+        </div>
+      </div>
+
+      {/* Internal Form Modal */}
+      {activeInternalFormTarget && (
+        <InternalFormModal
+          templateId={activeInternalFormTarget.templateId}
+          initialData={internalFormsData[activeInternalFormTarget.fieldId]?.data}
+          parentFormData={formData}
+          parentTemplate={template}
+          onClose={() => setActiveInternalFormTarget(null)}
+          onSave={(data, tmpl) => {
+            setInternalFormsData(prev => ({
+              ...prev,
+              [activeInternalFormTarget.fieldId]: {
+                type: "internal_form",
+                templateId: tmpl.id,
+                templateName: tmpl.name,
+                data
+              }
+            }));
+            setActiveInternalFormTarget(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Simple Internal Form Fields Render ──────────────────────────────────────────
+
+function InternalFormModal({ 
+  templateId, 
+  onClose, 
+  onSave, 
+  initialData,
+  parentFormData,
+  parentTemplate
+}: { 
+  templateId: string; 
+  onClose: () => void; 
+  onSave: (data: Record<string, any>, template: any) => void;
+  initialData?: Record<string, any>;
+  parentFormData?: Record<string, any>;
+  parentTemplate?: any;
+}) {
+  const [template, setTemplate] = useState<any>(null);
+  const [formData, setFormData] = useState<Record<string, any>>(initialData || {});
+  
+  useEffect(() => {
+    fetch(`/api/v1/forms/${templateId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data) setTemplate(data.data);
+      });
+  }, [templateId]);
+
+  // Inject parent data for cross-referenced fields
+  useEffect(() => {
+    if (template && parentTemplate && parentFormData) {
+      const fields: any[] = typeof template.fields === "string" ? JSON.parse(template.fields) : template.fields ?? [];
+      const parentFields: any[] = typeof parentTemplate.fields === "string" ? JSON.parse(parentTemplate.fields) : parentTemplate.fields ?? [];
+      
+      let newFormData = { ...formData };
+      let changed = false;
+
+      fields.forEach(field => {
+        if (!field.description) return;
+        const match = field.description.match(/View parent "([^"]+)"/i);
+        if (match && match[1]) {
+          const parentLabel = match[1];
+          const parentField = parentFields.find((f: any) => f.label === parentLabel);
+          if (parentField && parentFormData[parentField.id] !== undefined) {
+            newFormData[field.id] = parentFormData[parentField.id];
+            changed = true;
+          }
+        }
+      });
+
+      if (changed) {
+        setFormData(newFormData);
+      }
+    }
+  }, [template, parentTemplate, parentFormData]);
+
+  if (!template) {
+    return (
+      <div className="fixed inset-0 z-[110] flex justify-center items-center bg-black/50 backdrop-blur-sm">
+        <div className="bg-white p-6 rounded-lg shadow-xl"><Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" /></div>
+      </div>
+    );
+  }
+
+  const fields: any[] = typeof template.fields === "string" ? JSON.parse(template.fields) : template.fields ?? [];
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+        <div className="bg-white z-10 p-4 border-b flex justify-between items-center rounded-t-xl shrink-0">
+          <h3 className="font-bold text-lg text-gray-900">{template.name}</h3>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="overflow-y-auto flex-1 p-6 space-y-6">
+          <form onSubmit={(e) => { e.preventDefault(); onSave(formData, template); }}>
+            <div className="space-y-6">
+              {fields.filter(f => f.type !== "section_header" && f.type !== "instructions").map((field, idx) => {
+                const isParentRef = field.description ? /View parent "([^"]+)"/i.test(field.description) : false;
+                
+                return (
+                <div key={field.id} className="space-y-1.5">
+                  <Label className="font-semibold text-sm flex gap-2">
+                    <span className="text-primary">{idx + 1}.</span>
+                    {field.label}
+                    {field.required && <span className="text-red-500">*</span>}
+                    {isParentRef && <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-blue-100 text-blue-700 uppercase">Auto-filled</span>}
+                  </Label>
+                  {field.description && <p className="text-xs text-gray-400">{field.description}</p>}
+                  
+                  {field.type === "textarea" ? (
+                    <textarea
+                      required={field.required}
+                      rows={4}
+                      value={formData[field.id] ?? ""}
+                      onChange={(e) => setFormData(prev => ({...prev, [field.id]: e.target.value}))}
+                      readOnly={isParentRef}
+                      className={`w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 ${isParentRef ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
+                    />
+                  ) : field.type === "file" || field.type === "derived_arithmetically" || field.type === "conditional" || field.type === "to_words" ? (
+                    <p className="text-xs text-gray-400 italic">This field type is not fully supported in nested internal forms.</p>
+                  ) : field.type === "select" || field.type === "searchable_select" ? (
+                    <select 
+                      required={field.required}
+                      value={formData[field.id] ?? ""}
+                      onChange={(e) => setFormData(prev => ({...prev, [field.id]: e.target.value}))}
+                      disabled={isParentRef}
+                      className={`flex w-full max-w-md rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent transition-all shadow-sm ${isParentRef ? 'bg-gray-100 text-gray-500 cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
+                    >
+                      <option value="">Select option...</option>
+                      {(field.optionsArray || "").split(",").map((s: string) => s.trim()).filter(Boolean).map((s: string) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
+                      required={field.required}
+                      maxLength={field.maxLength}
+                      value={formData[field.id] ?? ""}
+                      onChange={(e) => setFormData(prev => ({...prev, [field.id]: e.target.value}))}
+                      readOnly={isParentRef}
+                      className={`max-w-md ${isParentRef ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
+                    />
+                  )}
+                </div>
+              )})}
+            </div>
+            <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-gray-100">
+               <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+               <Button type="submit">Save Form Attachment</Button>
+            </div>
+          </form>
         </div>
       </div>
     </div>

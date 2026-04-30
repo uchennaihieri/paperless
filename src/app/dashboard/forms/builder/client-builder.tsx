@@ -145,6 +145,7 @@ export default function FormBuilderClient({
   const router = useRouter();
   const [name, setName] = useState(initialTemplate?.name || "");
   const [description, setDescription] = useState(initialTemplate?.description || "");
+  const [isInternal, setIsInternal] = useState(initialTemplate?.isInternal || false);
   const [mobileEnabled, setMobileEnabled] = useState(initialTemplate?.mobileEnabled || false);
   const [accountServicesEnabled, setAccountServicesEnabled] = useState(initialTemplate?.accountServicesEnabled || false);
   const [formOwner, setFormOwner] = useState(initialTemplate?.formOwner || "");
@@ -271,7 +272,8 @@ export default function FormBuilderClient({
         formTreater || undefined,
         pdfTemplateId || undefined,
         mobileEnabled,
-        accountServicesEnabled
+        accountServicesEnabled,
+        isInternal
       );
     } else {
       res = await createFormTemplate(
@@ -282,7 +284,8 @@ export default function FormBuilderClient({
         formTreater || undefined,
         pdfTemplateId || undefined,
         mobileEnabled,
-        accountServicesEnabled
+        accountServicesEnabled,
+        isInternal
       );
     }
     
@@ -380,21 +383,40 @@ export default function FormBuilderClient({
               </div>
 
               {/* Visibility Toggles */}
-              <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
-                {/* Account Services Tab toggle */}
-                <div className="flex items-center gap-2 bg-indigo-50 p-4 rounded-lg border border-indigo-100">
-                  <input
-                    type="checkbox"
-                    id="account-services-enabled"
-                    checked={accountServicesEnabled}
-                    onChange={(e) => setAccountServicesEnabled(e.target.checked)}
-                    className="h-5 w-5 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-600 cursor-pointer flex-shrink-0"
-                  />
-                  <div className="flex flex-col">
-                    <Label htmlFor="account-services-enabled" className="text-sm cursor-pointer font-bold text-indigo-900">
-                      Enable for Account Services
-                    </Label>
-                    <span className="text-xs text-indigo-700">Form will appear under the Account Services tab in the dashboard.</span>
+              <div className="md:col-span-2 space-y-3 mt-2">
+                <div className="flex flex-col sm:flex-row gap-4 mb-2">
+                  {/* Account Services toggle */}
+                  <div className="flex-1 flex items-center gap-2 bg-indigo-50 p-4 rounded-lg border border-indigo-100">
+                    <input
+                      type="checkbox"
+                      id="account-services"
+                      checked={accountServicesEnabled}
+                      onChange={(e) => setAccountServicesEnabled(e.target.checked)}
+                      className="h-5 w-5 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-600 cursor-pointer flex-shrink-0"
+                    />
+                    <div className="flex flex-col">
+                      <Label htmlFor="account-services" className="text-sm cursor-pointer font-bold text-indigo-900">
+                        Enable Account Services Integration
+                      </Label>
+                      <span className="text-xs text-indigo-700">Form can be assigned to customer profiles during account opening.</span>
+                    </div>
+                  </div>
+
+                  {/* Internal Form toggle */}
+                  <div className="flex-1 flex items-center gap-2 bg-orange-50 p-4 rounded-lg border border-orange-100">
+                    <input
+                      type="checkbox"
+                      id="internal-form"
+                      checked={isInternal}
+                      onChange={(e) => setIsInternal(e.target.checked)}
+                      className="h-5 w-5 rounded border-orange-300 text-orange-600 focus:ring-orange-600 cursor-pointer flex-shrink-0"
+                    />
+                    <div className="flex flex-col">
+                      <Label htmlFor="internal-form" className="text-sm cursor-pointer font-bold text-orange-900">
+                        Mark as Internal Form
+                      </Label>
+                      <span className="text-xs text-orange-700">This form will be hidden from the main list and can be attached to other forms.</span>
+                    </div>
                   </div>
                 </div>
 
@@ -1009,6 +1031,39 @@ export default function FormBuilderClient({
                               />
                             </div>
                           )}
+                        </div>
+                      )}
+
+                      {/* File Block extras */}
+                      {field.type === 'file' && (
+                        <div className="md:col-span-2 space-y-3 bg-orange-50/50 p-3 rounded-md border border-orange-100">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-semibold text-orange-800">Linked Internal Form</Label>
+                            <select
+                              value={(field as any).linkedInternalFormId || ""}
+                              onChange={(e) => updateField(idx, "linkedInternalFormId" as any, e.target.value)}
+                              className={SELECT_CLASS}
+                            >
+                              <option value="">— No Internal Form —</option>
+                              {allFormTemplates.map((ft) => (
+                                <option key={ft.id} value={ft.id}>{ft.name}</option>
+                              ))}
+                            </select>
+                            <p className="text-xs text-orange-700 mt-1">If selected, users can either upload a file or click to fill this internal form as an attachment.</p>
+                          </div>
+                          <div className="flex items-center justify-between pt-2 border-t border-orange-100">
+                            <div>
+                              <Label className="text-xs font-semibold text-orange-800">Allow Multiple Attachments</Label>
+                              <p className="text-xs text-orange-600">Let users upload more than one file for this field.</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => updateField(idx, "maxFiles" as any, (field as any).maxFiles > 1 ? 1 : 10)}
+                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none ${(field as any).maxFiles > 1 ? "bg-orange-500" : "bg-gray-200"}`}
+                            >
+                              <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${(field as any).maxFiles > 1 ? "translate-x-4" : "translate-x-0"}`} />
+                            </button>
+                          </div>
                         </div>
                       )}
 

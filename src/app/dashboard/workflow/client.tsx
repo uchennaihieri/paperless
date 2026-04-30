@@ -16,11 +16,12 @@ import { getMySignature } from "@/app/actions/security";
 import { useSmartFetch } from "@/hooks/useSmartFetch";
 import { FormReferenceLink, isFormReferenceField } from "@/components/FormReferenceLink";
 import { RegeneratePdfButton } from "../forms/submission/[id]/regenerate-button";
+import { JournalModal } from "@/components/JournalModal";
 
 import {
   Clock, CheckCircle2, XCircle, ChevronRight, X,
   GitBranch, Layers, User, FileText, AlertTriangle,
-  Pen, Bell, Loader2, RefreshCw, Link2, Eye, EyeOff
+  Pen, Bell, Loader2, RefreshCw, Link2, Eye, EyeOff, BookOpen
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -149,6 +150,7 @@ function DetailPanel({
   const [approverToken, setApproverToken]                     = useState("");
   const [approverTokenError, setApproverTokenError]           = useState("");
   const [showFinalDeclineConfirm, setShowFinalDeclineConfirm] = useState(false);
+  const [isJournalOpen, setIsJournalOpen]                     = useState(false);
 
   // Remind state: track which signatoryId is being reminded
   const [remindingId, setRemindingId]            = useState<string | null>(null);
@@ -245,6 +247,16 @@ function DetailPanel({
               {item.signingType === "sequential" ? <GitBranch className="w-3 h-3" /> : <Layers className="w-3 h-3" />}
               {item.signingType}
             </span>
+            {item.status === "Awaiting Final Approval" && item.reference && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsJournalOpen(true)}
+                className="cursor-pointer border-blue-200 text-blue-700 hover:bg-blue-50 text-xs h-7 px-2"
+              >
+                <BookOpen className="w-3.5 h-3.5 mr-1" /> Journal
+              </Button>
+            )}
             <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100 transition-colors ml-1 hidden sm:block">
               <X className="w-5 h-5 text-gray-400" />
             </button>
@@ -723,6 +735,19 @@ function DetailPanel({
           </div>
         )}
       </div>
+
+      {/* Journal Modal — read-only committed entries for the approver */}
+      {item.reference && (
+        <JournalModal
+          isOpen={isJournalOpen}
+          onClose={() => setIsJournalOpen(false)}
+          sessionRef={item.reference}
+          formName={item.formName}
+          token={token}
+          baseUrl={BASE_URL}
+          readOnly
+        />
+      )}
     </div>
   );
 }
