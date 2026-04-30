@@ -267,7 +267,7 @@ export default function EditSubmissionModal({
     fields.forEach(field => {
       if ((field as any).type === 'section_header' || (field as any).type === 'instructions') return;
 
-      if (field.type === "derived_arithmetically" && (field as any).derivedFirstField && (field as any).derivedSecondField) {
+      if ((field as any).type === "derived_arithmetically" && (field as any).derivedFirstField && (field as any).derivedSecondField) {
         const val1 = Number(formData[(field as any).derivedFirstField] || 0);
         const val2 = Number(formData[(field as any).derivedSecondField] || 0);
         let result = 0;
