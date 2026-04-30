@@ -150,21 +150,13 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
       // call set-password from a server action.
       // ── Set the default password ──────────────────────────────────────────
       if (token) {
-        // Find the user by employee_id after creation — backend returns id in the action
-        // We make a best-effort call; the admin can always retry from the user detail panel
-        try {
-          const userRes = await fetch(`${BASE_URL}/api/v1/teams/user-by-employee-id/${encodeURIComponent(userForm.employee_id.trim())}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const userData = await userRes.json();
-          if (userData?.data?.id) {
-            await fetch(`${BASE_URL}/api/v1/auth/set-password`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-              body: JSON.stringify({ userId: userData.data.id, password: userForm.defaultPassword }),
-            });
-          }
-        } catch { /* silent — admin can set password from user panel */ }
+        const pwRes = await fetch(`${BASE_URL}/api/v1/auth/set-password`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ employeeId: userForm.employee_id.trim(), password: userForm.defaultPassword }),
+        });
+        const pwData = await pwRes.json();
+        if (!pwData.success) throw new Error(pwData.error || "Failed to set default password.");
       }
       setIsCreatingUser(false);
       setUserForm({
@@ -208,19 +200,13 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
       });
       // Optional password reset during edit
       if (userForm.defaultPassword.trim() && token) {
-        try {
-          const userRes = await fetch(`${BASE_URL}/api/v1/teams/user-by-employee-id/${encodeURIComponent(userForm.employee_id.trim())}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          const userData = await userRes.json();
-          if (userData?.data?.id) {
-            await fetch(`${BASE_URL}/api/v1/auth/set-password`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-              body: JSON.stringify({ userId: userData.data.id, password: userForm.defaultPassword }),
-            });
-          }
-        } catch { /* silent */ }
+        const pwRes = await fetch(`${BASE_URL}/api/v1/auth/set-password`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ employeeId: userForm.employee_id.trim(), password: userForm.defaultPassword }),
+        });
+        const pwData = await pwRes.json();
+        if (!pwData.success) throw new Error(pwData.error || "Failed to reset password.");
       }
       setIsEditingUser(false);
     } catch(e: any) {
