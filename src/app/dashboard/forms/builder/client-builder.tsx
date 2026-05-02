@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -151,7 +151,11 @@ export default function FormBuilderClient({
   const [formOwner, setFormOwner] = useState(initialTemplate?.formOwner || "");
   const [formTreater, setFormTreater] = useState(initialTemplate?.formTreater || "");
   const [pdfTemplateId, setPdfTemplateId] = useState(initialTemplate?.pdfTemplateId || "");
-  const [pdfType, setPdfType] = useState<"document" | "html" | "">(initialTemplate?.pdfTemplateId ? "" : "");
+  // Derive initial pdfType from the stored pdfGeneratorType field ("document" | "html" | "")
+  const [pdfType, setPdfType] = useState<"document" | "html" | "">(
+    initialTemplate?.pdfGeneratorType === "document" ? "document" :
+    initialTemplate?.pdfGeneratorType === "html" ? "html" : ""
+  );
   const [pdfFields, setPdfFields] = useState<any[]>([]);
   const [filteredTemplates, setFilteredTemplates] = useState<any[]>(availableTemplates);
   const [allFormTemplates, setAllFormTemplates] = useState<any[]>([]);
@@ -170,8 +174,32 @@ export default function FormBuilderClient({
       .catch(() => setAllFormTemplates([]));
   }, []);
 
-  // Fetch templates filtered by type whenever pdfType changes
+  // Track whether pdfType has changed since the component mounted (user-initiated change)
+  const pdfTypeMounted = useRef(false);
+  // Guard: set to true just before a programmatic setPdfType call so the
+  // pdfType effect knows not to reset pdfTemplateId in that case.
+  const pdfTypeSetProgrammatically = useRef(false);
+
+  // Fetch templates filtered by type whenever pdfType changes (skip on first mount)
   useEffect(() => {
+    if (!pdfTypeMounted.current) {
+      pdfTypeMounted.current = true;
+      // On first render, if a type is pre-selected from initialTemplate, load its templates
+      if (pdfType) {
+        fetch(`/api/v1/templates?type=${pdfType}`)
+          .then(r => r.json())
+          .then(data => setFilteredTemplates(Array.isArray(data.data) ? data.data : []))
+          .catch(() => setFilteredTemplates([]));
+      }
+      return;
+    }
+    // If this change was triggered programmatically (auto-detected from saved template),
+    // skip the destructive reset so pdfTemplateId stays intact.
+    if (pdfTypeSetProgrammatically.current) {
+      pdfTypeSetProgrammatically.current = false;
+      return;
+    }
+    // User changed the type manually — reset the template selection
     setPdfTemplateId("");
     setPdfFields([]);
     if (!pdfType) {
@@ -184,7 +212,12 @@ export default function FormBuilderClient({
       .catch(() => setFilteredTemplates([]));
   }, [pdfType]);
 
-  // Fetch template fields when template selection changes
+  // Track whether pdfType has been resolved from an existing template on mount
+  const pdfTypeResolved = useRef(false);
+
+  // Fetch template fields when template selection changes.
+  // On initial mount with an existing pdfTemplateId, also set pdfType from the
+  // fetched PDF template's own `type` field so the dropdown shows correctly.
   useEffect(() => {
     if (!pdfTemplateId) { setPdfFields([]); return; }
     if (initialTemplate?.pdfTemplateId === pdfTemplateId && initialTemplate?.pdfFields) {
@@ -193,7 +226,22 @@ export default function FormBuilderClient({
     }
     fetch(`/api/v1/templates/${pdfTemplateId}`)
       .then(r => r.json())
-      .then(data => setPdfFields(data.success && data.data?.fields ? data.data.fields : []))
+      .then(data => {
+        setPdfFields(data.success && data.data?.fields ? data.data.fields : []);
+        // On first load, auto-detect pdfType from the PDF template's own type field
+        if (!pdfTypeResolved.current && data.success && data.data?.type) {
+          pdfTypeResolved.current = true;
+          const detectedType = data.data.type as "document" | "html";
+          // Signal that this setPdfType call is programmatic (not user-driven)
+          pdfTypeSetProgrammatically.current = true;
+          setPdfType(detectedType);
+          // Load the filtered list for this type so the template select has options
+          fetch(`/api/v1/templates?type=${detectedType}`)
+            .then(r => r.json())
+            .then(listData => setFilteredTemplates(Array.isArray(listData.data) ? listData.data : []))
+            .catch(() => {});
+        }
+      })
       .catch(() => setPdfFields([]));
   }, [pdfTemplateId, initialTemplate]);
 
@@ -1045,9 +1093,12 @@ export default function FormBuilderClient({
                               className={SELECT_CLASS}
                             >
                               <option value="">— No Internal Form —</option>
-                              {allFormTemplates.map((ft) => (
-                                <option key={ft.id} value={ft.id}>{ft.name}</option>
-                              ))}
+                              {allFormTemplates
+                                .filter((ft: any) => ft.isInternal === true)
+                                .map((ft: any) => (
+                                  <option key={ft.id} value={ft.id}>{ft.name}</option>
+                                ))
+                              }
                             </select>
                             <p className="text-xs text-orange-700 mt-1">If selected, users can either upload a file or click to fill this internal form as an attachment.</p>
                           </div>

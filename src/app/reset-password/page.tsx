@@ -56,8 +56,13 @@ export default function ResetPasswordPage() {
       }
 
       setSuccess(true);
+      // Patch the session flag immediately for UI feedback, then do a full sign-out
+      // so the user's next login issues a fresh JWT with the correct state.
+      // This prevents stale tokens from making it look like the user has no data.
       await update({ mustResetPassword: false });
-      setTimeout(() => router.push("/role-selection"), 2000);
+      setTimeout(() => {
+        router.push("/api/auth/signout?callbackUrl=/");
+      }, 2000);
     } catch {
       setErrorMsg("Failed to connect to the server. Please try again.");
     } finally {
@@ -95,7 +100,7 @@ export default function ResetPasswordPage() {
             <CardContent className="py-8 text-center space-y-3">
               <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
               <p className="font-semibold text-gray-800">Password updated successfully!</p>
-              <p className="text-sm text-gray-500">Redirecting you to the dashboard…</p>
+              <p className="text-sm text-gray-500">Redirecting you to log in with your new password…</p>
             </CardContent>
           ) : (
             <form onSubmit={handleSubmit}>

@@ -99,8 +99,9 @@ function getDestinationUrl(item: HistoryItem): string {
   if (item.myRoles.includes("shared")) {
     return `/dashboard/forms/submission/${item.id}`;
   }
-  // signed or declined → workflow queue
-  return `/dashboard/workflow`;
+  // signed or declined → go to the submission detail page
+  // (the workflow queue only shows items still pending, so a signed item won't appear there)
+  return `/dashboard/forms/submission/${item.id}`;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -311,7 +312,7 @@ export function HistoryModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                         )}
                         <span>·</span>
                         <span className="text-gray-300 group-hover:text-primary/60 transition-colors">
-                          → {item.myRoles.includes("submitted") ? "My Submission" : item.myRoles.includes("treated") || item.myRoles.includes("approved") ? "Action Center" : "Workflow Queue"}
+                          → {item.myRoles.includes("submitted") || item.myRoles.includes("signed") || item.myRoles.includes("declined") || item.myRoles.includes("shared") ? "View Details" : item.myRoles.includes("treated") || item.myRoles.includes("approved") ? "Action Center" : "View Details"}
                         </span>
                       </div>
                     </div>

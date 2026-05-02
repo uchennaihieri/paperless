@@ -18,6 +18,16 @@ export async function assignToSelf(submissionId: string) {
   }
 }
 
+export async function revertAssignment(submissionId: string) {
+  try {
+    const result = await apiClient(`/workflow/${submissionId}/revert-assignment`, { method: "PATCH" });
+    revalidatePath("/dashboard/action");
+    return result;
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
 export async function completeProcessWithApprover(submissionId: string, approverEmail?: string, approverName?: string, signatureToken?: string) {
   try {
     const result = await apiClient(`/workflow/${submissionId}/complete`, {

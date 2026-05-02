@@ -222,6 +222,19 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
       showError("User email is missing");
       return;
     }
+
+    // Check if this user has an Administrator role — admins bypass FormAccess and always see all forms.
+    // Form access restrictions only apply to non-administrator users.
+    const hasAdminRole = (activeUser.roles || []).some(
+      (r: any) => r.user_role?.toLowerCase() === "administrator"
+    );
+    if (hasAdminRole) {
+      showError(
+        "This user has an Administrator role. Administrators always have access to all forms — form access restrictions do not apply to them. To restrict form access, first remove their Administrator role."
+      );
+      return;
+    }
+
     setIsManagingForms(true);
     setIsLoadingForms(true);
     try {

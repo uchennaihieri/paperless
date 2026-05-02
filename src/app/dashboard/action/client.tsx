@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileDown, ChevronRight, CheckSquare, X, User, RefreshCw, AlertTriangle, Loader2, Eye, EyeOff, BookOpen } from "lucide-react";
-import { assignToSelf, completeProcessWithApprover, searchActiveWorkflowUsers, regeneratePdf } from "@/app/actions/workflow";
+import { assignToSelf, revertAssignment, completeProcessWithApprover, searchActiveWorkflowUsers, regeneratePdf } from "@/app/actions/workflow";
 import { getActionItems } from "@/app/actions/form";
 import { useSmartFetch } from "@/hooks/useSmartFetch";
 import { FormReferenceLink, isFormReferenceField } from "@/components/FormReferenceLink";
@@ -18,6 +18,7 @@ type ActionItem = {
   formName: string;
   status: string;
   treatedBy?: string | null;
+  treaterEmail?: string | null;
   approvedBy?: string | null;
   formResponses: Record<string, any>;
   signingType: string;
@@ -30,6 +31,7 @@ type ActionItem = {
 export default function ActionClient({ items }: { items: ActionItem[] }) {
   const { data: session } = useSession();
   const token = (session?.user as any)?.backendToken ?? "";
+  const currentUserEmail = (session?.user as any)?.email?.toLowerCase() ?? "";
   const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
   const [selected, setSelected] = useState<ActionItem | null>(null);
 
@@ -55,7 +57,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
   };
 
   const [showStatusModal, setShowStatusModal] = useState(false);
-  const [statusMode, setStatusMode] = useState<"assign" | "complete" | "">("");
+  const [statusMode, setStatusMode] = useState<"assign" | "complete" | "revert" | "">("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [selectedApprover, setSelectedApprover] = useState<any>(null);
@@ -117,6 +119,20 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
       const res = await assignToSelf(selected!.id);
       if (res.success && res.newStatus) {
         updateItemStatus(selected!.id, res.newStatus);
+        setShowStatusModal(false);
+        setStatusMode("");
+      }
+    } finally {
+      setIsChanging(false);
+    }
+  };
+
+  const handleRevertAssignment = async () => {
+    setIsChanging(true);
+    try {
+      const res = await revertAssignment(selected!.id);
+      if (res.success) {
+        updateItemStatus(selected!.id, "Processing");
         setShowStatusModal(false);
         setStatusMode("");
       }
@@ -236,7 +252,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                 <Button size="sm" variant="outline" onClick={openStatusModal} className="cursor-pointer">
                   Change Status
                 </Button>
-                {selected.status?.startsWith("Assigned") && (
+                {selected.status?.startsWith("Assigned") && currentUserEmail && selected.treaterEmail?.toLowerCase() === currentUserEmail && (
                   <Button size="sm" variant="outline" onClick={() => setIsJournalOpen(true)} className="cursor-pointer">
                     <BookOpen className="w-4 h-4 mr-2" /> Journal
                   </Button>
@@ -370,17 +386,40 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                       </div>
                     </div>
                   </Button>
-                  <Button variant="outline" className="h-14 justify-start px-6 cursor-pointer hover:bg-green-50 hover:border-green-300" onClick={() => setStatusMode("complete")}>
-                    <CheckSquare className="w-5 h-5 mr-3 text-green-600" />
-                    <div className="text-left"><div className="font-semibold text-gray-900">Complete Process</div><div className="text-xs text-gray-500 font-normal">Finish treating and optionally route to an approver</div></div>
-                  </Button>
+
+                  {/* Revert assignment — only visible to the current assignee */}
+                  {selected.status.startsWith("Assigned") &&
+                    currentUserEmail &&
+                    selected.treaterEmail?.toLowerCase() === currentUserEmail && (
+                    <Button
+                      variant="outline"
+                      className="h-14 justify-start px-6 cursor-pointer hover:bg-orange-50 hover:border-orange-300"
+                      disabled={isChanging}
+                      onClick={() => { setStatusMode("revert"); handleRevertAssignment(); }}
+                    >
+                      <RefreshCw className="w-5 h-5 mr-3 text-orange-500" />
+                      <div className="text-left">
+                        <div className="font-semibold text-gray-900">Revert Assignment</div>
+                        <div className="text-xs text-gray-500 font-normal">Release your assignment and return to Processing</div>
+                      </div>
+                    </Button>
+                  )}
+
+                  {/* Complete Process — only visible to the current assignee (or if not yet assigned) */}
+                  {(!selected.status.startsWith("Assigned") ||
+                    (currentUserEmail && selected.treaterEmail?.toLowerCase() === currentUserEmail)) && (
+                    <Button variant="outline" className="h-14 justify-start px-6 cursor-pointer hover:bg-green-50 hover:border-green-300" onClick={() => setStatusMode("complete")}>
+                      <CheckSquare className="w-5 h-5 mr-3 text-green-600" />
+                      <div className="text-left"><div className="font-semibold text-gray-900">Complete Process</div><div className="text-xs text-gray-500 font-normal">Finish treating and optionally route to an approver</div></div>
+                    </Button>
+                  )}
                 </div>
               )}
 
-              {statusMode === "assign" && (
+              {(statusMode === "assign" || statusMode === "revert") && (
                  <div className="text-center py-8">
                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                   <p className="text-sm text-gray-500">Assigning to you...</p>
+                   <p className="text-sm text-gray-500">{statusMode === "revert" ? "Reverting assignment..." : "Assigning to you..."}</p>
                  </div>
               )}
 
