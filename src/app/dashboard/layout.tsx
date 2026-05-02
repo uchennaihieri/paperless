@@ -13,6 +13,7 @@ import { HistoryModal } from "@/components/HistoryModal";
 import { SettingsModal } from "@/components/SettingsModal";
 import { AuditTrailModal } from "@/components/AuditTrailModal";
 import { JournalLedgerModal } from "@/components/JournalLedgerModal";
+import { SessionGuard } from "@/components/SessionGuard";
 
 const navigation = [
   { name: "Workflow", href: "/dashboard/workflow", icon: LayoutDashboard },
@@ -58,26 +59,6 @@ export default function DashboardLayout({
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  // Auto sign-out when the backend returns PASSWORD_CHANGED 401
-  // (happens immediately after an admin resets the user's password)
-  useEffect(() => {
-    const original = window.fetch;
-    window.fetch = async (...args) => {
-      const response = await original(...args);
-      if (response.status === 401) {
-        // Clone so the caller can still read the body
-        const clone = response.clone();
-        clone.json().then((data) => {
-          if (data?.code === "PASSWORD_CHANGED") {
-            signOut({ callbackUrl: "/" });
-          }
-        }).catch(() => {});
-      }
-      return response;
-    };
-    return () => { window.fetch = original; };
   }, []);
 
   return (
@@ -228,6 +209,7 @@ export default function DashboardLayout({
     </div>
 
     {/* Global Modals */}
+    <SessionGuard />
     <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
     <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     <AuditTrailModal isOpen={isAuditOpen} onClose={() => setIsAuditOpen(false)} />

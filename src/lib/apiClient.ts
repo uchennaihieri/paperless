@@ -8,6 +8,14 @@ const BASE_URL =
   process.env.BACKEND_API_URL ||
   "https://paperlessbackend-production.up.railway.app/api/v1";
 
+/** Custom error that preserves the backend error code (e.g. "PASSWORD_CHANGED"). */
+export class ApiError extends Error {
+  constructor(message: string, public readonly code?: string) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 export const apiClient = async (
   endpoint: string,
   options: RequestInit = {}
@@ -34,8 +42,11 @@ export const apiClient = async (
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(
-      errorData.error || `API Error: ${response.status} ${response.statusText}`
+    // Preserve the backend error code so the client can react to specific conditions
+    // (e.g. PASSWORD_CHANGED → force sign-out)
+    throw new ApiError(
+      errorData.error || `API Error: ${response.status} ${response.statusText}`,
+      errorData.code
     );
   }
 

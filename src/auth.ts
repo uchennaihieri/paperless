@@ -21,17 +21,19 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
       credentials: {
         email: { label: "Email", type: "email" },
         otp: { label: "OTP", type: "text" },
+        newPassword: { label: "New Password", type: "password" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.otp) return null;
 
         const email = credentials.email as string;
         const otp = credentials.otp as string;
+        const newPassword = (credentials.newPassword as string) || undefined;
 
         try {
           const result = await apiClient("/auth/verify-otp", {
             method: "POST",
-            body: JSON.stringify({ email, otp }),
+            body: JSON.stringify({ email, otp, newPassword }),
           });
 
           if (!result || !result.success) {
