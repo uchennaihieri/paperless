@@ -4,7 +4,7 @@ import { apiClient } from "@/lib/apiClient";
 import { revalidatePath } from "next/cache";
 
 export async function getDistinctUsers() {
-  const result = await apiClient("/teams", { method: "GET" }).catch(e => ({ data: [] }));
+  const result = await apiClient("/teams", { method: "GET" }).catch(() => ({ data: [] }));
   return result.data || [];
 }
 
@@ -29,6 +29,7 @@ export async function addUserRole(data: {
   user_no: string;
   user_role: string;
   branch: string;
+  specialAccess?: string;
 }) {
   await apiClient("/teams", {
     method: "POST",
@@ -37,6 +38,7 @@ export async function addUserRole(data: {
   revalidatePath("/dashboard/teams");
 }
 
+/** Update shared identity fields (name, email, employee_id, etc.) across all rows for a user. */
 export async function updateUserInformation(
   ids: number[],
   data: {
@@ -54,6 +56,18 @@ export async function updateUserInformation(
   revalidatePath("/dashboard/teams");
 }
 
+/** Update per-row fields (user_role, branch, specialAccess) for a single user row. */
+export async function updateUserRowDetails(
+  id: number,
+  data: { user_role?: string; branch?: string; specialAccess?: string }
+) {
+  await apiClient(`/teams/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data)
+  });
+  revalidatePath("/dashboard/teams");
+}
+
 export async function getUserFormAccess(email: string) {
   const result = await apiClient(`/forms-access/user/${encodeURIComponent(email)}`);
   return result;
@@ -66,4 +80,18 @@ export async function updateUserFormAccess(email: string, templateIds: string[])
   });
   revalidatePath("/dashboard/teams");
   return result;
+}
+
+/** Fetch lookup values for a given type ("role" | "branch" | "specialAccess"). */
+export async function getLookupValues(type: string): Promise<string[]> {
+  const result = await apiClient(`/lookup?type=${encodeURIComponent(type)}`).catch(() => ({ data: [] }));
+  return result.data || [];
+}
+
+/** Save a new custom lookup value to the DB for future use in dropdowns. */
+export async function saveLookupValue(type: string, value: string): Promise<void> {
+  await apiClient("/lookup", {
+    method: "POST",
+    body: JSON.stringify({ type, value })
+  });
 }

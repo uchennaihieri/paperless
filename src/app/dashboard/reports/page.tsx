@@ -290,7 +290,7 @@ export default function ReportsPage() {
   const roles = (session?.user as any)?.roles ? JSON.parse((session?.user as any).roles) : [];
   const activeId = (session?.user as any)?.activeRoleId;
   const activeRole = roles.find((r: any) => r.id === activeId) || roles[0];
-  const isAdmin = activeRole?.user_role?.toLowerCase() === "administrator";
+  const isAdmin = activeRole?.user_role?.toLowerCase() === "administrator" || activeRole?.specialAccess?.toLowerCase().includes("administrator");
 
   const [reports, setReports] = useState<MyReport[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);

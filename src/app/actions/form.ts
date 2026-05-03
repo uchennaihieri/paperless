@@ -33,7 +33,7 @@ export async function isAdministrator() {
     const roles = typeof rolesStr === "string" ? JSON.parse(rolesStr) : rolesStr;
     const activeId = (session.user as any).activeRoleId;
     const activeRole = roles.find((r: any) => String(r.id) === String(activeId)) || roles[0];
-    return activeRole?.user_role?.toLowerCase() === "administrator";
+    return activeRole?.user_role?.toLowerCase() === "administrator" || activeRole?.specialAccess?.toLowerCase().includes("administrator");
   } catch (e) {
     return false;
   }

@@ -1,58 +1,128 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useSession } from "next-auth/react";
-import { Search, Plus, Trash2, Power, Shield, Activity, X, User as UserIcon, Edit2 } from "lucide-react";
-import { updateUserRoleStatus, removeUserRole, addUserRole, updateUserInformation, getUserFormAccess, updateUserFormAccess } from "@/app/actions/team";
+import { Search, Plus, Power, Shield, Activity, X, User as UserIcon, Edit2, ChevronDown } from "lucide-react";
+import { updateUserRoleStatus, addUserRole, updateUserInformation, updateUserRowDetails, getUserFormAccess, updateUserFormAccess, getLookupValues, saveLookupValue } from "@/app/actions/team";
 import { FileText, CheckCircle2, KeyRound } from "lucide-react";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
 
+// ── ComboSelect ──────────────────────────────────────────────────────────────
+// A dropdown that lists known options AND lets the user type a custom value.
+// Looks like a native <select> but allows free-text entry.
+function ComboSelect({
+  value, onChange, options, placeholder = "Select…", required = false, id,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  placeholder?: string;
+  required?: boolean;
+  id?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [custom, setCustom] = useState("");
 
-// I will build a nice UI. 
+  const displayed = value || placeholder;
+
+  const select = (v: string) => { onChange(v); setOpen(false); setCustom(""); };
+
+  return (
+    <div className="relative" id={id}>
+      {/* Hidden native input so browser required validation still works */}
+      <input type="text" required={required} value={value} onChange={() => {}} className="sr-only" tabIndex={-1} aria-hidden />
+
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`w-full flex items-center justify-between border rounded-lg px-4 py-2 text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary ${
+          value ? "border-gray-300 text-gray-900" : "border-gray-300 text-gray-400"
+        } bg-white hover:border-gray-400 transition-colors`}
+      >
+        <span className="truncate">{displayed}</span>
+        <ChevronDown className={`h-4 w-4 text-gray-400 shrink-0 ml-2 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <>
+          {/* Backdrop */}
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden">
+            <div className="max-h-48 overflow-y-auto">
+              {options.map(opt => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => select(opt)}
+                  className={`w-full text-left px-4 py-2 text-sm hover:bg-primary/5 transition-colors ${
+                    value === opt ? "bg-primary/10 text-primary font-medium" : "text-gray-800"
+                  }`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+            {/* Custom value entry */}
+            <div className="border-t border-gray-100 p-2">
+              <div className="flex gap-1">
+                <input
+                  type="text"
+                  value={custom}
+                  onChange={e => setCustom(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter" && custom.trim()) { e.preventDefault(); select(custom.trim()); } }}
+                  placeholder="Type custom value…"
+                  className="flex-1 border border-gray-200 rounded px-3 py-1.5 text-xs focus:ring-1 focus:ring-primary focus:border-primary"
+                />
+                <button
+                  type="button"
+                  onClick={() => custom.trim() && select(custom.trim())}
+                  className="px-3 py-1.5 bg-primary text-white text-xs rounded hover:bg-primary/90 shrink-0"
+                >Add</button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function TeamsClientPage({ users, branches, templates }: { users: any[], branches: string[], templates: any[] }) {
   const { data: session } = useSession();
   const token = (session?.user as any)?.backendToken;
   const [searchTerm, setSearchTerm] = useState("");
-
   const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [isAddingRole, setIsAddingRole] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-
   const [isManagingForms, setIsManagingForms] = useState(false);
   const [isLoadingForms, setIsLoadingForms] = useState(false);
   const [assignedTemplates, setAssignedTemplates] = useState<Set<string>>(new Set());
-
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [isEditingUser, setIsEditingUser] = useState(false);
-  
+
+  // Lookup options loaded from DB
+  const [roleOptions, setRoleOptions] = useState<string[]>(["Branch Manager", "Teller", "Operations", "Loan Officer", "Customer Service"]);
+  const [branchOptions, setBranchOptions] = useState<string[]>(branches);
+  const specialAccessOptions = ["Administrator", "Accountant", "Control"];
+
   const [userForm, setUserForm] = useState({
-    user_name: "",
-    finca_email: "",
-    employee_id: "",
-    login_id: "",
-    user_no: "",
-    user_role: "",
-    branch: branches[0] || "",
-    defaultPassword: "",
+    user_name: "", finca_email: "", employee_id: "",
+    login_id: "", user_no: "", user_role: "",
+    branch: "", specialAccess: "", defaultPassword: "",
   });
 
+  // Load dynamic lookup values on mount
+  useEffect(() => {
+    getLookupValues("role").then(vals => setRoleOptions(prev => Array.from(new Set([...prev, ...vals]))));
+    getLookupValues("branch").then(vals => setBranchOptions(prev => Array.from(new Set([...prev, ...vals]))));
+  }, []);
 
-  // New role form state
-  const [newRole, setNewRole] = useState({
-    user_role: "",
-    branch: branches[0] || "",
-  });
-
-  const availableRoles = [
-    "Administrator",
-    "Branch Manager",
-    "Teller",
-    "Operations",
-    "Loan Officer",
-    "Customer Service"
-  ]; // Standard roles or we can input manually
+  // Save a custom typed value to DB and add it to local options
+  const persistLookup = async (type: string, value: string, setter: (fn: (p: string[]) => string[]) => void) => {
+    if (!value.trim()) return;
+    setter(prev => Array.from(new Set([...prev, value.trim()])));
+    await saveLookupValue(type, value.trim()).catch(() => {});
+  };
 
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
@@ -91,49 +161,6 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
     }
   };
 
-  const [deleteModal, setDeleteModal] = useState<{isOpen: boolean, roleId: number | null}>({isOpen: false, roleId: null});
-
-  const handleRemoveRole = (roleId: number) => {
-    setDeleteModal({ isOpen: true, roleId });
-  };
-
-  const confirmRemoveRole = async () => {
-    if (!deleteModal.roleId) return;
-    try {
-      setIsLoading(true);
-      await removeUserRole(deleteModal.roleId);
-      setDeleteModal({ isOpen: false, roleId: null });
-    } catch (e: any) {
-      showError(e.message || "Failed to remove role");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleAddRole = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeUser) return;
-    
-    try {
-      setIsLoading(true);
-      await addUserRole({
-        user_name: activeUser.user_name || "",
-        finca_email: activeUser.email || "",
-        employee_id: activeUser.employee_id || "",
-        login_id: activeUser.login_id || "",
-        user_no: activeUser.user_no || "",
-        user_role: newRole.user_role,
-        branch: newRole.branch,
-      });
-      setIsAddingRole(false);
-      setNewRole({ user_role: "", branch: branches[0] || "" });
-    } catch (e: any) {
-      showError(e.message || "Failed to add role");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userForm.defaultPassword || userForm.defaultPassword.length < 6) {
@@ -142,13 +169,10 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
     }
     try {
       setIsLoading(true);
-      const result = await addUserRole(userForm);
-      // result should include the newly created user id — but addUserRole may not return it.
-      // We fetch the users list after creation via revalidatePath, so we find the user by employee_id.
-      // Instead, call set-password via a separate step using the userId returned if available,
-      // or we rely on the backend to handle it. For now, pass employee_id to a lookup or
-      // call set-password from a server action.
-      // ── Set the default password ──────────────────────────────────────────
+      await addUserRole({ ...userForm, specialAccess: userForm.specialAccess === "None" ? undefined : userForm.specialAccess });
+      // Persist custom role/branch to lookup table
+      if (userForm.user_role) await persistLookup("role", userForm.user_role, setRoleOptions);
+      if (userForm.branch) await persistLookup("branch", userForm.branch, setBranchOptions);
       if (token) {
         const pwRes = await fetch(`${BASE_URL}/api/v1/auth/set-password`, {
           method: "POST",
@@ -159,9 +183,7 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
         if (!pwData.success) throw new Error(pwData.error || "Failed to set default password.");
       }
       setIsCreatingUser(false);
-      setUserForm({
-        user_name: "", finca_email: "", employee_id: "", login_id: "", user_no: "", user_role: "", branch: branches[0] || "", defaultPassword: ""
-      });
+      setUserForm({ user_name: "", finca_email: "", employee_id: "", login_id: "", user_no: "", user_role: "", branch: "", specialAccess: "", defaultPassword: "" });
     } catch(e: any) {
       showError(e.message || "Failed to create user");
     } finally {
@@ -172,14 +194,17 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
 
   const openEditUser = () => {
     if (!activeUser) return;
+    const firstRole = activeUser.roles?.[0];
     setUserForm({
       user_name: activeUser.user_name || "",
       finca_email: activeUser.email || "",
       employee_id: activeUser.employee_id || "",
       login_id: activeUser.login_id || "",
       user_no: activeUser.user_no || "",
-      user_role: "", branch: "",
-      defaultPassword: "",  // clear — admin fills only if they want to reset
+      user_role: firstRole?.user_role || "",
+      branch: firstRole?.branch || "",
+      specialAccess: firstRole?.specialAccess || "",
+      defaultPassword: "",
     });
     setIsEditingUser(true);
   };
@@ -191,14 +216,22 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
     try {
       setIsLoading(true);
       const rowIds = activeUser.roles.map((r: any) => r.id);
+      // Update shared identity fields across all rows
       await updateUserInformation(rowIds, {
-        user_name: userForm.user_name,
-        finca_email: userForm.finca_email,
-        employee_id: userForm.employee_id,
-        login_id: userForm.login_id,
-        user_no: userForm.user_no,
+        user_name: userForm.user_name, finca_email: userForm.finca_email,
+        employee_id: userForm.employee_id, login_id: userForm.login_id, user_no: userForm.user_no,
       });
-      // Optional password reset during edit
+      // Update per-row fields (role, branch, specialAccess) on every row
+      for (const id of rowIds) {
+        await updateUserRowDetails(id, {
+          user_role: userForm.user_role || undefined,
+          branch: userForm.branch || undefined,
+          specialAccess: userForm.specialAccess,
+        });
+      }
+      // Persist custom values to lookup
+      if (userForm.user_role) await persistLookup("role", userForm.user_role, setRoleOptions);
+      if (userForm.branch) await persistLookup("branch", userForm.branch, setBranchOptions);
       if (userForm.defaultPassword.trim() && token) {
         const pwRes = await fetch(`${BASE_URL}/api/v1/auth/set-password`, {
           method: "POST",
@@ -226,7 +259,7 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
     // Check if this user has an Administrator role — admins bypass FormAccess and always see all forms.
     // Form access restrictions only apply to non-administrator users.
     const hasAdminRole = (activeUser.roles || []).some(
-      (r: any) => r.user_role?.toLowerCase() === "administrator"
+      (r: any) => r.user_role?.toLowerCase() === "administrator" || r.specialAccess?.toLowerCase().includes("administrator")
     );
     if (hasAdminRole) {
       showError(
@@ -316,10 +349,7 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
             {filteredUsers.map((u) => (
               <button
                 key={u.key}
-                onClick={() => {
-                  setSelectedUser(u);
-                  setIsAddingRole(false);
-                }}
+                onClick={() => setSelectedUser(u)}
                 className={`w-full text-left p-3 rounded-lg transition-colors flex items-center gap-3 ${
                   selectedUser?.key === u.key
                     ? "bg-primary/10 border-primary/20"
@@ -390,107 +420,41 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
                     >
                       <FileText className="h-4 w-4" /> Manage Forms
                     </button>
-                    <button
-                      onClick={() => setIsAddingRole(true)}
-                      className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors"
-                    >
-                      <Plus className="h-4 w-4" /> Add Role
-                    </button>
                   </div>
                 </div>
               </div>
 
               <div className="p-6">
-                {isAddingRole ? (
-                  <div className="bg-gray-50 rounded-xl p-5 mb-6 border border-gray-200">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="font-semibold text-gray-800">Add New Role to {activeUser.user_name}</h3>
-                      <button onClick={() => setIsAddingRole(false)} className="text-gray-400 hover:text-gray-600">
-                        <X className="h-5 w-5" />
-                      </button>
-                    </div>
-                    <form onSubmit={handleAddRole} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Role Title</label>
-                        <select
-                          required
-                          value={newRole.user_role}
-                          onChange={(e) => setNewRole({ ...newRole, user_role: e.target.value })}
-                          className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:ring-primary focus:border-primary"
-                        >
-                          <option value="">Select Role</option>
-                          {availableRoles.map(role => (
-                            <option key={role} value={role}>{role}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-700 mb-1">Branch</label>
-                        <select
-                          required
-                          value={newRole.branch}
-                          onChange={(e) => setNewRole({ ...newRole, branch: e.target.value })}
-                          className="w-full border border-gray-300 rounded-md py-2 px-3 text-sm focus:ring-primary focus:border-primary"
-                        >
-                          <option value="">Select Branch</option>
-                          {branches.map((b: string) => (
-                            <option key={b} value={b}>{b}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="md:col-span-2 flex justify-end mt-2">
-                        <button
-                          type="submit"
-                          disabled={isLoading}
-                          className="px-4 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50"
-                        >
-                          {isLoading ? "Saving..." : "Save Role"}
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                ) : null}
-
                 <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
                   <Activity className="h-5 w-5 text-gray-400" />
                   Assigned Roles ({activeUser.roles.length})
                 </h3>
-
                 <div className="space-y-3">
                   {activeUser.roles.map((r: any) => {
                     const isActive = r.status?.toLowerCase() === 'active' && !r.lock_flag;
                     return (
                       <div key={r.id} className={`flex items-center justify-between p-4 rounded-xl border ${isActive ? "bg-white border-gray-200" : "bg-gray-50 text-gray-500 border-gray-200"}`}>
                         <div className="flex items-center gap-4">
-                          <div className={`h-2 w-2 rounded-full ${isActive ? 'bg-green-500' : 'bg-red-400'}`}></div>
+                          <div className={`h-2 w-2 rounded-full ${isActive ? 'bg-green-500' : 'bg-red-400'}`} />
                           <div>
                             <div className="font-semibold text-sm">
-                              {r.user_role}
+                              {r.user_role || "No Role"}
                               {!isActive && <span className="ml-2 text-xs text-red-500 bg-red-50 px-2 py-0.5 rounded border border-red-100">Inactive</span>}
+                              {r.specialAccess && <span className="ml-2 text-xs text-primary bg-primary/10 px-2 py-0.5 rounded">{r.specialAccess}</span>}
                             </div>
                             <div className="text-xs text-gray-500 mt-1">
-                              Branch: {r.branch || "Any"} • ID: {r.id}
+                              Branch: {r.branch || "Any"}
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            disabled={isLoading}
-                            onClick={() => handleToggleStatus(r.id, r.status, r.lock_flag)}
-                            className={`p-2 rounded-md transition-colors ${isActive ? "text-amber-600 hover:bg-amber-50" : "text-green-600 hover:bg-green-50"} disabled:opacity-50 border border-transparent hover:border-current`}
-                            title={isActive ? "Deactivate Role" : "Activate Role"}
-                          >
-                            <Power className="h-4 w-4" />
-                          </button>
-                          <button
-                            disabled={isLoading}
-                            onClick={() => handleRemoveRole(r.id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors disabled:opacity-50 border border-transparent hover:border-red-200"
-                            title="Remove completely"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
+                        <button
+                          disabled={isLoading}
+                          onClick={() => handleToggleStatus(r.id, r.status, r.lock_flag)}
+                          className={`p-2 rounded-md transition-colors ${isActive ? "text-amber-600 hover:bg-amber-50" : "text-green-600 hover:bg-green-50"} disabled:opacity-50 border border-transparent hover:border-current`}
+                          title={isActive ? "Deactivate" : "Activate"}
+                        >
+                          <Power className="h-4 w-4" />
+                        </button>
                       </div>
                     );
                   })}
@@ -506,55 +470,12 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
         </div>
       </div>
 
-      {/* Delete Confirmation Modal */}
-      {deleteModal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-6">
-              <div className="flex items-center gap-4 mb-4">
-                <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
-                  <Trash2 className="h-5 w-5 text-red-600" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-gray-900">Remove Role</h3>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Are you sure you want to completely remove this role? This action cannot be undone.
-                  </p>
-                </div>
-              </div>
-              <div className="flex justify-end gap-3 mt-6">
-                <button
-                  disabled={isLoading}
-                  onClick={() => setDeleteModal({ isOpen: false, roleId: null })}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-gray-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  disabled={isLoading}
-                  onClick={confirmRemoveRole}
-                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 focus:ring-2 focus:ring-red-500 flex items-center gap-2"
-                >
-                  {isLoading ? (
-                    <>
-                      <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                      Deleting...
-                    </>
-                  ) : (
-                    "Yes, Remove Role"
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* User Form Modal (Create or Edit) */}
       {(isCreatingUser || isEditingUser) && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-6 border-b border-gray-100 shrink-0">
               <h3 className="text-lg font-bold text-gray-900">
                 {isCreatingUser ? "Create New User" : "Edit User Info"}
               </h3>
@@ -566,7 +487,7 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
               </button>
             </div>
             
-            <form onSubmit={isCreatingUser ? handleCreateUser : handleEditUser} className="p-6">
+            <form onSubmit={isCreatingUser ? handleCreateUser : handleEditUser} className="flex-1 overflow-y-auto p-6 flex flex-col">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
@@ -621,36 +542,56 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
                   </div>
                 </div>
 
-                {isCreatingUser && (<>
-                  <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-5 mt-2 border-t border-gray-100 pt-5">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Initial Role</label>
-                      <select
-                        required
-                        value={userForm.user_role}
-                        onChange={(e) => setUserForm({ ...userForm, user_role: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-primary"
-                      >
-                        <option value="">Select Role</option>
-                        {availableRoles.map(r => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
-                      <select
-                        required
-                        value={userForm.branch}
-                        onChange={(e) => setUserForm({ ...userForm, branch: e.target.value })}
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-primary"
-                      >
-                        <option value="">Select Branch</option>
-                        {branches.map((b: string) => <option key={b} value={b}>{b}</option>)}
-                      </select>
+                {/* Role, Branch, Special Access — shown on both create and edit */}
+                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-5 mt-2 border-t border-gray-100 pt-5">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Role Title {isCreatingUser && <span className="text-red-500">*</span>}
+                    </label>
+                    <ComboSelect
+                      required={isCreatingUser}
+                      value={userForm.user_role}
+                      onChange={(v) => setUserForm({ ...userForm, user_role: v })}
+                      options={roleOptions}
+                      placeholder="Select role…"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Branch {isCreatingUser && <span className="text-red-500">*</span>}
+                    </label>
+                    <ComboSelect
+                      required={isCreatingUser}
+                      value={userForm.branch}
+                      onChange={(v) => setUserForm({ ...userForm, branch: v })}
+                      options={branchOptions}
+                      placeholder="Select branch…"
+                    />
+                  </div>
+                  <div className="md:col-span-3 border-t border-gray-100 pt-4 mt-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-3">Special Access</label>
+                    <div className="flex flex-wrap gap-6">
+                      {specialAccessOptions.map(opt => (
+                        <label key={opt} className="flex items-center gap-2 cursor-pointer text-sm text-gray-700 hover:text-gray-900 transition-colors">
+                          <input
+                            type="checkbox"
+                            className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                            checked={userForm.specialAccess.split(",").map(s => s.trim()).includes(opt)}
+                            onChange={() => {
+                              const current = userForm.specialAccess.split(",").map(s => s.trim()).filter(Boolean);
+                              const next = current.includes(opt) ? current.filter(s => s !== opt) : [...current, opt];
+                              setUserForm({ ...userForm, specialAccess: next.join(",") });
+                            }}
+                          />
+                          {opt}
+                        </label>
+                      ))}
                     </div>
                   </div>
-                </>)}
+                </div>
 
                 {/* Default password — required on creation, optional on edit */}
+
                 <div className="md:col-span-2 bg-amber-50 border border-amber-200 rounded-xl p-4 mt-2">
                   <label className="block text-sm font-semibold text-amber-800 mb-1 flex items-center gap-1.5">
                     <KeyRound className="h-4 w-4 inline mr-1" />
@@ -674,7 +615,7 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
 
               </div>
 
-              <div className="flex justify-end gap-3 mt-8">
+              <div className="flex justify-end gap-3 mt-8 shrink-0">
                 <button
                   type="button"
                   disabled={isLoading}

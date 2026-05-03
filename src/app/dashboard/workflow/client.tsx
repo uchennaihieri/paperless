@@ -142,6 +142,12 @@ function DetailPanel({
   const [isPendingApp, startApproveTransition]  = useTransition();
   const [error, setError]                        = useState("");
 
+  const rolesStr = (session?.user as any)?.roles;
+  const roles = typeof rolesStr === "string" ? JSON.parse(rolesStr) : rolesStr || [];
+  const activeId = (session?.user as any)?.activeRoleId;
+  const activeRole = roles.find((r: any) => String(r.id) === String(activeId)) || roles[0];
+  const isAccountant = activeRole?.specialAccess?.toLowerCase().includes("accountant");
+
   // Decline modal state
   const [showDeclineModal, setShowDeclineModal]  = useState(false);
   const [declineReason, setDeclineReason]        = useState("");
@@ -248,7 +254,7 @@ function DetailPanel({
               {item.signingType === "sequential" ? <GitBranch className="w-3 h-3" /> : <Layers className="w-3 h-3" />}
               {item.signingType}
             </span>
-            {item.status === "Awaiting Final Approval" && item.reference && (
+            {item.status === "Awaiting Final Approval" && item.reference && isAccountant && (
               <Button
                 size="sm"
                 variant="outline"

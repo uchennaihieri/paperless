@@ -32,6 +32,13 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
   const { data: session } = useSession();
   const token = (session?.user as any)?.backendToken ?? "";
   const currentUserEmail = (session?.user as any)?.email?.toLowerCase() ?? "";
+  
+  const rolesStr = (session?.user as any)?.roles;
+  const roles = typeof rolesStr === "string" ? JSON.parse(rolesStr) : rolesStr || [];
+  const activeId = (session?.user as any)?.activeRoleId;
+  const activeRole = roles.find((r: any) => String(r.id) === String(activeId)) || roles[0];
+  const isAccountant = activeRole?.specialAccess?.toLowerCase().includes("accountant");
+
   const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
   const [selected, setSelected] = useState<ActionItem | null>(null);
 
@@ -252,7 +259,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                 <Button size="sm" variant="outline" onClick={openStatusModal} className="cursor-pointer">
                   Change Status
                 </Button>
-                {selected.status?.startsWith("Assigned") && currentUserEmail && selected.treaterEmail?.toLowerCase() === currentUserEmail && (
+                {selected.status?.startsWith("Assigned") && isAccountant && (
                   <Button size="sm" variant="outline" onClick={() => setIsJournalOpen(true)} className="cursor-pointer">
                     <BookOpen className="w-4 h-4 mr-2" /> Journal
                   </Button>
