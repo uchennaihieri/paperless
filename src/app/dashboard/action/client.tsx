@@ -259,7 +259,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                 <Button size="sm" variant="outline" onClick={openStatusModal} className="cursor-pointer">
                   Change Status
                 </Button>
-                {selected.status?.startsWith("Assigned") && isAccountant && (
+                {selected.status?.startsWith("Assigned") && isAccountant && selected.treaterEmail?.toLowerCase() === currentUserEmail && (
                   <Button size="sm" variant="outline" onClick={() => setIsJournalOpen(true)} className="cursor-pointer">
                     <BookOpen className="w-4 h-4 mr-2" /> Journal
                   </Button>
