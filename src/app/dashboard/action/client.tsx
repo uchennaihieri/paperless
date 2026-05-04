@@ -512,7 +512,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                 </div>
               </div>
               <p className="text-sm text-gray-600">
-                Enter your 8-character signature token to confirm this action.
+                Enter your secure signature token to confirm this action.
               </p>
               <div className="relative">
                 <input
@@ -544,7 +544,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                 <Button
                   className="flex-1 text-white"
                   style={{ background: "#b50938" }}
-                  disabled={treaterToken.length !== 8 || isChanging}
+                  disabled={treaterToken.length < 8 || isChanging}
                   onClick={() => handleCompleteProcess(treaterToken)}
                 >
                   {isChanging ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Confirming…</> : "Confirm"}

@@ -114,11 +114,17 @@ export default function SignaturePage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
+  const hasMin8 = inputToken.length >= 8;
+  const hasUpper = /[A-Z]/.test(inputToken);
+  const hasLower = /[a-z]/.test(inputToken);
+  const hasNumber = /[0-9]/.test(inputToken);
+  const isTokenValid = hasMin8 && hasUpper && hasLower && hasNumber;
+
   // ── Token modal confirm ───────────────────────────────────────────────────
   const confirmAndSave = () => {
     setTokenError("");
-    if (inputToken.length !== 8) {
-      setTokenError("Token must be exactly 8 characters.");
+    if (!isTokenValid) {
+      setTokenError("Token does not meet the security requirements.");
       return;
     }
     if (inputToken !== confirmToken) {
@@ -191,7 +197,7 @@ export default function SignaturePage() {
         <Card>
           <CardHeader>
             <CardTitle>Current Signature</CardTitle>
-            <CardDescription>Use your 8-character token to sign forms seamlessly.</CardDescription>
+            <CardDescription>Use your secure token to sign forms seamlessly.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center justify-center py-12">
             {isLoading ? (
@@ -362,21 +368,21 @@ export default function SignaturePage() {
             <CardHeader>
               <CardTitle>Secure Your Signature</CardTitle>
               <CardDescription>
-                Choose an 8-character token to encrypt your signature. You{" "}
+                Choose a secure token to encrypt your signature. You{" "}
                 <strong>must remember this token</strong> — it cannot be recovered.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="token-input">Token (8 characters)</Label>
+                <Label htmlFor="token-input">Token</Label>
                 <div className="relative">
                   <Input
                     id="token-input"
                     type={showToken ? "text" : "password"}
                     value={inputToken}
                     onChange={(e) => { setInputToken(e.target.value); setTokenError(""); }}
-                    maxLength={8}
-                    placeholder="e.g. A1B2C3D4"
+                    maxLength={32}
+                    placeholder="e.g. A1b2C3d4"
                     className="text-center tracking-[0.4em] font-mono text-lg pr-12"
                   />
                   <button
@@ -388,6 +394,26 @@ export default function SignaturePage() {
                   </button>
                 </div>
               </div>
+              
+              <div className="space-y-1 text-xs">
+                <p className={`flex items-center gap-1 ${hasMin8 ? "text-green-600" : "text-red-500"}`}>
+                  {hasMin8 ? <CheckCircle2 className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+                  Minimum 8 characters
+                </p>
+                <p className={`flex items-center gap-1 ${hasUpper ? "text-green-600" : "text-red-500"}`}>
+                  {hasUpper ? <CheckCircle2 className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+                  At least one uppercase letter
+                </p>
+                <p className={`flex items-center gap-1 ${hasLower ? "text-green-600" : "text-red-500"}`}>
+                  {hasLower ? <CheckCircle2 className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+                  At least one lowercase letter
+                </p>
+                <p className={`flex items-center gap-1 ${hasNumber ? "text-green-600" : "text-red-500"}`}>
+                  {hasNumber ? <CheckCircle2 className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+                  At least one number
+                </p>
+              </div>
+
               <div className="space-y-1.5">
                 <Label htmlFor="token-confirm-input">Confirm Token</Label>
                 <div className="relative">
@@ -396,7 +422,7 @@ export default function SignaturePage() {
                     type={showConfirmToken ? "text" : "password"}
                     value={confirmToken}
                     onChange={(e) => { setConfirmToken(e.target.value); setTokenError(""); }}
-                    maxLength={8}
+                    maxLength={32}
                     placeholder="Re-enter your token"
                     className="text-center tracking-[0.4em] font-mono text-lg pr-12"
                   />
@@ -425,7 +451,7 @@ export default function SignaturePage() {
               </Button>
               <Button
                 id="confirm-save-signature-btn"
-                disabled={inputToken.length !== 8 || confirmToken.length !== 8 || isSaving}
+                disabled={!isTokenValid || inputToken !== confirmToken || isSaving}
                 onClick={confirmAndSave}
               >
                 {isSaving ? "Encrypting & Saving..." : "Encrypt & Save"}

@@ -1305,7 +1305,7 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
               </div>
               <h3 className="text-xl font-bold text-gray-900">Sign & Submit</h3>
               <p className="text-sm text-gray-500">
-                You are listed as the first signatory. Enter your 8-character token to securely apply your signature to this submission simultaneously.
+                You are listed as the first signatory. Enter your secure token to securely apply your signature to this submission simultaneously.
               </p>
               <div className="relative">
                 <Input
@@ -1327,7 +1327,7 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
               <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
                 <Button variant="ghost" onClick={() => setShowTokenModal(false)}>Cancel</Button>
                 <Button 
-                  disabled={signatureToken.length !== 8 || submitting} 
+                  disabled={signatureToken.length < 8 || submitting} 
                   onClick={handleSubmit} 
                   className="w-full sm:w-auto"
                 >

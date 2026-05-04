@@ -182,7 +182,7 @@ function DetailPanel({
       }
 
       let payload: { signatureToken?: string } = {};
-      if (signatureToken.length !== 8) { setError("Token must be exactly 8 characters."); return; }
+      if (signatureToken.length < 8) { setError("Token must be at least 8 characters."); return; }
       payload.signatureToken = signatureToken;
 
       const res = await signSubmission(item.id, payload);
@@ -609,7 +609,7 @@ function DetailPanel({
                   </div>
                 </div>
                 <p className="text-sm text-gray-600">
-                  Enter your 8-character signature token to confirm your approval.
+                  Enter your secure signature token to confirm your approval.
                 </p>
                 <Input
                   autoFocus
@@ -637,7 +637,7 @@ function DetailPanel({
                   <Button
                     className="flex-1 text-white"
                     style={{ background: "#b50938" }}
-                    disabled={approverToken.length !== 8 || isPendingApp}
+                    disabled={approverToken.length < 8 || isPendingApp}
                     onClick={() => {
                       startApproveTransition(async () => {
                         const res = await approveSubmission(item.id, approverToken);
@@ -711,7 +711,7 @@ function DetailPanel({
 
             <div className="flex-1 mb-6">
               <div className="space-y-4">
-                <p className="text-sm text-gray-500">Enter your 8-character secure signature token.</p>
+                <p className="text-sm text-gray-500">Enter your secure signature token.</p>
                 <div className="relative">
                   <Input
                     type={showToken ? "text" : "password"}
