@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 import * as XLSX from "xlsx";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -16,6 +17,7 @@ import * as XLSX from "xlsx";
 type JournalEntry = {
   id: string;
   entryId: string;
+  journalId?: string;
   sessionRef: string;
   type: "debit" | "credit";
   accountCode: string;
@@ -105,7 +107,14 @@ export function JournalModal({
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      if (data.success) setEntries(data.data || []);
+      if (data.success) {
+        setEntries(data.data || []);
+        if (data.data?.some((e: JournalEntry) => e.committed)) {
+          setCommitted(true);
+        } else {
+          setCommitted(false);
+        }
+      }
     } catch {
       // silent
     } finally {
@@ -158,6 +167,7 @@ export function JournalModal({
           branch: branch || undefined,
           description,
           amount: parseFloat(amount),
+          journalId: entries.find(e => e.journalId)?.journalId,
         }),
       });
       const data = await res.json();
@@ -253,7 +263,7 @@ export function JournalModal({
 
     const rows = entries.map((e) => ({
       "Form Reference": e.sessionRef,
-      "Entry ID":       e.entryId,
+      "Journal ID":     e.journalId || "",
       "Date":           new Date(e.date).toLocaleString(),
       "Type":           e.type.charAt(0).toUpperCase() + e.type.slice(1),
       "Account Code":   e.accountCode,
@@ -268,9 +278,9 @@ export function JournalModal({
 
     // Summary rows
     rows.push({} as any);
-    rows.push({ "Entry ID": "TOTAL DEBITS",  "Amount (₦)": parseFloat(balance?.debits  ?? "0") } as any);
-    rows.push({ "Entry ID": "TOTAL CREDITS", "Amount (₦)": parseFloat(balance?.credits ?? "0") } as any);
-    rows.push({ "Entry ID": "BALANCED",      "Account Code": balance?.balanced ? "YES" : "NO" } as any);
+    rows.push({ "Journal ID": "TOTAL DEBITS",  "Amount (₦)": parseFloat(balance?.debits  ?? "0") } as any);
+    rows.push({ "Journal ID": "TOTAL CREDITS", "Amount (₦)": parseFloat(balance?.credits ?? "0") } as any);
+    rows.push({ "Journal ID": "BALANCED",      "Account Code": balance?.balanced ? "YES" : "NO" } as any);
 
     const ws = XLSX.utils.json_to_sheet(rows);
     ws["!cols"] = Object.keys(rows[0] || {}).map((k) => ({ wch: Math.max(k.length + 2, 16) }));
@@ -351,33 +361,28 @@ export function JournalModal({
                 </span>
               )}
 
-              {!readOnly && (
+              {!readOnly && !committed && (
                 <Button
                   type="button"
                   size="sm"
                   onClick={() => setShowAddForm((v) => !v)}
-                  disabled={committed}
                   className="cursor-pointer"
                 >
                   <Plus className="w-4 h-4 mr-1" /> Add Line
                 </Button>
               )}
-              {!readOnly && (
+              {!readOnly && !committed && (
                 <Button
                   type="button"
                   size="sm"
-                  disabled={!canMarkComplete || isMarkingComplete || committed}
+                  disabled={!canMarkComplete || isMarkingComplete}
                   onClick={handleMarkComplete}
-                  className={`cursor-pointer ${committed
-                    ? "bg-emerald-100 text-emerald-600 border border-emerald-200 cursor-not-allowed"
-                    : canMarkComplete
+                  className={`cursor-pointer ${canMarkComplete
                     ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                     : "bg-red-100 text-red-500 border border-red-200 cursor-not-allowed"}`}
                 >
                   {isMarkingComplete ? (
                     <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Committing…</>
-                  ) : committed ? (
-                    <><CheckCircle2 className="w-4 h-4 mr-1" /> Committed</>
                   ) : canMarkComplete ? (
                     <><CheckCircle2 className="w-4 h-4 mr-1" /> Mark Complete</>
                   ) : (
@@ -479,7 +484,7 @@ export function JournalModal({
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="text-left px-4 py-2.5 font-semibold text-gray-600 text-xs">ID</th>
+                  <th className="text-left px-4 py-2.5 font-semibold text-gray-600 text-xs">Journal ID</th>
                   <th className="text-left px-4 py-2.5 font-semibold text-gray-600 text-xs">Form Ref</th>
                   <th className="text-left px-4 py-2.5 font-semibold text-gray-600 text-xs">Type</th>
                   <th className="text-left px-4 py-2.5 font-semibold text-gray-600 text-xs">Account</th>
@@ -499,7 +504,7 @@ export function JournalModal({
                   if (isEditing) {
                     return (
                       <tr key={entry.id} className="bg-blue-50">
-                        <td className="px-4 py-2 font-mono text-xs text-gray-500">{entry.entryId}</td>
+                        <td className="px-4 py-2 font-mono text-xs text-gray-500">{entry.journalId || "—"}</td>
                         <td className="px-4 py-2">
                           <select
                             value={editFields.type ?? entry.type}
@@ -543,8 +548,12 @@ export function JournalModal({
 
                   return (
                     <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs text-gray-500">{entry.entryId}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-primary font-semibold">{entry.sessionRef}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-500">{entry.journalId || "—"}</td>
+                      <td className="px-4 py-3 font-mono text-xs text-primary font-semibold hover:underline">
+                        <Link href={`/dashboard/view/${entry.sessionRef}`} target="_blank" rel="noopener noreferrer">
+                          {entry.sessionRef}
+                        </Link>
+                      </td>
                       <td className="px-4 py-3">
                         <Badge variant="outline" className={entry.type === "debit" ? "border-blue-200 bg-blue-50 text-blue-700" : "border-purple-200 bg-purple-50 text-purple-700"}>
                           {entry.type === "debit" ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
@@ -555,7 +564,7 @@ export function JournalModal({
                         <div className="font-medium text-gray-900 text-xs">{entry.accountName}</div>
                         <div className="text-gray-400 text-xs font-mono">{entry.accountCode}</div>
                       </td>
-                      <td className="px-4 py-3 text-gray-600 max-w-[180px] truncate">{entry.description}</td>
+                      <td className="px-4 py-3 text-gray-600 whitespace-pre-wrap">{entry.description}</td>
                       <td className="px-4 py-3 text-gray-500 text-xs">{entry.batchNumber || "—"}</td>
                       <td className="px-4 py-3 text-right font-semibold text-gray-900 tabular-nums">{fmtAmount(entry.amount)}</td>
                       <td className="px-4 py-3">

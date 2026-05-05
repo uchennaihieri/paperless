@@ -92,6 +92,11 @@ export async function getSubmission(id: string) {
   return result.data || null;
 }
 
+export async function getSubmissionByReference(reference: string) {
+  const result = await apiClient(`/submissions/by-reference/${encodeURIComponent(reference)}`, { method: "GET" }).catch(e => ({ data: null }));
+  return result.data || null;
+}
+
 export async function getAllSubmissions() {
   const result = await apiClient("/submissions", { method: "GET" }).catch(e => ({ data: [] }));
   return result.data || [];

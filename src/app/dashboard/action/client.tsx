@@ -41,6 +41,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
 
   const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
   const [selected, setSelected] = useState<ActionItem | null>(null);
+  const [hasAutoSelected, setHasAutoSelected] = useState(false);
 
   const {
     data: fetchedItems,
@@ -62,6 +63,20 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
     setSelected(prev => prev?.id === id ? { ...prev, status: newStatus } : prev);
     forceRefresh(); // Trigger a background refresh to resync
   };
+
+  useEffect(() => {
+    if (!hasAutoSelected && typeof window !== "undefined") {
+      const searchParams = new URLSearchParams(window.location.search);
+      const reference = searchParams.get("reference");
+      if (reference && localItems.length > 0) {
+        const match = localItems.find(i => i.reference === reference || i.id === reference);
+        if (match) setSelected(match);
+        setHasAutoSelected(true);
+      } else if (localItems.length > 0) {
+        setHasAutoSelected(true);
+      }
+    }
+  }, [localItems, hasAutoSelected]);
 
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [statusMode, setStatusMode] = useState<"assign" | "complete" | "revert" | "">("");

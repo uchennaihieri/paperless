@@ -3,19 +3,22 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   X, Search, ChevronLeft, ChevronRight, Loader2,
-  TrendingUp, TrendingDown, BookOpen, Filter,
+  TrendingUp, TrendingDown, BookOpen, Filter, Plus
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { useSession } from "next-auth/react";
+import { AddActionItemsModal } from "./AddActionItemsModal";
+import Link from "next/link";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type LedgerEntry = {
   id: string;
   entryId: string;
+  journalId?: string;
   sessionRef: string;
   formName: string;
   type: "debit" | "credit";
@@ -27,6 +30,7 @@ type LedgerEntry = {
   amount: string;
   createdBy: string;
   date: string;
+  committed: boolean;
 };
 
 type Meta = {
@@ -79,6 +83,7 @@ export function JournalLedgerModal({
   const [form, setForm] = useState("");
   const [page, setPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
+  const [showAddItems, setShowAddItems] = useState(false);
 
   const fetchLedger = useCallback(async () => {
     if (!token) return;
@@ -142,10 +147,19 @@ export function JournalLedgerModal({
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900">General Ledger</h2>
-              <p className="text-xs text-gray-500">Global committed journal entries</p>
+              <p className="text-xs text-gray-500">Global journal entries</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowAddItems(true)}
+              className="cursor-pointer bg-white"
+            >
+              <Plus className="w-4 h-4 mr-1" />
+              Add items
+            </Button>
             <Button
               size="sm"
               variant="outline"
@@ -230,7 +244,7 @@ export function JournalLedgerModal({
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="text-left px-4 py-2.5 font-semibold text-gray-600 text-xs">ID</th>
+                  <th className="text-left px-4 py-2.5 font-semibold text-gray-600 text-xs">Journal ID</th>
                   <th className="text-left px-4 py-2.5 font-semibold text-gray-600 text-xs">Date</th>
                   <th className="text-left px-4 py-2.5 font-semibold text-gray-600 text-xs">Reference</th>
                   <th className="text-left px-4 py-2.5 font-semibold text-gray-600 text-xs">Form</th>
@@ -239,6 +253,7 @@ export function JournalLedgerModal({
                   <th className="text-left px-4 py-2.5 font-semibold text-gray-600 text-xs">Description</th>
                   <th className="text-left px-4 py-2.5 font-semibold text-gray-600 text-xs">Batch</th>
                   <th className="text-left px-4 py-2.5 font-semibold text-gray-600 text-xs">Branch</th>
+                  <th className="text-left px-4 py-2.5 font-semibold text-gray-600 text-xs">Status</th>
                   <th className="text-right px-4 py-2.5 font-semibold text-gray-600 text-xs">Amount (₦)</th>
                   <th className="text-left px-4 py-2.5 font-semibold text-gray-600 text-xs">Officer</th>
                 </tr>
@@ -246,9 +261,13 @@ export function JournalLedgerModal({
               <tbody className="divide-y divide-gray-100">
                 {entries.map((entry) => (
                   <tr key={entry.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{entry.entryId}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{entry.journalId || "—"}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{fmt(entry.date)}</td>
-                    <td className="px-4 py-3 font-semibold text-primary text-xs">{entry.sessionRef}</td>
+                    <td className="px-4 py-3 font-semibold text-primary text-xs hover:underline hover:text-blue-600 transition-colors">
+                      <Link href={`/dashboard/view/${entry.sessionRef}`} target="_blank" rel="noopener noreferrer">
+                        {entry.sessionRef}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3 text-gray-700 text-xs max-w-[120px] truncate">{entry.formName}</td>
                     <td className="px-4 py-3">
                       <Badge
@@ -271,9 +290,14 @@ export function JournalLedgerModal({
                       <div className="text-xs font-medium text-gray-900">{entry.accountName}</div>
                       <div className="text-xs text-gray-400 font-mono">{entry.accountCode}</div>
                     </td>
-                    <td className="px-4 py-3 text-gray-600 text-xs max-w-[150px] truncate">{entry.description}</td>
+                    <td className="px-4 py-3 text-gray-600 text-xs whitespace-pre-wrap">{entry.description}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{entry.batchNumber || "—"}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs">{entry.branch || "—"}</td>
+                    <td className="px-4 py-3 text-xs">
+                      <Badge variant="outline" className={entry.committed ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}>
+                        {entry.committed ? "Committed" : "Pending"}
+                      </Badge>
+                    </td>
                     <td className="px-4 py-3 text-right font-semibold tabular-nums text-gray-900">
                       {fmtAmount(entry.amount)}
                     </td>
@@ -314,6 +338,14 @@ export function JournalLedgerModal({
           </div>
         )}
       </div>
+
+      <AddActionItemsModal
+        isOpen={showAddItems}
+        onClose={() => {
+          setShowAddItems(false);
+          fetchLedger();
+        }}
+      />
     </div>
   );
 }

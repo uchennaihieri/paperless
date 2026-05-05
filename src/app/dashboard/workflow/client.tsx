@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   signSubmission, declineSubmission,
-  approveSubmission, declineFinalApproval, remindSignatory, getMyQueue,
+  approveSubmission, declineFinalApproval, disapproveSignatory, remindSignatory, getMyQueue,
 } from "@/app/actions/workflow";
 import { getMySignature } from "@/app/actions/security";
 
@@ -157,6 +157,8 @@ function DetailPanel({
   const [approverToken, setApproverToken]                     = useState("");
   const [approverTokenError, setApproverTokenError]           = useState("");
   const [showFinalDeclineConfirm, setShowFinalDeclineConfirm] = useState(false);
+  const [showDisapproveModal, setShowDisapproveModal]         = useState(false);
+  const [disapproveReason, setDisapproveReason]               = useState("");
   const [isJournalOpen, setIsJournalOpen]                     = useState(false);
 
   // Remind state: track which signatoryId is being reminded
@@ -488,33 +490,41 @@ function DetailPanel({
                 <AlertTriangle className="w-4 h-4 shrink-0" />
                 This document is awaiting your final approval.
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-2 sm:gap-3 flex-wrap">
                 <Button
                   variant="outline"
-                  className="flex-1 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 cursor-pointer"
+                  className="flex-1 min-w-[120px] text-amber-600 border-amber-200 hover:bg-amber-50 hover:text-amber-700 cursor-pointer"
                   disabled={isPendingApp || isPendingDec}
                   onClick={() => setShowFinalDeclineConfirm(true)}
                 >
-                  <XCircle className="w-4 h-4 mr-2" /> Decline
+                  <AlertTriangle className="w-4 h-4 mr-1 sm:mr-2" /> Return
                 </Button>
                 <Button
-                  className="flex-1 cursor-pointer bg-green-600 hover:bg-green-700 text-white"
+                  className="flex-1 min-w-[120px] cursor-pointer bg-green-600 hover:bg-green-700 text-white"
                   disabled={isPendingApp || isPendingDec}
                   onClick={() => { setApproverToken(""); setApproverTokenError(""); setShowApproverTokenModal(true); }}
                 >
-                  <CheckCircle2 className="w-4 h-4 mr-2" /> Approve &amp; Complete
+                  <CheckCircle2 className="w-4 h-4 mr-1 sm:mr-2" /> Approve
                 </Button>
               </div>
             </div>
           ) : (
-            <div className="flex gap-3">
+            <div className="flex gap-2 sm:gap-3 flex-wrap">
               <Button
                 variant="outline"
-                className="flex-1 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 cursor-pointer"
+                className="flex-1 min-w-[120px] text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 cursor-pointer"
+                onClick={() => { setDisapproveReason(""); setShowDisapproveModal(true); }}
+                disabled={isPendingDec || isPendingSig}
+              >
+                <XCircle className="w-4 h-4 mr-1 sm:mr-2" /> Disapprove
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1 min-w-[120px] text-amber-600 border-amber-200 hover:bg-amber-50 hover:text-amber-700 cursor-pointer"
                 onClick={() => { setDeclineReason(""); setShowDeclineModal(true); }}
                 disabled={isPendingDec || isPendingSig}
               >
-                <XCircle className="w-4 h-4 mr-2" /> Decline
+                <AlertTriangle className="w-4 h-4 mr-1 sm:mr-2" /> Return
               </Button>
               <Button
                 className="flex-1 cursor-pointer"
@@ -529,7 +539,7 @@ function DetailPanel({
                 }}
                 disabled={isPendingSig || isPendingDec || item.status === "Blocked - Awaiting Prerequisites"}
               >
-                <Pen className="w-4 h-4 mr-2" /> Sign & Approve
+                <Pen className="w-4 h-4 mr-1 sm:mr-2" /> Approve
               </Button>
             </div>
           )}
@@ -541,11 +551,11 @@ function DetailPanel({
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
               <div className="p-6 space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-full bg-red-100">
-                    <XCircle className="w-5 h-5 text-red-600" />
+                  <div className="p-2 rounded-full bg-amber-100">
+                    <AlertTriangle className="w-5 h-5 text-amber-600" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-900">Decline Submission</h3>
+                    <h3 className="font-bold text-gray-900">Return Submission</h3>
                     <p className="text-xs text-gray-400">{item.formName} · {item.reference || item.id.slice(-8).toUpperCase()}</p>
                   </div>
                 </div>
@@ -579,13 +589,13 @@ function DetailPanel({
                   </Button>
                   <Button
                     id="confirm-decline-btn"
-                    className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                    className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
                     onClick={handleDeclineConfirm}
                     disabled={isPendingDec}
                   >
                     {isPendingDec
-                      ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Declining…</>
-                      : "Confirm Decline"
+                      ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Returning…</>
+                      : "Confirm Return"
                     }
                   </Button>
                 </div>
@@ -604,7 +614,7 @@ function DetailPanel({
                     <CheckCircle2 className="w-5 h-5 text-green-600" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-900">Approve &amp; Complete</h3>
+                    <h3 className="font-bold text-gray-900">Approve Form</h3>
                     <p className="text-xs text-gray-400">{item.formName} · {item.reference || item.id.slice(-8).toUpperCase()}</p>
                   </div>
                 </div>
@@ -654,23 +664,24 @@ function DetailPanel({
           </div>
         )}
 
-        {/* ── Final Approver: Simple Decline Confirmation ── */}
+        {/* ── Final Approver: Simple Return Confirmation ── */}
         {showFinalDeclineConfirm && (
           <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
               <div className="p-6 space-y-4">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-full bg-red-100">
-                    <XCircle className="w-5 h-5 text-red-600" />
+                  <div className="p-2 rounded-full bg-amber-100">
+                    <AlertTriangle className="w-5 h-5 text-amber-600" />
                   </div>
                   <div>
-                    <h3 className="font-bold text-gray-900">Decline Approval</h3>
+                    <h3 className="font-bold text-gray-900">Return Form</h3>
                     <p className="text-xs text-gray-400">{item.formName} · {item.reference || item.id.slice(-8).toUpperCase()}</p>
                   </div>
                 </div>
                 <p className="text-sm text-gray-600">
-                  Are you sure you want to decline this form? It will be returned to <strong>Processing</strong> status.
+                  Are you sure you want to return this form? It will be sent back to <strong>Processing</strong> status so the treater can edit it.
                 </p>
+
                 {error && (
                   <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">
                     <AlertTriangle className="w-4 h-4 shrink-0" /> {error}
@@ -681,17 +692,78 @@ function DetailPanel({
                     Cancel
                   </Button>
                   <Button
-                    className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                    className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
                     disabled={isPendingDec}
                     onClick={() => {
                       startDeclineTransition(async () => {
                         const res = await declineFinalApproval(item.id);
                         if (res.success) { setShowFinalDeclineConfirm(false); onDeclined(item.id); onClose(); }
-                        else { setError(res.error ?? "Failed to decline."); }
+                        else { setError(res.error ?? "Failed to return."); }
                       });
                     }}
                   >
-                    {isPendingDec ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Declining…</> : "Yes, Decline"}
+                    {isPendingDec ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Returning…</> : "Yes, Return"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Signatory: Disapprove Modal ── */}
+        {showDisapproveModal && (
+          <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+              <div className="p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-red-100">
+                    <XCircle className="w-5 h-5 text-red-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900">Disapprove Submission</h3>
+                    <p className="text-xs text-gray-400">{item.formName} · {item.reference || item.id.slice(-8).toUpperCase()}</p>
+                  </div>
+                </div>
+
+                <p className="text-sm text-gray-600">
+                  Disapproving this submission will permanently mark it as <strong>Not Approved</strong> and lock it from further edits. This action cannot be undone.
+                </p>
+
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium text-gray-700">
+                    Reason <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={disapproveReason}
+                    onChange={(e) => setDisapproveReason(e.target.value)}
+                    placeholder="Enter the reason for disapproval..."
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300 resize-none"
+                  />
+                </div>
+
+                {error && (
+                  <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">
+                    <AlertTriangle className="w-4 h-4 shrink-0" /> {error}
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setShowDisapproveModal(false)} disabled={isPendingDec}>
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                    disabled={isPendingDec || !disapproveReason.trim()}
+                    onClick={() => {
+                      startDeclineTransition(async () => {
+                        const res = await disapproveSignatory(item.id, disapproveReason);
+                        if (res.success) { setShowDisapproveModal(false); onDeclined(item.id); onClose(); }
+                        else { setError(res.error ?? "Failed to disapprove."); }
+                      });
+                    }}
+                  >
+                    {isPendingDec ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Disapproving…</> : "Disapprove"}
                   </Button>
                 </div>
               </div>

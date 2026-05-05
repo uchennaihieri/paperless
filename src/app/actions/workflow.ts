@@ -65,6 +65,19 @@ export async function declineFinalApproval(submissionId: string) {
   }
 }
 
+export async function disapproveFinalApproval(submissionId: string, reason: string) {
+  try {
+    const result = await apiClient(`/workflow/${submissionId}/disapprove-final`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+    revalidatePath("/dashboard/workflow");
+    return result;
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
 export async function getMyQueue() {
   const result = await apiClient("/workflow/queue", { method: "GET" }).catch(e => ({ data: [] }));
   return result.data || [];
@@ -92,6 +105,19 @@ export async function declineSubmission(submissionId: string, reason?: string) {
     const result = await apiClient(`/workflow/${submissionId}/decline`, {
       method: "POST",
       body: JSON.stringify(reason?.trim() ? { reason: reason.trim() } : {}),
+    });
+    revalidatePath("/dashboard/workflow");
+    return result;
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
+export async function disapproveSignatory(submissionId: string, reason: string) {
+  try {
+    const result = await apiClient(`/workflow/${submissionId}/disapprove-signatory`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
     });
     revalidatePath("/dashboard/workflow");
     return result;
