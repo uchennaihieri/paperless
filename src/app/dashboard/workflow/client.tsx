@@ -86,7 +86,7 @@ async function openFile(url: string, fileName: string, token: string) {
     if (!res.ok) throw new Error("File fetch failed");
     const blob = await res.blob();
     const objectUrl = URL.createObjectURL(blob);
-    
+
     if (newWindow) {
       newWindow.location.href = objectUrl;
     } else {
@@ -96,7 +96,7 @@ async function openFile(url: string, fileName: string, token: string) {
       link.target = "_blank";
       link.click();
     }
-    
+
     // Revoke object URL after a while so it has time to load
     setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
   } catch (err) {
@@ -137,10 +137,10 @@ function DetailPanel({
   const token = (session?.user as any)?.backendToken ?? "";
   const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
 
-  const [isPendingSig, startSignTransition]     = useTransition();
-  const [isPendingDec, startDeclineTransition]  = useTransition();
-  const [isPendingApp, startApproveTransition]  = useTransition();
-  const [error, setError]                        = useState("");
+  const [isPendingSig, startSignTransition] = useTransition();
+  const [isPendingDec, startDeclineTransition] = useTransition();
+  const [isPendingApp, startApproveTransition] = useTransition();
+  const [error, setError] = useState("");
 
   const rolesStr = (session?.user as any)?.roles;
   const roles = typeof rolesStr === "string" ? JSON.parse(rolesStr) : rolesStr || [];
@@ -149,26 +149,26 @@ function DetailPanel({
   const isAccountant = activeRole?.specialAccess?.toLowerCase().includes("accountant");
 
   // Decline modal state
-  const [showDeclineModal, setShowDeclineModal]  = useState(false);
-  const [declineReason, setDeclineReason]        = useState("");
+  const [showDeclineModal, setShowDeclineModal] = useState(false);
+  const [declineReason, setDeclineReason] = useState("");
 
   // Final approver modals
-  const [showApproverTokenModal, setShowApproverTokenModal]   = useState(false);
-  const [approverToken, setApproverToken]                     = useState("");
-  const [approverTokenError, setApproverTokenError]           = useState("");
+  const [showApproverTokenModal, setShowApproverTokenModal] = useState(false);
+  const [approverToken, setApproverToken] = useState("");
+  const [approverTokenError, setApproverTokenError] = useState("");
   const [showFinalDeclineConfirm, setShowFinalDeclineConfirm] = useState(false);
-  const [showDisapproveModal, setShowDisapproveModal]         = useState(false);
-  const [disapproveReason, setDisapproveReason]               = useState("");
-  const [isJournalOpen, setIsJournalOpen]                     = useState(false);
+  const [showDisapproveModal, setShowDisapproveModal] = useState(false);
+  const [disapproveReason, setDisapproveReason] = useState("");
+  const [isJournalOpen, setIsJournalOpen] = useState(false);
 
   // Remind state: track which signatoryId is being reminded
-  const [remindingId, setRemindingId]            = useState<string | null>(null);
-  const [remindFeedback, setRemindFeedback]      = useState<Record<string, string>>({}); // signatoryId → "sent" | error
+  const [remindingId, setRemindingId] = useState<string | null>(null);
+  const [remindFeedback, setRemindFeedback] = useState<Record<string, string>>({}); // signatoryId → "sent" | error
 
   // Sign modal state
-  const [showSignModal, setShowSignModal]        = useState(false);
-  const [signatureToken, setSignatureToken]      = useState("");
-  const [showToken, setShowToken]                = useState(false);
+  const [showSignModal, setShowSignModal] = useState(false);
+  const [signatureToken, setSignatureToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
 
   const responses = item.formResponses || {};
 
@@ -250,9 +250,8 @@ function DetailPanel({
             </p>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-auto">
-            <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${
-              item.signingType === "sequential" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
-            }`}>
+            <span className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${item.signingType === "sequential" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
+              }`}>
               {item.signingType === "sequential" ? <GitBranch className="w-3 h-3" /> : <Layers className="w-3 h-3" />}
               {item.signingType}
             </span>
@@ -411,20 +410,18 @@ function DetailPanel({
               {item.signatories.map((s) => (
                 <div
                   key={s.id}
-                  className={`bg-white border rounded-xl px-4 py-3 space-y-2 ${
-                    s.status === "Declined" ? "border-red-200 bg-red-50/30"
-                    : s.status === "Signed" ? "border-green-200 bg-green-50/20"
-                    : "border-gray-200"
-                  }`}
+                  className={`bg-white border rounded-xl px-4 py-3 space-y-2 ${s.status === "Declined" ? "border-red-200 bg-red-50/30"
+                      : s.status === "Signed" ? "border-green-200 bg-green-50/20"
+                        : "border-gray-200"
+                    }`}
                 >
                   {/* Top row: position, name, email, badge */}
                   <div className="flex items-center gap-3">
                     {item.signingType === "sequential" && (
-                      <div className={`h-6 w-6 rounded-full text-xs font-bold flex items-center justify-center shrink-0 ${
-                        s.status === "Signed" ? "bg-green-100 text-green-700"
-                        : s.status === "Declined" ? "bg-red-100 text-red-600"
-                        : "bg-primary/10 text-primary"
-                      }`}>
+                      <div className={`h-6 w-6 rounded-full text-xs font-bold flex items-center justify-center shrink-0 ${s.status === "Signed" ? "bg-green-100 text-green-700"
+                          : s.status === "Declined" ? "bg-red-100 text-red-600"
+                            : "bg-primary/10 text-primary"
+                        }`}>
                         {s.position}
                       </div>
                     )}
@@ -434,8 +431,8 @@ function DetailPanel({
                     </div>
                     <Badge variant={
                       s.status === "Signed" ? "success"
-                      : s.status === "Declined" ? "destructive"
-                      : "secondary"
+                        : s.status === "Declined" ? "destructive"
+                          : "secondary"
                     }>
                       {s.status}
                     </Badge>
@@ -624,7 +621,8 @@ function DetailPanel({
                 <Input
                   autoFocus
                   type="password"
-                  maxLength={8}
+                  minLength={8}
+                  maxLength={32}
                   value={approverToken}
                   onChange={(e) => { setApproverToken(e.target.value); setApproverTokenError(""); }}
                   placeholder="e.g. 1a2b3c4d"
@@ -789,7 +787,8 @@ function DetailPanel({
                     type={showToken ? "text" : "password"}
                     value={signatureToken}
                     onChange={(e) => setSignatureToken(e.target.value)}
-                    maxLength={8}
+                    minLength={8}
+                    maxLength={32}
                     placeholder="e.g. 1a2b3c4d"
                     className="text-center tracking-widest font-mono text-lg h-12 pr-10"
                   />
@@ -841,12 +840,12 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
   const selected = selectedId ? queue.find((q) => q.id === selectedId) ?? null : null;
 
 
-  const { 
-    data: fetchedQueue, 
-    lastUpdated, 
-    isFetching, 
-    timeAgoStr, 
-    forceRefresh 
+  const {
+    data: fetchedQueue,
+    lastUpdated,
+    isFetching,
+    timeAgoStr,
+    forceRefresh
   } = useSmartFetch<QueueItem[]>(async () => {
     const data = await getMyQueue();
     return data as QueueItem[];
@@ -872,7 +871,7 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
             {isFetching ? (
-              <><Loader2 className="w-3 h-3 animate-spin"/> Fetching updates…</>
+              <><Loader2 className="w-3 h-3 animate-spin" /> Fetching updates…</>
             ) : (
               `Last updated: ${timeAgoStr}`
             )}
@@ -912,9 +911,8 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start sm:items-center gap-2 flex-col sm:flex-row">
                       <h3 className="font-semibold text-sm sm:text-base text-gray-900 truncate w-full sm:w-auto">{item.formName}</h3>
-                      <span className={`text-[10px] sm:text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1 w-fit ${
-                        item.signingType === "sequential" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
-                      }`}>
+                      <span className={`text-[10px] sm:text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1 w-fit ${item.signingType === "sequential" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
+                        }`}>
                         {item.signingType === "sequential" ? <GitBranch className="w-2.5 h-2.5 shrink-0" /> : <Layers className="w-2.5 h-2.5 shrink-0" />}
                         {item.signingType}
                       </span>

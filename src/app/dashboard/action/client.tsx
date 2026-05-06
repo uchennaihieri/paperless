@@ -32,7 +32,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
   const { data: session } = useSession();
   const token = (session?.user as any)?.backendToken ?? "";
   const currentUserEmail = (session?.user as any)?.email?.toLowerCase() ?? "";
-  
+
   const rolesStr = (session?.user as any)?.roles;
   const roles = typeof rolesStr === "string" ? JSON.parse(rolesStr) : rolesStr || [];
   const activeId = (session?.user as any)?.activeRoleId;
@@ -168,7 +168,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
     try {
       const isNone = selectedApprover?._none;
       const email = isNone ? undefined : selectedApprover?.finca_email;
-      const name  = isNone ? undefined : selectedApprover?.user_name;
+      const name = isNone ? undefined : selectedApprover?.user_name;
       const res = await completeProcessWithApprover(selected!.id, email, name, signatureToken);
       if (res.success) {
         const newStatus = isNone ? "Completed" : "Awaiting Final Approval";
@@ -209,7 +209,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
             {isFetching ? (
-              <><Loader2 className="w-3 h-3 animate-spin"/> Fetching updates…</>
+              <><Loader2 className="w-3 h-3 animate-spin" /> Fetching updates…</>
             ) : (
               `Last updated: ${timeAgoStr}`
             )}
@@ -229,9 +229,9 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
             </div>
           ) : (
             localItems.map((item) => (
-              <Card 
-                key={item.id} 
-                className="hover:shadow-md transition-all cursor-pointer group border-l-4 border-l-green-500" 
+              <Card
+                key={item.id}
+                className="hover:shadow-md transition-all cursor-pointer group border-l-4 border-l-green-500"
                 onClick={() => setSelected(item)}
               >
                 <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -251,8 +251,8 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                   <div className="flex justify-between items-center w-full md:w-auto mt-2 md:mt-0 gap-4 shrink-0">
                     <Badge variant={
                       item.status === "Filed" ? "secondary" :
-                      item.status === "Processing" ? "warning" :
-                      item.status.startsWith("Assigned") ? "default" : "success"
+                        item.status === "Processing" ? "warning" :
+                          item.status.startsWith("Assigned") ? "default" : "success"
                     }>
                       {item.status}
                     </Badge>
@@ -281,7 +281,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                 )}
                 {selected.status === "Completed" && (
                   <Button size="sm" variant="outline" onClick={() => handleRegenerate(selected.id)} disabled={isRegenerating} className="cursor-pointer border-amber-200 text-amber-700 hover:bg-amber-50">
-                    <RefreshCw className={`w-4 h-4 mr-2 ${isRegenerating ? "animate-spin" : ""}`} /> 
+                    <RefreshCw className={`w-4 h-4 mr-2 ${isRegenerating ? "animate-spin" : ""}`} />
                     {isRegenerating ? "Regenerating..." : "Regenerate PDF"}
                   </Button>
                 )}
@@ -306,75 +306,75 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
 
             {/* Table */}
             <div className="mb-10">
-               <div className="bg-gray-900 rounded-t-lg text-white px-4 py-2.5 text-[10px] font-bold flex">
-                  <div className="w-1/2">FORM FIELD</div>
-                  <div className="w-1/2">VALUE/RESPONSE</div>
-               </div>
-               <div className="border-x border-b rounded-b-lg border-gray-100 divide-y divide-gray-100">
-                  {Object.entries(selected.formResponses).filter(([k]) => k !== "CompletedFormPDF").map(([key, val], i) => {
-                     const isRef = isFormReferenceField(key);
-                     return (
-                       <div key={i} className="flex px-4 py-3 text-xs flex-col sm:flex-row gap-2 sm:gap-0">
-                         <div className="w-full sm:w-1/2 font-semibold text-gray-700">{key}</div>
-                         <div className="w-full sm:w-1/2 text-gray-600 break-words">
-                           {isRef && typeof val === "string" ? (
-                             <FormReferenceLink value={val} token={token} backendUrl={BASE_URL} />
-                           ) : Array.isArray(val) && val.length > 0 && val[0]?.isAttachment
-                             ? val.map((v: any, idx: number) => (
-                                 <a
-                                   key={idx}
-                                   href={v.url}
-                                   target="_blank"
-                                   rel="noopener noreferrer"
-                                   className="flex items-center gap-1.5 text-[#b50938] underline hover:text-[#9a0730] transition-colors mb-1"
-                                 >
-                                   <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                                   </svg>
-                                   {v.name}
-                                 </a>
-                               ))
-                             : String(val)}
-                         </div>
-                       </div>
-                     );
-                   })}
-               </div>
+              <div className="bg-gray-900 rounded-t-lg text-white px-4 py-2.5 text-[10px] font-bold flex">
+                <div className="w-1/2">FORM FIELD</div>
+                <div className="w-1/2">VALUE/RESPONSE</div>
+              </div>
+              <div className="border-x border-b rounded-b-lg border-gray-100 divide-y divide-gray-100">
+                {Object.entries(selected.formResponses).filter(([k]) => k !== "CompletedFormPDF").map(([key, val], i) => {
+                  const isRef = isFormReferenceField(key);
+                  return (
+                    <div key={i} className="flex px-4 py-3 text-xs flex-col sm:flex-row gap-2 sm:gap-0">
+                      <div className="w-full sm:w-1/2 font-semibold text-gray-700">{key}</div>
+                      <div className="w-full sm:w-1/2 text-gray-600 break-words">
+                        {isRef && typeof val === "string" ? (
+                          <FormReferenceLink value={val} token={token} backendUrl={BASE_URL} />
+                        ) : Array.isArray(val) && val.length > 0 && val[0]?.isAttachment
+                          ? val.map((v: any, idx: number) => (
+                            <a
+                              key={idx}
+                              href={v.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1.5 text-[#b50938] underline hover:text-[#9a0730] transition-colors mb-1"
+                            >
+                              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                              </svg>
+                              {v.name}
+                            </a>
+                          ))
+                          : String(val)}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Generated PDF */}
             {selected.formResponses["CompletedFormPDF"] && selected.formResponses["CompletedFormPDF"].length > 0 && (
-               <div className="mb-10">
-                 <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Completed Generated Document</h3>
-                 <div className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">
-                   <div className="flex items-center gap-3">
-                     <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
-                       <FileDown className="w-5 h-5 text-[#b50938]" />
-                     </div>
-                     <div>
-                       <p className="text-sm font-semibold text-gray-800">{selected.formResponses["CompletedFormPDF"][0].name}</p>
-                       <p className="text-xs text-gray-400 mt-0.5">Generated PDF document</p>
-                     </div>
-                   </div>
-                   <div className="flex items-center gap-2">
-                     <a
-                       href={selected.formResponses["CompletedFormPDF"][0].url}
-                       target="_blank"
-                       rel="noopener noreferrer"
-                       className="flex items-center gap-1.5 px-4 py-2 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors shadow-sm"
-                     >
-                       <FileDown className="w-3.5 h-3.5" /> Open PDF
-                     </a>
-                     <a
-                       href={selected.formResponses["CompletedFormPDF"][0].url}
-                       download
-                       className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors shadow-sm"
-                     >
-                       Download
-                     </a>
-                   </div>
-                 </div>
-               </div>
+              <div className="mb-10">
+                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Completed Generated Document</h3>
+                <div className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                      <FileDown className="w-5 h-5 text-[#b50938]" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{selected.formResponses["CompletedFormPDF"][0].name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Generated PDF document</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={selected.formResponses["CompletedFormPDF"][0].url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-4 py-2 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors shadow-sm"
+                    >
+                      <FileDown className="w-3.5 h-3.5" /> Open PDF
+                    </a>
+                    <a
+                      href={selected.formResponses["CompletedFormPDF"][0].url}
+                      download
+                      className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors shadow-sm"
+                    >
+                      Download
+                    </a>
+                  </div>
+                </div>
+              </div>
             )}
 
           </div>
@@ -386,10 +386,10 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
             <div className="flex justify-between items-center p-4 border-b border-gray-100 bg-gray-50">
-               <h3 className="font-semibold text-gray-800">Change Status</h3>
-               <button onClick={() => { setShowStatusModal(false); setStatusMode(""); }} className="text-gray-400 hover:text-gray-600">
-                 <X className="w-5 h-5" />
-               </button>
+              <h3 className="font-semibold text-gray-800">Change Status</h3>
+              <button onClick={() => { setShowStatusModal(false); setStatusMode(""); }} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
             </div>
             <div className="p-6">
               {!statusMode && (
@@ -413,36 +413,36 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                   {selected.status.startsWith("Assigned") &&
                     currentUserEmail &&
                     selected.treaterEmail?.toLowerCase() === currentUserEmail && (
-                    <Button
-                      variant="outline"
-                      className="h-14 justify-start px-6 cursor-pointer hover:bg-orange-50 hover:border-orange-300"
-                      disabled={isChanging}
-                      onClick={() => { setStatusMode("revert"); handleRevertAssignment(); }}
-                    >
-                      <RefreshCw className="w-5 h-5 mr-3 text-orange-500" />
-                      <div className="text-left">
-                        <div className="font-semibold text-gray-900">Revert Assignment</div>
-                        <div className="text-xs text-gray-500 font-normal">Release your assignment and return to Processing</div>
-                      </div>
-                    </Button>
-                  )}
+                      <Button
+                        variant="outline"
+                        className="h-14 justify-start px-6 cursor-pointer hover:bg-orange-50 hover:border-orange-300"
+                        disabled={isChanging}
+                        onClick={() => { setStatusMode("revert"); handleRevertAssignment(); }}
+                      >
+                        <RefreshCw className="w-5 h-5 mr-3 text-orange-500" />
+                        <div className="text-left">
+                          <div className="font-semibold text-gray-900">Revert Assignment</div>
+                          <div className="text-xs text-gray-500 font-normal">Release your assignment and return to Processing</div>
+                        </div>
+                      </Button>
+                    )}
 
                   {/* Complete Process — only visible to the current assignee (or if not yet assigned) */}
                   {(!selected.status.startsWith("Assigned") ||
                     (currentUserEmail && selected.treaterEmail?.toLowerCase() === currentUserEmail)) && (
-                    <Button variant="outline" className="h-14 justify-start px-6 cursor-pointer hover:bg-green-50 hover:border-green-300" onClick={() => setStatusMode("complete")}>
-                      <CheckSquare className="w-5 h-5 mr-3 text-green-600" />
-                      <div className="text-left"><div className="font-semibold text-gray-900">Complete Process</div><div className="text-xs text-gray-500 font-normal">Finish treating and optionally route to an approver</div></div>
-                    </Button>
-                  )}
+                      <Button variant="outline" className="h-14 justify-start px-6 cursor-pointer hover:bg-green-50 hover:border-green-300" onClick={() => setStatusMode("complete")}>
+                        <CheckSquare className="w-5 h-5 mr-3 text-green-600" />
+                        <div className="text-left"><div className="font-semibold text-gray-900">Complete Process</div><div className="text-xs text-gray-500 font-normal">Finish treating and optionally route to an approver</div></div>
+                      </Button>
+                    )}
                 </div>
               )}
 
               {(statusMode === "assign" || statusMode === "revert") && (
-                 <div className="text-center py-8">
-                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-                   <p className="text-sm text-gray-500">{statusMode === "revert" ? "Reverting assignment..." : "Assigning to you..."}</p>
-                 </div>
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+                  <p className="text-sm text-gray-500">{statusMode === "revert" ? "Reverting assignment..." : "Assigning to you..."}</p>
+                </div>
               )}
 
               {statusMode === "complete" && (
@@ -466,9 +466,8 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                           <button
                             key="none"
                             onClick={() => setSelectedApprover({ _none: true })}
-                            className={`w-full text-left text-sm p-3 transition-colors cursor-pointer flex items-center gap-2 ${
-                              selectedApprover?._none ? "bg-primary text-white" : "hover:bg-gray-50 text-gray-700"
-                            }`}
+                            className={`w-full text-left text-sm p-3 transition-colors cursor-pointer flex items-center gap-2 ${selectedApprover?._none ? "bg-primary text-white" : "hover:bg-gray-50 text-gray-700"
+                              }`}
                           >
                             <span className="text-lg">🚫</span>
                             <div>
@@ -480,9 +479,8 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                           <button
                             key={u.finca_email}
                             onClick={() => setSelectedApprover(u)}
-                            className={`w-full text-left text-sm p-3 transition-colors cursor-pointer ${
-                              selectedApprover?.finca_email === u.finca_email ? "bg-primary text-white" : "hover:bg-gray-50 text-gray-800"
-                            }`}
+                            className={`w-full text-left text-sm p-3 transition-colors cursor-pointer ${selectedApprover?.finca_email === u.finca_email ? "bg-primary text-white" : "hover:bg-gray-50 text-gray-800"
+                              }`}
                           >
                             <div className="font-medium">{u.user_name}</div>
                             <div className="text-xs opacity-70">{u.finca_email}</div>
@@ -533,7 +531,8 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                 <input
                   autoFocus
                   type={showToken ? "text" : "password"}
-                  maxLength={8}
+                  minLength={8}
+                  maxLength={32}
                   value={treaterToken}
                   onChange={(e) => { setTreaterToken(e.target.value); setTreaterTokenError(""); }}
                   placeholder="e.g. 1a2b3c4d"

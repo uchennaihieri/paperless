@@ -164,7 +164,7 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
               <div className={`h-9 w-9 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all
                 ${done ? "bg-primary border-primary text-white" :
                   active ? "bg-white border-primary text-primary" :
-                  "bg-white border-gray-200 text-gray-400"}`}>
+                    "bg-white border-gray-200 text-gray-400"}`}>
                 {done ? <Check className="w-4 h-4" /> : step}
               </div>
               <span className={`text-xs mt-1 font-medium whitespace-nowrap ${active ? "text-primary" : done ? "text-gray-600" : "text-gray-400"}`}>
@@ -215,8 +215,8 @@ function SearchableSelect({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter(o => 
-    o.label.toLowerCase().includes(search.toLowerCase()) || 
+  const filteredOptions = options.filter(o =>
+    o.label.toLowerCase().includes(search.toLowerCase()) ||
     o.value.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -224,7 +224,7 @@ function SearchableSelect({
 
   return (
     <div className="relative max-w-md" ref={containerRef}>
-      <div 
+      <div
         className={`flex w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent transition-all cursor-pointer shadow-sm ${disabled ? "opacity-50 cursor-not-allowed bg-gray-50" : ""}`}
         onClick={() => { if (!disabled) setOpen(!open); }}
       >
@@ -238,9 +238,9 @@ function SearchableSelect({
         <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 flex flex-col overflow-hidden">
           <div className="p-2 border-b border-gray-100 flex items-center shrink-0">
             <Search className="w-4 h-4 text-gray-400 mr-2 shrink-0" />
-            <input 
-              className="w-full text-sm outline-none bg-transparent" 
-              placeholder="Search..." 
+            <input
+              className="w-full text-sm outline-none bg-transparent"
+              placeholder="Search..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               onClick={(e) => e.stopPropagation()}
@@ -252,7 +252,7 @@ function SearchableSelect({
               <div className="p-2 text-sm text-gray-500 text-center">No options found.</div>
             ) : (
               filteredOptions.map((opt) => (
-                <div 
+                <div
                   key={opt.value}
                   className={`px-3 py-2 text-sm cursor-pointer rounded-sm flex items-center justify-between hover:bg-gray-100 ${value === opt.value ? "bg-primary/5 text-primary font-medium" : "text-gray-700"}`}
                   onClick={(e) => {
@@ -270,15 +270,15 @@ function SearchableSelect({
           </div>
         </div>
       )}
-      
+
       {/* Hidden native input for required validation */}
-      <input 
-        type="text" 
-        id={id} 
-        value={value} 
-        onChange={() => {}} 
-        required={required} 
-        className="opacity-0 absolute -z-10 w-0 h-0" 
+      <input
+        type="text"
+        id={id}
+        value={value}
+        onChange={() => { }}
+        required={required}
+        className="opacity-0 absolute -z-10 w-0 h-0"
       />
     </div>
   );
@@ -382,10 +382,10 @@ function FormFieldsStep({
         const val2 = Number(formData[(field as any).derivedSecondField] || 0);
         let result = 0;
         switch ((field as any).derivedOperator) {
-           case "+": result = val1 + val2; break;
-           case "-": result = val1 - val2; break;
-           case "*": result = val1 * val2; break;
-           case "/": result = val2 !== 0 ? val1 / val2 : 0; break;
+          case "+": result = val1 + val2; break;
+          case "-": result = val1 - val2; break;
+          case "*": result = val1 * val2; break;
+          case "/": result = val2 !== 0 ? val1 / val2 : 0; break;
         }
         if (formData[field.id] !== result) onChange(field.id, result);
       }
@@ -429,7 +429,7 @@ function FormFieldsStep({
           return isNaN(Number(val)) ? val : Number(val);
         };
 
-        const result = isTrue 
+        const result = isTrue
           ? resolveResult((field as any).trueResultType || "fixed", (field as any).trueResultValue)
           : resolveResult((field as any).falseResultType || "fixed", (field as any).falseResultValue);
 
@@ -439,12 +439,12 @@ function FormFieldsStep({
   }, [formData, fields]);
 
   // Dynamic Options Fetching
-  const [dynamicOptions, setDynamicOptions] = useState<Record<string, {label: string, value: string}[]>>({});
-  
+  const [dynamicOptions, setDynamicOptions] = useState<Record<string, { label: string, value: string }[]>>({});
+
   useEffect(() => {
     const fetchOptions = async () => {
-      const newOptions: Record<string, {label: string, value: string}[]> = {};
-      
+      const newOptions: Record<string, { label: string, value: string }[]> = {};
+
       for (const field of fields) {
         if ((field.type === "select" || field.type === "searchable_select") && field.optionsSource === "database" && field.optionsTable) {
           try {
@@ -466,10 +466,10 @@ function FormFieldsStep({
           newOptions[field.id] = field.optionsArray.split(",").map((s: string) => s.trim()).filter(Boolean).map((s: string) => ({ label: s, value: s }));
         }
       }
-      
+
       setDynamicOptions(prev => ({ ...prev, ...newOptions }));
     };
-    
+
     fetchOptions();
   }, [fields, token, BASE_URL]);
 
@@ -503,7 +503,7 @@ function FormFieldsStep({
                 <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all
                   ${i < sectionIdx ? 'bg-primary border-primary text-white' :
                     i === sectionIdx ? 'bg-white border-primary text-primary' :
-                    'bg-white border-gray-200 text-gray-400'}`}>
+                      'bg-white border-gray-200 text-gray-400'}`}>
                   {i < sectionIdx ? '✓' : i + 1}
                 </span>
                 <span className={`text-xs font-medium whitespace-nowrap hidden sm:block
@@ -522,287 +522,282 @@ function FormFieldsStep({
         {(() => {
           let questionNum = 0;
           return (section?.fields ?? fields).map((field: any) => {
-          // Layout-only fields have no input
-          if ((field as any).type === 'section_header') {
-            return (
-              <div key={field.id} className="pt-4 pb-2">
-                <div className="flex items-center gap-3">
-                  <div className="h-px flex-1 bg-gradient-to-r from-primary/30 to-transparent" />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-bold text-primary uppercase tracking-widest">{field.label}</span>
-                    {(field as any).sectionSubtitle && (
-                      <span className="text-xs text-gray-500 mt-0.5">{(field as any).sectionSubtitle}</span>
-                    )}
+            // Layout-only fields have no input
+            if ((field as any).type === 'section_header') {
+              return (
+                <div key={field.id} className="pt-4 pb-2">
+                  <div className="flex items-center gap-3">
+                    <div className="h-px flex-1 bg-gradient-to-r from-primary/30 to-transparent" />
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-primary uppercase tracking-widest">{field.label}</span>
+                      {(field as any).sectionSubtitle && (
+                        <span className="text-xs text-gray-500 mt-0.5">{(field as any).sectionSubtitle}</span>
+                      )}
+                    </div>
+                    <div className="h-px flex-1 bg-gradient-to-l from-primary/30 to-transparent" />
                   </div>
-                  <div className="h-px flex-1 bg-gradient-to-l from-primary/30 to-transparent" />
                 </div>
-              </div>
-            );
-          }
+              );
+            }
 
-          if ((field as any).type === 'instructions') {
-            const raw: string = (field as any).instructionsContent || '';
-            const sessionUser = (currentUser as any) ?? {};
-            const processedHtml = htmlInterpolate(raw, fields, formData, sessionUser);
-            return (
-              <div key={field.id} className="space-y-2">
-                {field.label && <p className="text-sm font-semibold text-gray-800">{field.label}</p>}
-                <div
-                  className="bg-gray-50 border border-gray-200 rounded-xl p-5 max-h-80 overflow-y-auto text-sm text-gray-700 leading-relaxed [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold [&_h3]:font-bold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_blockquote]:border-l-4 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-gray-500 [&_hr]:border-gray-200 [&_p]:my-1"
-                  dangerouslySetInnerHTML={{ __html: processedHtml }}
-                />
-                <p className="text-xs text-gray-400 italic">Please read the above carefully before proceeding.</p>
-              </div>
-            );
-          }
+            if ((field as any).type === 'instructions') {
+              const raw: string = (field as any).instructionsContent || '';
+              const sessionUser = (currentUser as any) ?? {};
+              const processedHtml = htmlInterpolate(raw, fields, formData, sessionUser);
+              return (
+                <div key={field.id} className="space-y-2">
+                  {field.label && <p className="text-sm font-semibold text-gray-800">{field.label}</p>}
+                  <div
+                    className="bg-gray-50 border border-gray-200 rounded-xl p-5 max-h-80 overflow-y-auto text-sm text-gray-700 leading-relaxed [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold [&_h3]:font-bold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_blockquote]:border-l-4 [&_blockquote]:border-gray-300 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-gray-500 [&_hr]:border-gray-200 [&_p]:my-1"
+                    dangerouslySetInnerHTML={{ __html: processedHtml }}
+                  />
+                  <p className="text-xs text-gray-400 italic">Please read the above carefully before proceeding.</p>
+                </div>
+              );
+            }
 
-          let hasReferenceValue = false;
-          if (referenceData && field.description) {
-            const match = field.description.match(/Referenced\s+"([^"]+)"/i);
-            if (match && match[1]) {
-              const sourceLabel = match[1];
-              const sourceValue = referenceData[sourceLabel];
-              if (sourceValue !== undefined && sourceValue !== null && sourceValue !== "") {
-                hasReferenceValue = true;
+            let hasReferenceValue = false;
+            if (referenceData && field.description) {
+              const match = field.description.match(/Referenced\s+"([^"]+)"/i);
+              if (match && match[1]) {
+                const sourceLabel = match[1];
+                const sourceValue = referenceData[sourceLabel];
+                if (sourceValue !== undefined && sourceValue !== null && sourceValue !== "") {
+                  hasReferenceValue = true;
+                }
               }
             }
-          }
 
-          questionNum++;
-          return (
-            <div key={field.id} className="space-y-2">
-              <div>
-                <Label htmlFor={field.id} className="text-base font-semibold flex items-center justify-between gap-2">
-                  <span className="flex gap-2">
-                    <span className="text-primary text-sm">{questionNum}.</span>
-                    {field.label}
-                    {field.required && <span className="text-red-500">*</span>}
-                  </span>
-                  {isFormReferenceField(field.label) && loadingReference && (
-                    <span className="text-xs text-primary animate-pulse flex items-center gap-1">
-                      <Loader2 className="w-3 h-3 animate-spin"/> Resolving reference...
+            questionNum++;
+            return (
+              <div key={field.id} className="space-y-2">
+                <div>
+                  <Label htmlFor={field.id} className="text-base font-semibold flex items-center justify-between gap-2">
+                    <span className="flex gap-2">
+                      <span className="text-primary text-sm">{questionNum}.</span>
+                      {field.label}
+                      {field.required && <span className="text-red-500">*</span>}
                     </span>
+                    {isFormReferenceField(field.label) && loadingReference && (
+                      <span className="text-xs text-primary animate-pulse flex items-center gap-1">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Resolving reference...
+                      </span>
+                    )}
+                  </Label>
+                  {field.description && (
+                    <p className="text-xs text-gray-400 mt-0.5">{field.description}</p>
                   )}
-                </Label>
-                {field.description && (
-                  <p className="text-xs text-gray-400 mt-0.5">{field.description}</p>
-                )}
-              </div>
+                </div>
 
-              {field.type === "textarea" ? (
-                <textarea
-                  id={field.id}
-                  required={field.required}
-                  rows={4}
-                  value={formData[field.id] ?? ""}
-                  onChange={(e) => onChange(field.id, e.target.value)}
-                  readOnly={hasReferenceValue}
-                  className={`flex w-full max-w-xl rounded-md border border-neutral-300 px-3 py-2 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all ${
-                    hasReferenceValue ? "bg-gray-100 text-gray-500 cursor-not-allowed" : "bg-transparent"
-                  }`}
-                />
-              ) : field.type === "file" ? (
-                <div className="space-y-3 max-w-xl">
-                  {(field as any).linkedInternalFormId ? (
-                    <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
-                      <div className="flex bg-gray-50 border-b border-gray-200">
-                        <button 
-                          type="button" 
-                          onClick={() => setAttachmentMode({...attachmentMode, [field.id]: 'custom'})}
-                          className={`flex-1 py-2.5 px-4 text-sm font-semibold text-center transition-colors ${
-                            (attachmentMode[field.id] || 'custom') === 'custom' 
-                              ? 'bg-white text-primary border-b-2 border-primary' 
-                              : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
-                          }`}
-                        >
-                          Fill Custom Form
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={() => setAttachmentMode({...attachmentMode, [field.id]: 'file'})}
-                          className={`flex-1 py-2.5 px-4 text-sm font-semibold text-center transition-colors ${
-                            attachmentMode[field.id] === 'file' 
-                              ? 'bg-white text-primary border-b-2 border-primary' 
-                              : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
-                          }`}
-                        >
-                          Upload File
-                        </button>
-                      </div>
-                      <div className="p-5">
-                        {(attachmentMode[field.id] || 'custom') === 'custom' ? (
-                          <div className="flex flex-col items-center justify-center text-center space-y-3 py-4">
-                            <Layers className="w-10 h-10 text-orange-200" />
-                            <div>
-                              <h4 className="text-sm font-semibold text-gray-900">Custom Form Attachment</h4>
-                              <p className="text-xs text-gray-500 max-w-sm mt-1">Fill out the designated internal form to proceed with this requirement.</p>
+                {field.type === "textarea" ? (
+                  <textarea
+                    id={field.id}
+                    required={field.required}
+                    rows={4}
+                    value={formData[field.id] ?? ""}
+                    onChange={(e) => onChange(field.id, e.target.value)}
+                    readOnly={hasReferenceValue}
+                    className={`flex w-full max-w-xl rounded-md border border-neutral-300 px-3 py-2 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all ${hasReferenceValue ? "bg-gray-100 text-gray-500 cursor-not-allowed" : "bg-transparent"
+                      }`}
+                  />
+                ) : field.type === "file" ? (
+                  <div className="space-y-3 max-w-xl">
+                    {(field as any).linkedInternalFormId ? (
+                      <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                        <div className="flex bg-gray-50 border-b border-gray-200">
+                          <button
+                            type="button"
+                            onClick={() => setAttachmentMode({ ...attachmentMode, [field.id]: 'custom' })}
+                            className={`flex-1 py-2.5 px-4 text-sm font-semibold text-center transition-colors ${(attachmentMode[field.id] || 'custom') === 'custom'
+                                ? 'bg-white text-primary border-b-2 border-primary'
+                                : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
+                              }`}
+                          >
+                            Fill Custom Form
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setAttachmentMode({ ...attachmentMode, [field.id]: 'file' })}
+                            className={`flex-1 py-2.5 px-4 text-sm font-semibold text-center transition-colors ${attachmentMode[field.id] === 'file'
+                                ? 'bg-white text-primary border-b-2 border-primary'
+                                : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
+                              }`}
+                          >
+                            Upload File
+                          </button>
+                        </div>
+                        <div className="p-5">
+                          {(attachmentMode[field.id] || 'custom') === 'custom' ? (
+                            <div className="flex flex-col items-center justify-center text-center space-y-3 py-4">
+                              <Layers className="w-10 h-10 text-orange-200" />
+                              <div>
+                                <h4 className="text-sm font-semibold text-gray-900">Custom Form Attachment</h4>
+                                <p className="text-xs text-gray-500 max-w-sm mt-1">Fill out the designated internal form to proceed with this requirement.</p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant={internalFormsData[field.id] ? "default" : "outline"}
+                                className={`mt-2 ${internalFormsData[field.id] ? "bg-orange-600 hover:bg-orange-700 text-white border-none" : "border-orange-300 text-orange-700 hover:bg-orange-100"}`}
+                                onClick={() => onFillInternalForm(field.id, (field as any).linkedInternalFormId)}
+                              >
+                                {internalFormsData[field.id] ? "Edit Filled Form" : "Fill Custom Form"}
+                              </Button>
+                              {field.required && !internalFormsData[field.id] && (
+                                <input type="text" className="opacity-0 absolute w-0 h-0 -z-10" required />
+                              )}
                             </div>
-                            <Button 
-                              type="button" 
-                              variant={internalFormsData[field.id] ? "default" : "outline"}
-                              className={`mt-2 ${internalFormsData[field.id] ? "bg-orange-600 hover:bg-orange-700 text-white border-none" : "border-orange-300 text-orange-700 hover:bg-orange-100"}`}
-                              onClick={() => onFillInternalForm(field.id, (field as any).linkedInternalFormId)}
-                            >
-                              {internalFormsData[field.id] ? "Edit Filled Form" : "Fill Custom Form"}
-                            </Button>
-                            {field.required && !internalFormsData[field.id] && (
-                              <input type="text" className="opacity-0 absolute w-0 h-0 -z-10" required />
-                            )}
-                          </div>
-                        ) : (
-                          <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 bg-gray-50 hover:bg-gray-100 transition-colors">
-                            <Input
-                              id={field.id}
-                              type="file"
-                              required={field.required && (!formData[field.id] || formData[field.id].length === 0)}
-                              accept={field.accept}
-                              multiple={(field.maxFiles ?? 1) > 1}
-                              className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-                              onChange={async (e) => {
-                                const newFiles = Array.from(e.target.files ?? []);
-                                if (newFiles.length === 0) return;
-                                const existing = (formData[field.id] as File[]) || [];
-                                const merged = [...existing, ...newFiles];
-                                onChange(field.id, merged);
-                                e.target.value = "";
-                              }}
-                            />
-                            {(field.maxFiles ?? 1) > 1 && (
-                              <p className="text-xs text-gray-400 mt-2">You can select multiple files. Each pick adds to the list below.</p>
-                            )}
-                            {formData[field.id] && formData[field.id].length > 0 && (
-                              <ul className="mt-4 space-y-2">
-                                {(formData[field.id] as File[]).map((f, i) => (
-                                  <li key={i} className="text-sm text-gray-600 flex items-center justify-between bg-white px-3 py-2 rounded-md border border-gray-200 shadow-sm">
-                                    <span className="truncate">{f.name}</span>
-                                    <button type="button" onClick={() => {
-                                       const newFiles = (formData[field.id] as File[]).filter((_, idx) => idx !== i);
-                                       onChange(field.id, newFiles.length > 0 ? newFiles : null);
-                                    }} className="text-red-400 hover:text-red-600 font-bold p-1">&times;</button>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
+                          ) : (
+                            <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 bg-gray-50 hover:bg-gray-100 transition-colors">
+                              <Input
+                                id={field.id}
+                                type="file"
+                                required={field.required && (!formData[field.id] || formData[field.id].length === 0)}
+                                accept={field.accept}
+                                multiple={(field.maxFiles ?? 1) > 1}
+                                className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                                onChange={async (e) => {
+                                  const newFiles = Array.from(e.target.files ?? []);
+                                  if (newFiles.length === 0) return;
+                                  const existing = (formData[field.id] as File[]) || [];
+                                  const merged = [...existing, ...newFiles];
+                                  onChange(field.id, merged);
+                                  e.target.value = "";
+                                }}
+                              />
+                              {(field.maxFiles ?? 1) > 1 && (
+                                <p className="text-xs text-gray-400 mt-2">You can select multiple files. Each pick adds to the list below.</p>
+                              )}
+                              {formData[field.id] && formData[field.id].length > 0 && (
+                                <ul className="mt-4 space-y-2">
+                                  {(formData[field.id] as File[]).map((f, i) => (
+                                    <li key={i} className="text-sm text-gray-600 flex items-center justify-between bg-white px-3 py-2 rounded-md border border-gray-200 shadow-sm">
+                                      <span className="truncate">{f.name}</span>
+                                      <button type="button" onClick={() => {
+                                        const newFiles = (formData[field.id] as File[]).filter((_, idx) => idx !== i);
+                                        onChange(field.id, newFiles.length > 0 ? newFiles : null);
+                                      }} className="text-red-400 hover:text-red-600 font-bold p-1">&times;</button>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 bg-gray-50 hover:bg-gray-100 transition-colors">
+                        <Input
+                          id={field.id}
+                          type="file"
+                          required={field.required && (!formData[field.id] || formData[field.id].length === 0)}
+                          accept={field.accept}
+                          multiple={(field.maxFiles ?? 1) > 1}
+                          className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                          onChange={async (e) => {
+                            const newFiles = Array.from(e.target.files ?? []);
+                            if (newFiles.length === 0) return;
+                            const existing = (formData[field.id] as File[]) || [];
+                            const merged = [...existing, ...newFiles];
+                            onChange(field.id, merged);
+                            e.target.value = "";
+                          }}
+                        />
+                        {(field.maxFiles ?? 1) > 1 && (
+                          <p className="text-xs text-gray-400 mt-2">You can select multiple files. Each pick adds to the list below.</p>
+                        )}
+                        {formData[field.id] && formData[field.id].length > 0 && (
+                          <ul className="mt-4 space-y-2">
+                            {(formData[field.id] as File[]).map((f, i) => (
+                              <li key={i} className="text-sm text-gray-600 flex items-center justify-between bg-white px-3 py-2 rounded-md border border-gray-200">
+                                <span className="truncate">{f.name}</span>
+                                <button type="button" onClick={() => {
+                                  const newFiles = (formData[field.id] as File[]).filter((_, idx) => idx !== i);
+                                  onChange(field.id, newFiles.length > 0 ? newFiles : null);
+                                }} className="text-red-400 hover:text-red-600 font-bold">&times;</button>
+                              </li>
+                            ))}
+                          </ul>
                         )}
                       </div>
-                    </div>
-                  ) : (
-                    <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 bg-gray-50 hover:bg-gray-100 transition-colors">
-                      <Input
-                        id={field.id}
-                        type="file"
-                        required={field.required && (!formData[field.id] || formData[field.id].length === 0)}
-                        accept={field.accept}
-                        multiple={(field.maxFiles ?? 1) > 1}
-                        className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-                        onChange={async (e) => {
-                          const newFiles = Array.from(e.target.files ?? []);
-                          if (newFiles.length === 0) return;
-                          const existing = (formData[field.id] as File[]) || [];
-                          const merged = [...existing, ...newFiles];
-                          onChange(field.id, merged);
-                          e.target.value = "";
-                        }}
-                      />
-                      {(field.maxFiles ?? 1) > 1 && (
-                        <p className="text-xs text-gray-400 mt-2">You can select multiple files. Each pick adds to the list below.</p>
-                      )}
-                      {formData[field.id] && formData[field.id].length > 0 && (
-                        <ul className="mt-4 space-y-2">
-                          {(formData[field.id] as File[]).map((f, i) => (
-                            <li key={i} className="text-sm text-gray-600 flex items-center justify-between bg-white px-3 py-2 rounded-md border border-gray-200">
-                              <span className="truncate">{f.name}</span>
-                              <button type="button" onClick={() => {
-                                 const newFiles = (formData[field.id] as File[]).filter((_, idx) => idx !== i);
-                                 onChange(field.id, newFiles.length > 0 ? newFiles : null);
-                              }} className="text-red-400 hover:text-red-600 font-bold">&times;</button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ) : field.type === "derived_arithmetically" ? (
-                <div className="relative max-w-md">
-                  <Input
-                    id={field.id}
-                    type="number"
-                    required={field.required}
-                    value={formData[field.id] ?? ""}
-                    readOnly
-                    className="bg-purple-50 text-purple-700 font-semibold cursor-not-allowed border-purple-200 shadow-inner"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-400 text-xs font-mono">
-                    CALCULATED
-                  </span>
-                </div>
-            ) : field.type === "conditional" ? (
-                <div className="relative max-w-md">
-                  <Input
-                    id={field.id}
-                    type="text"
-                    required={field.required}
-                    value={formData[field.id] ?? ""}
-                    readOnly
-                    className="bg-amber-50 text-amber-700 font-semibold cursor-not-allowed border-amber-200 shadow-inner"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-500 text-xs font-mono">
-                    CONDITIONAL
-                  </span>
-                </div>
-            ) : (field as any).type === "to_words" ? (
-                <div className="relative max-w-2xl">
-                  <div className="rounded-md border border-teal-200 bg-teal-50 px-3 py-2.5 text-sm text-teal-800 font-medium leading-relaxed min-h-[40px] pr-28">
-                    {formData[field.id] || <span className="text-teal-400 italic">Waiting for a value in the source field…</span>}
+                    )}
                   </div>
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-teal-400 text-xs font-mono whitespace-nowrap">
-                    IN WORDS
-                  </span>
-                </div>
-            ) : field.type === "select" ? (
-                <select
-                  id={field.id}
-                  required={field.required}
-                  value={formData[field.id] ?? ""}
-                  onChange={(e) => onChange(field.id, e.target.value)}
-                  disabled={hasReferenceValue}
-                  className={`flex h-10 w-full max-w-md rounded-md border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all shadow-sm ${
-                    hasReferenceValue ? "bg-gray-100 text-gray-500 cursor-not-allowed" : "bg-white cursor-pointer"
-                  }`}
-                >
-                  <option value="">— Select an option —</option>
-                  {(dynamicOptions[field.id] || []).map(opt => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
-            ) : field.type === "searchable_select" ? (
-                <SearchableSelect
-                  id={field.id}
-                  options={dynamicOptions[field.id] || []}
-                  value={formData[field.id] ?? ""}
-                  onChange={(val) => onChange(field.id, val)}
-                  required={field.required}
-                  disabled={hasReferenceValue}
-                />
-            ) : (
-                <Input
-                  id={field.id}
-                  type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
-                  required={field.required}
-                  maxLength={field.maxLength}
-                  value={formData[field.id] ?? ""}
-                  onChange={(e) => onChange(field.id, e.target.value)}
-                  readOnly={hasReferenceValue}
-                  className={`max-w-md ${
-                    hasReferenceValue ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""
-                  }`}
-                />
-              )}
-            </div>
-          );
-        }); // end fields.map
+                ) : field.type === "derived_arithmetically" ? (
+                  <div className="relative max-w-md">
+                    <Input
+                      id={field.id}
+                      type="number"
+                      required={field.required}
+                      value={formData[field.id] ?? ""}
+                      readOnly
+                      className="bg-purple-50 text-purple-700 font-semibold cursor-not-allowed border-purple-200 shadow-inner"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-purple-400 text-xs font-mono">
+                      CALCULATED
+                    </span>
+                  </div>
+                ) : field.type === "conditional" ? (
+                  <div className="relative max-w-md">
+                    <Input
+                      id={field.id}
+                      type="text"
+                      required={field.required}
+                      value={formData[field.id] ?? ""}
+                      readOnly
+                      className="bg-amber-50 text-amber-700 font-semibold cursor-not-allowed border-amber-200 shadow-inner"
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-500 text-xs font-mono">
+                      CONDITIONAL
+                    </span>
+                  </div>
+                ) : (field as any).type === "to_words" ? (
+                  <div className="relative max-w-2xl">
+                    <div className="rounded-md border border-teal-200 bg-teal-50 px-3 py-2.5 text-sm text-teal-800 font-medium leading-relaxed min-h-[40px] pr-28">
+                      {formData[field.id] || <span className="text-teal-400 italic">Waiting for a value in the source field…</span>}
+                    </div>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-teal-400 text-xs font-mono whitespace-nowrap">
+                      IN WORDS
+                    </span>
+                  </div>
+                ) : field.type === "select" ? (
+                  <select
+                    id={field.id}
+                    required={field.required}
+                    value={formData[field.id] ?? ""}
+                    onChange={(e) => onChange(field.id, e.target.value)}
+                    disabled={hasReferenceValue}
+                    className={`flex h-10 w-full max-w-md rounded-md border border-neutral-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all shadow-sm ${hasReferenceValue ? "bg-gray-100 text-gray-500 cursor-not-allowed" : "bg-white cursor-pointer"
+                      }`}
+                  >
+                    <option value="">— Select an option —</option>
+                    {(dynamicOptions[field.id] || []).map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                ) : field.type === "searchable_select" ? (
+                  <SearchableSelect
+                    id={field.id}
+                    options={dynamicOptions[field.id] || []}
+                    value={formData[field.id] ?? ""}
+                    onChange={(val) => onChange(field.id, val)}
+                    required={field.required}
+                    disabled={hasReferenceValue}
+                  />
+                ) : (
+                  <Input
+                    id={field.id}
+                    type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
+                    required={field.required}
+                    maxLength={field.maxLength}
+                    value={formData[field.id] ?? ""}
+                    onChange={(e) => onChange(field.id, e.target.value)}
+                    readOnly={hasReferenceValue}
+                    className={`max-w-md ${hasReferenceValue ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""
+                      }`}
+                  />
+                )}
+              </div>
+            );
+          }); // end fields.map
         })() /* end IIFE */}
         {sectionError && (
           <div className="mx-6 mb-0 mt-2 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
@@ -851,7 +846,7 @@ function SignatoriesStep({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Guard against hiding the current user who is always first
-  const { currentUser } = arguments[0] as unknown as { currentUser: { userName: string, email: string }};
+  const { currentUser } = arguments[0] as unknown as { currentUser: { userName: string, email: string } };
 
   const handleSearch = useCallback((q: string) => {
     setQuery(q);
@@ -1078,21 +1073,21 @@ function ReviewStep({
                 {fields
                   .filter((f: any) => f.type !== 'section_header' && f.type !== 'instructions')
                   .map((f, i) => (
-                  <tr key={f.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                    <td className="px-4 py-3 font-medium text-gray-700">{f.label}</td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {f.type === "file" && formData[f.id] ? (
-                        <div className="flex flex-col gap-1">
-                          {(formData[f.id] as File[]).map((file, idx) => (
-                            <span key={idx} className="text-sm font-medium text-gray-800">{file.name}</span>
-                          ))}
-                        </div>
-                      ) : (
-                        formData[f.id] || <span className="italic text-gray-300">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                    <tr key={f.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                      <td className="px-4 py-3 font-medium text-gray-700">{f.label}</td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {f.type === "file" && formData[f.id] ? (
+                          <div className="flex flex-col gap-1">
+                            {(formData[f.id] as File[]).map((file, idx) => (
+                              <span key={idx} className="text-sm font-medium text-gray-800">{file.name}</span>
+                            ))}
+                          </div>
+                        ) : (
+                          formData[f.id] || <span className="italic text-gray-300">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>
@@ -1313,7 +1308,8 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
                   placeholder="Token (e.g. 1a2b3c4d)"
                   value={signatureToken}
                   onChange={(e) => setSignatureToken(e.target.value)}
-                  maxLength={8}
+                  minLength={8}
+                  maxLength={32}
                   className="text-center tracking-widest font-mono text-lg py-6 pr-12"
                 />
                 <button
@@ -1326,9 +1322,9 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
               </div>
               <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
                 <Button variant="ghost" onClick={() => setShowTokenModal(false)}>Cancel</Button>
-                <Button 
-                  disabled={signatureToken.length < 8 || submitting} 
-                  onClick={handleSubmit} 
+                <Button
+                  disabled={signatureToken.length < 8 || submitting}
+                  onClick={handleSubmit}
                   className="w-full sm:w-auto"
                 >
                   {submitting ? "Signing..." : "Verify & Submit"}
@@ -1365,16 +1361,16 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
   );
 }
 
-function InternalFormModal({ 
-  templateId, 
-  onClose, 
-  onSave, 
+function InternalFormModal({
+  templateId,
+  onClose,
+  onSave,
   initialData,
   parentFormData,
   parentTemplate
-}: { 
-  templateId: string; 
-  onClose: () => void; 
+}: {
+  templateId: string;
+  onClose: () => void;
   onSave: (data: Record<string, any>, template: any) => void;
   initialData?: Record<string, any>;
   parentFormData?: Record<string, any>;
@@ -1382,7 +1378,7 @@ function InternalFormModal({
 }) {
   const [template, setTemplate] = useState<any>(null);
   const [formData, setFormData] = useState<Record<string, any>>(initialData || {});
-  
+
   useEffect(() => {
     fetch(`/api/v1/forms/${templateId}`)
       .then(res => res.json())
@@ -1396,7 +1392,7 @@ function InternalFormModal({
     if (template && parentTemplate && parentFormData) {
       const fields: any[] = typeof template.fields === "string" ? JSON.parse(template.fields) : template.fields ?? [];
       const parentFields: any[] = typeof parentTemplate.fields === "string" ? JSON.parse(parentTemplate.fields) : parentTemplate.fields ?? [];
-      
+
       let newFormData = { ...formData };
       let changed = false;
 
@@ -1441,58 +1437,59 @@ function InternalFormModal({
             <div className="space-y-6">
               {fields.filter(f => f.type !== "section_header" && f.type !== "instructions").map((field, idx) => {
                 const isParentRef = field.description ? /View parent "([^"]+)"/i.test(field.description) : false;
-                
+
                 return (
-                <div key={field.id} className="space-y-1.5">
-                  <Label className="font-semibold text-sm flex gap-2">
-                    <span className="text-primary">{idx + 1}.</span>
-                    {field.label}
-                    {field.required && <span className="text-red-500">*</span>}
-                    {isParentRef && <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-blue-100 text-blue-700 uppercase">Auto-filled</span>}
-                  </Label>
-                  {field.description && <p className="text-xs text-gray-400">{field.description}</p>}
-                  
-                  {field.type === "textarea" ? (
-                    <textarea
-                      required={field.required}
-                      rows={4}
-                      value={formData[field.id] ?? ""}
-                      onChange={(e) => setFormData(prev => ({...prev, [field.id]: e.target.value}))}
-                      readOnly={isParentRef}
-                      className={`w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 ${isParentRef ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
-                    />
-                  ) : field.type === "file" || field.type === "derived_arithmetically" || field.type === "conditional" || field.type === "to_words" ? (
-                    <p className="text-xs text-gray-400 italic">This field type is not fully supported in nested internal forms.</p>
-                  ) : field.type === "select" || field.type === "searchable_select" ? (
-                    <select 
-                      required={field.required}
-                      value={formData[field.id] ?? ""}
-                      onChange={(e) => setFormData(prev => ({...prev, [field.id]: e.target.value}))}
-                      disabled={isParentRef}
-                      className={`flex w-full max-w-md rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent transition-all shadow-sm ${isParentRef ? 'bg-gray-100 text-gray-500 cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
-                    >
-                      <option value="">Select option...</option>
-                      {(field.optionsArray || "").split(",").map((s: string) => s.trim()).filter(Boolean).map((s: string) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <Input
-                      type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
-                      required={field.required}
-                      maxLength={field.maxLength}
-                      value={formData[field.id] ?? ""}
-                      onChange={(e) => setFormData(prev => ({...prev, [field.id]: e.target.value}))}
-                      readOnly={isParentRef}
-                      className={`max-w-md ${isParentRef ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
-                    />
-                  )}
-                </div>
-              )})}
+                  <div key={field.id} className="space-y-1.5">
+                    <Label className="font-semibold text-sm flex gap-2">
+                      <span className="text-primary">{idx + 1}.</span>
+                      {field.label}
+                      {field.required && <span className="text-red-500">*</span>}
+                      {isParentRef && <span className="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-sm bg-blue-100 text-blue-700 uppercase">Auto-filled</span>}
+                    </Label>
+                    {field.description && <p className="text-xs text-gray-400">{field.description}</p>}
+
+                    {field.type === "textarea" ? (
+                      <textarea
+                        required={field.required}
+                        rows={4}
+                        value={formData[field.id] ?? ""}
+                        onChange={(e) => setFormData(prev => ({ ...prev, [field.id]: e.target.value }))}
+                        readOnly={isParentRef}
+                        className={`w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 ${isParentRef ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
+                      />
+                    ) : field.type === "file" || field.type === "derived_arithmetically" || field.type === "conditional" || field.type === "to_words" ? (
+                      <p className="text-xs text-gray-400 italic">This field type is not fully supported in nested internal forms.</p>
+                    ) : field.type === "select" || field.type === "searchable_select" ? (
+                      <select
+                        required={field.required}
+                        value={formData[field.id] ?? ""}
+                        onChange={(e) => setFormData(prev => ({ ...prev, [field.id]: e.target.value }))}
+                        disabled={isParentRef}
+                        className={`flex w-full max-w-md rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent transition-all shadow-sm ${isParentRef ? 'bg-gray-100 text-gray-500 cursor-not-allowed opacity-80' : 'cursor-pointer'}`}
+                      >
+                        <option value="">Select option...</option>
+                        {(field.optionsArray || "").split(",").map((s: string) => s.trim()).filter(Boolean).map((s: string) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Input
+                        type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
+                        required={field.required}
+                        maxLength={field.maxLength}
+                        value={formData[field.id] ?? ""}
+                        onChange={(e) => setFormData(prev => ({ ...prev, [field.id]: e.target.value }))}
+                        readOnly={isParentRef}
+                        className={`max-w-md ${isParentRef ? 'bg-gray-100 text-gray-500 cursor-not-allowed' : ''}`}
+                      />
+                    )}
+                  </div>
+                )
+              })}
             </div>
             <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-gray-100">
-               <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-               <Button type="submit">Save Form Attachment</Button>
+              <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+              <Button type="submit">Save Form Attachment</Button>
             </div>
           </form>
         </div>
