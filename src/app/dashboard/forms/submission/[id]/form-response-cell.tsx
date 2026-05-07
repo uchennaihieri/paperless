@@ -33,5 +33,10 @@ export function FormResponseCell({ label, value }: { label: string; value: any }
     );
   }
 
+  const isProxyPdfUrl = typeof value === "string" && value.startsWith("/api/v1/");
+  if (isProxyPdfUrl) {
+    return <AttachmentLink file={{ name: "View Extended Service Document", url: value }} />;
+  }
+
   return <>{String(value) || <span className="italic text-gray-300">—</span>}</>;
 }

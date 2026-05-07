@@ -16,6 +16,16 @@ export class ApiError extends Error {
   }
 }
 
+/** Safely parse a response body as JSON — returns null if body is not JSON (e.g. HTML error pages). */
+async function safeJson(res: Response): Promise<any> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
 export const apiClient = async (
   endpoint: string,
   options: RequestInit = {}
@@ -41,14 +51,14 @@ export const apiClient = async (
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    // Preserve the backend error code so the client can react to specific conditions
-    // (e.g. PASSWORD_CHANGED → force sign-out)
+    const errorData = await safeJson(response);
     throw new ApiError(
-      errorData.error || `API Error: ${response.status} ${response.statusText}`,
-      errorData.code
+      errorData?.error || `API Error: ${response.status} ${response.statusText}`,
+      errorData?.code
     );
   }
 
-  return response.json();
+  // Guard against non-JSON 2xx responses (e.g. 204 No Content or HTML fallbacks)
+  const data = await safeJson(response);
+  return data;
 };

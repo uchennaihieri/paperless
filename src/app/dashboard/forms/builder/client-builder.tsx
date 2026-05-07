@@ -127,6 +127,8 @@ type Field = {
   // section_header / instructions extras
   sectionSubtitle?: string;
   instructionsContent?: string;
+  // extended service
+  extendedService?: string;
 };
 
 const SELECT_CLASS = "flex h-10 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all cursor-pointer shadow-sm";
@@ -716,8 +718,34 @@ export default function FormBuilderClient({
                              <option value="section_header">📌 Section Header</option>
                              <option value="instructions">📄 Instructions / Contract</option>
                            </optgroup>
+                           <optgroup label="Integrations">
+                             <option value="extended_service">🔗 Data from Extended Services</option>
+                           </optgroup>
                         </select>
                       </div>
+
+                      {field.type === "extended_service" && (
+                        <div className="md:col-span-2 bg-blue-50/50 p-4 rounded-md border border-blue-100 space-y-4">
+                          <h4 className="text-xs font-bold text-blue-800 uppercase tracking-widest border-b border-blue-200 pb-2 mb-3">Service Configuration</h4>
+                          <div className="space-y-1.5 max-w-sm">
+                            <Label className="text-xs font-semibold text-blue-800">Target Service <span className="text-red-500">*</span></Label>
+                            <select
+                              value={field.extendedService || ""}
+                              onChange={(e) => updateField(idx, "extendedService", e.target.value)}
+                              className={SELECT_CLASS}
+                            >
+                              <option value="">— Select service —</option>
+                              <option value="nin">NIN Verification</option>
+                              <option value="bvn">BVN Verification</option>
+                              <option value="firstcentral">FirstCentral CRB</option>
+                              <option value="creditregistry">CreditRegistry CRB</option>
+                            </select>
+                            <p className="text-xs text-blue-600 mt-1">
+                              When filling out the form, users will enter a reference number. The system will look up the reference and attach the generated PDF.
+                            </p>
+                          </div>
+                        </div>
+                      )}
 
                       {field.type === "derived_arithmetically" && (
                         <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 bg-purple-50/50 p-4 rounded-md border border-purple-100">

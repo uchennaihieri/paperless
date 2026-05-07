@@ -1,79 +1,86 @@
 "use client";
 
-import React, { useState } from "react";
-import { Users, FileText, CheckCircle, AlertCircle, Plus, PenTool, RefreshCw } from "lucide-react";
+import React from "react";
+import { Plus, PenTool, Fingerprint, CreditCard, BarChart2, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { useRouter } from "next/navigation";
-import { getAccountServicesStats } from "@/app/actions/dashboard";
 
-interface Stats {
-  pending: number;
-  inReview: number;
-  completed: number;
-  errors: number;
-}
-
-export default function AccountServicesClientPage({ initialStats }: { initialStats: Stats }) {
-  const router = useRouter();
-  const [stats, setStats] = useState<Stats>(initialStats);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true);
-    try {
-      const updatedStats = await getAccountServicesStats();
-      setStats(updatedStats);
-      router.refresh();
-    } catch (error) {
-      console.error("Failed to refresh stats", error);
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  const dashboardItems = [
-    { title: "Pending Applications", count: stats.pending, icon: Users, colorClass: "text-amber-500", bgClass: "bg-amber-50", link: "/dashboard/forms?status=Draft" },
-    { title: "Applications in Review", count: stats.inReview, icon: FileText, colorClass: "text-blue-500", bgClass: "bg-blue-50", link: "/dashboard/forms?status=Submitted" },
-    { title: "Completed", count: stats.completed, icon: CheckCircle, colorClass: "text-emerald-500", bgClass: "bg-emerald-50", link: "/dashboard/forms?status=Completed" },
-    { title: "Errors / Declined", count: stats.errors, icon: AlertCircle, colorClass: "text-red-500", bgClass: "bg-red-50", link: "/dashboard/forms?status=Rejected" },
+export default function AccountServicesClientPage() {
+  const extendedServices = [
+    {
+      title: "NIN Verification",
+      description: "Verify a customer's National Identification Number against the NIMC registry.",
+      icon: Fingerprint,
+      href: "/dashboard/account-services/nin-verification",
+      accent: "text-indigo-600",
+      bg: "bg-indigo-50",
+      hoverBorder: "hover:border-indigo-300/60",
+      hoverBg: "hover:bg-indigo-50/30",
+    },
+    {
+      title: "BVN Verification",
+      description: "Confirm a Bank Verification Number and retrieve associated biodata.",
+      icon: ShieldCheck,
+      href: "/dashboard/account-services/bvn-verification",
+      accent: "text-emerald-600",
+      bg: "bg-emerald-50",
+      hoverBorder: "hover:border-emerald-300/60",
+      hoverBg: "hover:bg-emerald-50/30",
+    },
+    {
+      title: "FirstCentral CRB",
+      description: "Run a FirstCentral Credit Bureau check on a customer or business.",
+      icon: BarChart2,
+      href: "/dashboard/account-services/firstcentral-crb",
+      accent: "text-sky-600",
+      bg: "bg-sky-50",
+      hoverBorder: "hover:border-sky-300/60",
+      hoverBg: "hover:bg-sky-50/30",
+    },
+    {
+      title: "CreditRegistry CRB",
+      description: "Perform a CreditRegistry bureau check for credit risk assessment.",
+      icon: CreditCard,
+      href: "/dashboard/account-services/creditregistry-crb",
+      accent: "text-purple-600",
+      bg: "bg-purple-50",
+      hoverBorder: "hover:border-purple-300/60",
+      hoverBg: "hover:bg-purple-50/30",
+    },
   ];
 
   return (
     <div className="w-full max-w-5xl mx-auto pb-12">
-      <div className="flex items-center justify-between mb-8">
-        <h2 className="text-2xl font-bold text-gray-900">Account Services</h2>
-        <button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50"
-        >
-          <RefreshCw className={cn("w-4 h-4", isRefreshing && "animate-spin")} />
-          Refresh
-        </button>
-      </div>
+      <h2 className="text-2xl font-bold text-gray-900 mb-8">Extended Services</h2>
 
+      {/* Extended Services */}
       <div className="mb-10">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Overview</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {dashboardItems.map((item, index) => (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {extendedServices.map((service) => (
             <Link
-              key={index}
-              href={item.link}
-              className="flex flex-col p-6 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+              key={service.title}
+              href={service.href}
+              className={cn(
+                "flex items-start gap-4 p-6 bg-white border border-gray-200 rounded-xl shadow-sm transition-all cursor-pointer group",
+                service.hoverBorder,
+                service.hoverBg
+              )}
             >
-              <div className={cn("w-12 h-12 rounded-full flex items-center justify-center mb-4", item.bgClass)}>
-                <item.icon className={cn("w-6 h-6", item.colorClass)} />
+              <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0", service.bg)}>
+                <service.icon className={cn("w-6 h-6", service.accent)} />
               </div>
-              <div className="text-3xl font-bold text-gray-900 mb-1">{item.count}</div>
-              <div className="text-sm font-medium text-gray-500">{item.title}</div>
+              <div>
+                <div className="text-base font-semibold text-gray-900 mb-1">{service.title}</div>
+                <div className="text-sm text-gray-500 leading-relaxed">{service.description}</div>
+              </div>
             </Link>
           ))}
         </div>
       </div>
 
+      {/* Other Actions */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Actions</h3>
+        <h3 className="text-lg font-semibold text-gray-800 mb-4">Other Actions</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Link
             href="/dashboard/forms?tab=account_services"
@@ -94,7 +101,7 @@ export default function AccountServicesClientPage({ initialStats }: { initialSta
               <PenTool className="w-6 h-6 text-purple-600" />
             </div>
             <div className="text-lg font-semibold text-gray-900 mb-1">Sign Contracts</div>
-            <div className="text-sm text-gray-500">Review & sign pending documents</div>
+            <div className="text-sm text-gray-500">Review &amp; sign pending documents</div>
           </Link>
         </div>
       </div>

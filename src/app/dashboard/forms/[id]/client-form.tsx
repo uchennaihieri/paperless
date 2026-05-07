@@ -18,12 +18,13 @@ import { numberToWords } from "@/lib/toWords";
 type Field = {
   id: string;
   label: string;
-  type: "text" | "number" | "date" | "textarea" | "file" | "conditional";
+  type: "text" | "number" | "date" | "textarea" | "file" | "conditional" | "extended_service";
   required: boolean;
   description?: string;
   maxLength?: number;
   maxFiles?: number;
   accept?: string;
+  extendedService?: string;
 };
 
 type UserResult = {
@@ -371,6 +372,44 @@ function FormFieldsStep({
       });
     }
   }, [referenceData]);
+
+  // Extended Service Live Validation
+  const [extendedStatus, setExtendedStatus] = useState<Record<string, { loading: boolean; valid: boolean; label?: string }>>({});
+  
+  useEffect(() => {
+    fields.forEach(field => {
+      if ((field as any).type === "extended_service" && (field as any).extendedService) {
+        const val = formData[field.id];
+        if (!val || typeof val !== "string" || val.trim().length < 3) {
+          setExtendedStatus(prev => ({ ...prev, [field.id]: { loading: false, valid: false } }));
+          return;
+        }
+        
+        const service = (field as any).extendedService;
+        const currentRef = val.trim();
+        
+        const timer = setTimeout(async () => {
+          setExtendedStatus(prev => ({ ...prev, [field.id]: { loading: true, valid: false } }));
+          try {
+            const endpoint = (service === "nin" || service === "bvn") ? "/api/v1/identity/validate" : "/api/v1/credit-bureau/validate";
+            const res = await fetch(`${BASE_URL}${endpoint}?service=${service}&reference=${encodeURIComponent(currentRef)}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.valid) {
+              setExtendedStatus(prev => ({ ...prev, [field.id]: { loading: false, valid: true, label: data.label } }));
+            } else {
+              setExtendedStatus(prev => ({ ...prev, [field.id]: { loading: false, valid: false } }));
+            }
+          } catch (e) {
+            setExtendedStatus(prev => ({ ...prev, [field.id]: { loading: false, valid: false } }));
+          }
+        }, 800);
+        
+        return () => clearTimeout(timer);
+      }
+    });
+  }, [formData, fields, token, BASE_URL]);
 
   // Derived + To-Words auto-calculation
   useEffect(() => {
@@ -757,6 +796,33 @@ function FormFieldsStep({
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-teal-400 text-xs font-mono whitespace-nowrap">
                       IN WORDS
                     </span>
+                  </div>
+                ) : (field as any).type === "extended_service" ? (
+                  <div className="relative max-w-md">
+                    <Input
+                      id={field.id}
+                      type="text"
+                      required={field.required}
+                      value={formData[field.id] ?? ""}
+                      onChange={(e) => onChange(field.id, e.target.value)}
+                      readOnly={hasReferenceValue}
+                      className={`pr-32 ${hasReferenceValue ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""}`}
+                    />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+                      {extendedStatus[field.id]?.loading ? (
+                        <span className="flex items-center gap-1.5 px-2 py-1 bg-gray-100 rounded-md text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                          <Loader2 className="w-3 h-3 animate-spin" /> Verifying
+                        </span>
+                      ) : extendedStatus[field.id]?.valid ? (
+                        <span className="flex items-center gap-1.5 px-2 py-1 bg-green-100 rounded-md text-[10px] font-bold text-green-700 uppercase tracking-widest" title={extendedStatus[field.id]?.label}>
+                          <Check className="w-3 h-3" /> Valid
+                        </span>
+                      ) : formData[field.id]?.length > 2 ? (
+                        <span className="flex items-center gap-1.5 px-2 py-1 bg-red-100 rounded-md text-[10px] font-bold text-red-600 uppercase tracking-widest">
+                          <X className="w-3 h-3" /> Invalid Ref
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 ) : field.type === "select" ? (
                   <select

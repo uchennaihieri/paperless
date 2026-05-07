@@ -557,6 +557,8 @@ export default function EditSubmissionModal({
                                       </span>
                                     ))}
                                   </div>
+                                ) : typeof formData[f.id] === 'string' && formData[f.id].startsWith('/api/v1/') ? (
+                                  <span className="text-primary text-xs font-medium">📎 Extended Service Document</span>
                                 ) : (
                                   formData[f.id] || <span className="italic text-gray-300">—</span>
                                 )}
