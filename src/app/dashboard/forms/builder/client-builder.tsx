@@ -164,6 +164,7 @@ export default function FormBuilderClient({
   const [fields, setFields] = useState<Field[]>(initialTemplate?.fields || [
     { id: "f1", label: "", type: "text", required: true, description: "", mappedPdfField: "" },
   ]);
+  const [reusableLists, setReusableLists] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [presetApplied, setPresetApplied] = useState("");
@@ -174,6 +175,14 @@ export default function FormBuilderClient({
       .then(r => r.json())
       .then(data => setAllFormTemplates(Array.isArray(data.data) ? data.data : []))
       .catch(() => setAllFormTemplates([]));
+  }, []);
+
+  // Fetch reusable lists
+  useEffect(() => {
+    fetch("/api/v1/lists")
+      .then(r => r.json())
+      .then(data => setReusableLists(Array.isArray(data.data) ? data.data : []))
+      .catch(() => setReusableLists([]));
   }, []);
 
   // Track whether pdfType has changed since the component mounted (user-initiated change)
@@ -1077,10 +1086,25 @@ export default function FormBuilderClient({
                                   onChange={() => {
                                     updateField(idx, "optionsSource", "database");
                                     updateField(idx, "optionsArray", "");
+                                    updateField(idx, "reusableListId", "");
                                   }}
                                   className="text-blue-600 focus:ring-blue-600"
                                 />
                                 Database Table
+                              </label>
+                              <label className="flex items-center gap-2 text-sm text-blue-900">
+                                <input
+                                  type="radio"
+                                  name={`optionsSource-${field.id}`}
+                                  checked={field.optionsSource === 'reusable_list'}
+                                  onChange={() => {
+                                    updateField(idx, "optionsSource", "reusable_list");
+                                    updateField(idx, "optionsArray", "");
+                                    updateField(idx, "optionsTable", "");
+                                  }}
+                                  className="text-blue-600 focus:ring-blue-600"
+                                />
+                                Reusable List
                               </label>
                             </div>
                           </div>
@@ -1095,6 +1119,20 @@ export default function FormBuilderClient({
                                 className="bg-white border-blue-200 focus:border-blue-500 focus:ring-blue-500"
                               />
                               <p className="text-[11px] text-blue-600">The backend will fetch from the "Options" column of this table.</p>
+                            </div>
+                          ) : field.optionsSource === 'reusable_list' ? (
+                            <div className="space-y-1.5">
+                              <Label className="text-xs font-semibold text-blue-800">Select Reusable List</Label>
+                              <select
+                                value={field.reusableListId || ""}
+                                onChange={(e) => updateField(idx, "reusableListId", e.target.value)}
+                                className="flex h-10 w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-blue-900"
+                              >
+                                <option value="">— Select List —</option>
+                                {reusableLists.map((list) => (
+                                  <option key={list.id} value={list.id}>{list.name}</option>
+                                ))}
+                              </select>
                             </div>
                           ) : (
                             <div className="space-y-1.5">

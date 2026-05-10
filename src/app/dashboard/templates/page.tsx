@@ -30,13 +30,22 @@ export default async function TemplatesPage() {
             Manage reusable PDF templates and map form fields.
           </p>
         </div>
-        <Link 
-          href="/dashboard/templates/new"
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 font-medium text-sm transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          Add Template
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link 
+            href="/dashboard/templates/lists"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 font-medium text-sm transition-colors border border-gray-200"
+          >
+            <FileText className="h-4 w-4" />
+            Reusable Lists
+          </Link>
+          <Link 
+            href="/dashboard/templates/new"
+            className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 font-medium text-sm transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Add Template
+          </Link>
+        </div>
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden shadow-sm">

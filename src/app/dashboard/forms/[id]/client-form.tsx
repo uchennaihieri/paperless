@@ -500,9 +500,39 @@ function FormFieldsStep({
             console.error("Failed to fetch options for", field.id, e);
             newOptions[field.id] = [];
           }
-        } else if ((field.type === "select" || field.type === "searchable_select") && field.optionsSource !== "database" && field.optionsArray) {
+        } else if ((field.type === "select" || field.type === "searchable_select") && field.optionsSource === "reusable_list" && field.reusableListId) {
+          try {
+            const res = await fetch(`${BASE_URL}/api/v1/lists/${field.reusableListId}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.success && data.data && Array.isArray(data.data.items)) {
+              newOptions[field.id] = data.data.items.map((s: string) => ({ label: s, value: s }));
+            } else {
+              newOptions[field.id] = [];
+            }
+          } catch (e) {
+            console.error("Failed to fetch reusable list options for", field.id, e);
+            newOptions[field.id] = [];
+          }
+        } else if ((field.type === "select" || field.type === "searchable_select") && field.optionsSource !== "database" && field.optionsSource !== "reusable_list" && field.optionsArray) {
           // Parse static array
           newOptions[field.id] = field.optionsArray.split(",").map((s: string) => s.trim()).filter(Boolean).map((s: string) => ({ label: s, value: s }));
+        } else if (field.type === "extended_service" && field.extendedService) {
+          try {
+            const res = await fetch(`${BASE_URL}/api/v1/forms/extended-options?service=${encodeURIComponent(field.extendedService)}`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.success && data.data) {
+              newOptions[field.id] = data.data;
+            } else {
+              newOptions[field.id] = [];
+            }
+          } catch (e) {
+            console.error("Failed to fetch extended options for", field.id, e);
+            newOptions[field.id] = [];
+          }
         }
       }
 
@@ -798,28 +828,30 @@ function FormFieldsStep({
                     </span>
                   </div>
                 ) : (field as any).type === "extended_service" ? (
-                  <div className="relative max-w-md">
-                    <Input
-                      id={field.id}
-                      type="text"
-                      required={field.required}
-                      value={formData[field.id] ?? ""}
-                      onChange={(e) => onChange(field.id, e.target.value)}
-                      readOnly={hasReferenceValue}
-                      className={`pr-32 ${hasReferenceValue ? "bg-gray-100 text-gray-500 cursor-not-allowed" : ""}`}
-                    />
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center">
+                  <div className="relative max-w-md flex items-center gap-2">
+                    <div className="flex-1">
+                      <SearchableSelect
+                        id={field.id}
+                        options={dynamicOptions[field.id] || []}
+                        value={formData[field.id] ?? ""}
+                        onChange={(val) => onChange(field.id, val)}
+                        required={field.required}
+                        disabled={hasReferenceValue}
+                        placeholder="Search extended service logs..."
+                      />
+                    </div>
+                    <div className="flex-shrink-0 min-w-[80px]">
                       {extendedStatus[field.id]?.loading ? (
-                        <span className="flex items-center gap-1.5 px-2 py-1 bg-gray-100 rounded-md text-[10px] font-bold text-gray-500 uppercase tracking-widest">
-                          <Loader2 className="w-3 h-3 animate-spin" /> Verifying
+                        <span className="flex items-center justify-center gap-1.5 px-2 py-1.5 bg-gray-100 rounded-md text-[10px] font-bold text-gray-500 uppercase tracking-widest h-10 w-full">
+                          <Loader2 className="w-3 h-3 animate-spin" />
                         </span>
                       ) : extendedStatus[field.id]?.valid ? (
-                        <span className="flex items-center gap-1.5 px-2 py-1 bg-green-100 rounded-md text-[10px] font-bold text-green-700 uppercase tracking-widest" title={extendedStatus[field.id]?.label}>
+                        <span className="flex items-center justify-center gap-1.5 px-2 py-1.5 bg-green-100 rounded-md text-[10px] font-bold text-green-700 uppercase tracking-widest h-10 w-full" title={extendedStatus[field.id]?.label}>
                           <Check className="w-3 h-3" /> Valid
                         </span>
                       ) : formData[field.id]?.length > 2 ? (
-                        <span className="flex items-center gap-1.5 px-2 py-1 bg-red-100 rounded-md text-[10px] font-bold text-red-600 uppercase tracking-widest">
-                          <X className="w-3 h-3" /> Invalid Ref
+                        <span className="flex items-center justify-center gap-1.5 px-2 py-1.5 bg-red-100 rounded-md text-[10px] font-bold text-red-600 uppercase tracking-widest h-10 w-full">
+                          <X className="w-3 h-3" /> Invalid
                         </span>
                       ) : null}
                     </div>
