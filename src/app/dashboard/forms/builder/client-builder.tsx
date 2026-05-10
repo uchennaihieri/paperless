@@ -121,9 +121,10 @@ type Field = {
   falseResultType?: "fixed" | "field" | "absolute_field";
   falseResultValue?: string;
   // select / searchable_select extras
-  optionsSource?: "array" | "database";
+  optionsSource?: "array" | "database" | "reusable_list";
   optionsArray?: string;
   optionsTable?: string;
+  reusableListId?: string;
   // section_header / instructions extras
   sectionSubtitle?: string;
   instructionsContent?: string;
