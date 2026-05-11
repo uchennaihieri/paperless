@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { PenTool, CheckCircle, FileText, AlertCircle, X, Camera, RefreshCw, ChevronRight, CheckSquare } from "lucide-react";
+import { PenTool, CheckCircle, FileText, AlertCircle, X, Camera, RefreshCw, ChevronRight, CheckSquare, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import SignatureCanvas from 'react-signature-canvas';
 
@@ -169,8 +169,16 @@ export default function ClientContractsPage({ initialContracts }: { initialContr
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto pb-12 relative">
-      <div className="flex items-center gap-3 mb-8">
+    <div className="w-full max-w-4xl mx-auto pb-12 space-y-6">
+      <button
+        onClick={() => router.push("/dashboard/account-services")}
+        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors group"
+      >
+        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+        Extended Services
+      </button>
+
+      <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
           <PenTool className="w-5 h-5 text-purple-600" />
         </div>
