@@ -39,19 +39,19 @@ export async function isAdministrator() {
   }
 }
 
-export async function createFormTemplate(name: string, description: string, fields: any[], formOwner?: string, formTreater?: string, pdfTemplateId?: string, mobileEnabled: boolean = false, accountServicesEnabled: boolean = false, isInternal: boolean = false) {
+export async function createFormTemplate(name: string, description: string, fields: any[], formOwner?: string, formTreater?: string, pdfTemplateId?: string, mobileEnabled: boolean = false, accountServicesEnabled: boolean = false, isInternal: boolean = false, needsContract: boolean = false, contractTemplateId?: string) {
   const result = await apiClient("/forms", {
     method: "POST",
-    body: JSON.stringify({ name, description, fields, formOwner, formTreater, pdfTemplateId, mobileEnabled, accountServicesEnabled, isInternal })
+    body: JSON.stringify({ name, description, fields, formOwner, formTreater, pdfTemplateId, mobileEnabled, accountServicesEnabled, isInternal, needsContract, contractTemplateId })
   });
   revalidatePath("/dashboard/forms");
   return result;
 }
 
-export async function updateFormTemplate(id: string, name: string, description: string, fields: any[], formOwner?: string, formTreater?: string, pdfTemplateId?: string, mobileEnabled: boolean = false, accountServicesEnabled: boolean = false, isInternal: boolean = false) {
+export async function updateFormTemplate(id: string, name: string, description: string, fields: any[], formOwner?: string, formTreater?: string, pdfTemplateId?: string, mobileEnabled: boolean = false, accountServicesEnabled: boolean = false, isInternal: boolean = false, needsContract: boolean = false, contractTemplateId?: string) {
   const result = await apiClient(`/forms/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ name, description, fields, formOwner, formTreater, pdfTemplateId, mobileEnabled, accountServicesEnabled, isInternal })
+    body: JSON.stringify({ name, description, fields, formOwner, formTreater, pdfTemplateId, mobileEnabled, accountServicesEnabled, isInternal, needsContract, contractTemplateId })
   });
   revalidatePath("/dashboard/forms");
   return result;

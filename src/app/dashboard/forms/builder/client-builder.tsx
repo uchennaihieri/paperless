@@ -160,6 +160,8 @@ export default function FormBuilderClient({
     initialTemplate?.pdfGeneratorType === "html" ? "html" : ""
   );
   const [pdfFields, setPdfFields] = useState<any[]>([]);
+  const [needsContract, setNeedsContract] = useState(initialTemplate?.needsContract || false);
+  const [contractTemplateId, setContractTemplateId] = useState(initialTemplate?.contractTemplateId || "");
   const [filteredTemplates, setFilteredTemplates] = useState<any[]>(availableTemplates);
   const [allFormTemplates, setAllFormTemplates] = useState<any[]>([]);
   const [fields, setFields] = useState<Field[]>(initialTemplate?.fields || [
@@ -333,7 +335,9 @@ export default function FormBuilderClient({
         pdfTemplateId || undefined,
         mobileEnabled,
         accountServicesEnabled,
-        isInternal
+        isInternal,
+        needsContract,
+        contractTemplateId || undefined
       );
     } else {
       res = await createFormTemplate(
@@ -345,7 +349,9 @@ export default function FormBuilderClient({
         pdfTemplateId || undefined,
         mobileEnabled,
         accountServicesEnabled,
-        isInternal
+        isInternal,
+        needsContract,
+        contractTemplateId || undefined
       );
     }
     
@@ -644,6 +650,42 @@ export default function FormBuilderClient({
                       pdfFields.length > 0 && autoMappedPdfFields.length === pdfFields.length && (
                         <p className="text-xs text-green-600 font-medium">All template variables are auto-populated. No form pairing needed. 🎉</p>
                       )
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Contract Configuration */}
+              <div className="md:col-span-2 space-y-4 bg-gray-50 border border-gray-100 rounded-lg p-5 mt-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="font-semibold text-gray-800">Needs Contract</Label>
+                    <p className="text-xs text-gray-500">Enable this to generate a signing request for the form submitter after internal approval.</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" checked={needsContract} onChange={(e) => setNeedsContract(e.target.checked)} />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+
+                {needsContract && (
+                  <div className="space-y-1 mt-4">
+                    <Label htmlFor="contract-template" className="text-xs font-semibold text-gray-700">
+                      Select Contract Template (HTML PDF)
+                    </Label>
+                    <select
+                      id="contract-template"
+                      value={contractTemplateId}
+                      onChange={(e) => setContractTemplateId(e.target.value)}
+                      className={SELECT_CLASS}
+                    >
+                      <option value="">— Select template —</option>
+                      {availableTemplates.filter(t => t.type === "html").map((tpl: any) => (
+                        <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+                      ))}
+                    </select>
+                    {availableTemplates.filter(t => t.type === "html").length === 0 && (
+                      <p className="text-xs text-amber-600 mt-1">No HTML templates found. <a href="/dashboard/templates/new" className="underline">Create one first.</a></p>
                     )}
                   </div>
                 )}

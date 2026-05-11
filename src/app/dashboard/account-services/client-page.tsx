@@ -5,7 +5,7 @@ import { Plus, PenTool, Fingerprint, CreditCard, BarChart2, ShieldCheck } from "
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-export default function AccountServicesClientPage() {
+export default function AccountServicesClientPage({ pendingContractsCount = 0 }: { pendingContractsCount?: number }) {
   const extendedServices = [
     {
       title: "NIN Verification",
@@ -94,9 +94,14 @@ export default function AccountServicesClientPage() {
           </Link>
 
           <Link
-            href="/dashboard/signature"
-            className="flex flex-col p-6 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-purple-500/30 transition-all cursor-pointer group"
+            href="/dashboard/contracts"
+            className="flex flex-col p-6 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-purple-500/30 transition-all cursor-pointer group relative"
           >
+            {pendingContractsCount > 0 && (
+              <div className="absolute top-4 right-4 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm">
+                {pendingContractsCount} Pending
+              </div>
+            )}
             <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center mb-4 group-hover:bg-purple-200 transition-colors">
               <PenTool className="w-6 h-6 text-purple-600" />
             </div>

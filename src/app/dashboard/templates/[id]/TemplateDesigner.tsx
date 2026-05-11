@@ -147,7 +147,7 @@ export default function TemplateDesigner({
 
     // Fetch data dictionary
     setDictLoading(true);
-    fetch("/api/v1/templates/data-dictionary")
+    fetch(`/api/v1/templates/data-dictionary?templateId=${templateId}`)
       .then((r) => r.json())
       .then((j) => { if (j.success) setDict(j.data); })
       .catch(console.error)

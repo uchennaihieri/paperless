@@ -26,6 +26,7 @@ type ActionItem = {
   template: { name: string; formOwner: string; formTreater: string };
   signatories: Array<{ userName: string; email: string; status: string; signedAt: string; position: number }>;
   submittedBy: { user_name: string; finca_email: string; branch: string } | null;
+  documents?: Array<{ id: string; fieldName: string; originalName: string }>;
 };
 
 export default function ActionClient({ items }: { items: ActionItem[] }) {
@@ -91,6 +92,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
   const [treaterTokenError, setTreaterTokenError] = useState("");
   const [showToken, setShowToken] = useState(false);
   const [isJournalOpen, setIsJournalOpen] = useState(false);
+  const [assignError, setAssignError] = useState("");
 
   const handleRegenerate = async (id: string) => {
     setIsRegenerating(true);
@@ -137,11 +139,15 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
 
   const handleAssignSelf = async () => {
     setIsChanging(true);
+    setAssignError("");
     try {
       const res = await assignToSelf(selected!.id);
       if (res.success && res.newStatus) {
         updateItemStatus(selected!.id, res.newStatus);
         setShowStatusModal(false);
+        setStatusMode("");
+      } else {
+        setAssignError(res.error || "Failed to assign to yourself");
         setStatusMode("");
       }
     } finally {
@@ -342,37 +348,98 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
               </div>
             </div>
 
-            {/* Generated PDF */}
-            {selected.formResponses["CompletedFormPDF"] && selected.formResponses["CompletedFormPDF"].length > 0 && (
+            {/* Generated PDFs */}
+            {((selected.formResponses["CompletedFormPDF"] && selected.formResponses["CompletedFormPDF"].length > 0) || 
+              (selected.documents && selected.documents.some((d: any) => d.fieldName === "SignedContract"))) && (
               <div className="mb-10">
                 <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Completed Generated Document</h3>
-                <div className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
-                      <FileDown className="w-5 h-5 text-[#b50938]" />
+                <div className="space-y-3">
+                  {/* Legacy Auto-Generated PDF */}
+                  {selected.formResponses["CompletedFormPDF"] && selected.formResponses["CompletedFormPDF"].length > 0 && (
+                    <div className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                          <FileDown className="w-5 h-5 text-[#b50938]" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">{selected.formResponses["CompletedFormPDF"][0].name}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">Generated PDF document</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={selected.formResponses["CompletedFormPDF"][0].url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 px-4 py-2 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors shadow-sm"
+                        >
+                          <FileDown className="w-3.5 h-3.5" /> Open PDF
+                        </a>
+                        <a
+                          href={selected.formResponses["CompletedFormPDF"][0].url}
+                          download
+                          className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors shadow-sm"
+                        >
+                          Download
+                        </a>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-800">{selected.formResponses["CompletedFormPDF"][0].name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">Generated PDF document</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <a
-                      href={selected.formResponses["CompletedFormPDF"][0].url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 px-4 py-2 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors shadow-sm"
-                    >
-                      <FileDown className="w-3.5 h-3.5" /> Open PDF
-                    </a>
-                    <a
-                      href={selected.formResponses["CompletedFormPDF"][0].url}
-                      download
-                      className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors shadow-sm"
-                    >
-                      Download
-                    </a>
-                  </div>
+                  )}
+
+                  {/* Signed Contract Document */}
+                  {selected.documents && selected.documents.map((doc: any) => {
+                    if (doc.fieldName === "SignedContract") {
+                      const fileUrl = `${BASE_URL}/api/v1/file?docId=${doc.id}`;
+                      const fileName = doc.originalName || "Signed_Contract.pdf";
+                      const openDoc = async () => {
+                        const newWindow = window.open("", "_blank");
+                        if (newWindow) newWindow.document.write(`<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;color:#666;">Loading ${fileName}...</div>`);
+                        try {
+                          const res = await fetch(fileUrl, { headers: { Authorization: `Bearer ${token}` } });
+                          const blob = await res.blob();
+                          const url = URL.createObjectURL(blob);
+                          if (newWindow) newWindow.location.href = url;
+                          setTimeout(() => URL.revokeObjectURL(url), 60000);
+                        } catch { if (newWindow) newWindow.document.write(`<div style="color:red;padding:20px;">Failed to load file.</div>`); }
+                      };
+                      const downloadDoc = async () => {
+                        const res = await fetch(fileUrl, { headers: { Authorization: `Bearer ${token}` } });
+                        const blob = await res.blob();
+                        const a = document.createElement("a");
+                        a.href = URL.createObjectURL(blob);
+                        a.download = fileName;
+                        a.click();
+                      };
+                      return (
+                        <div key={doc.id} className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                              <FileDown className="w-5 h-5 text-[#b50938]" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-gray-800">{fileName}</p>
+                              <p className="text-xs text-gray-400 mt-0.5">Signed Contract document</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={openDoc}
+                              className="flex items-center gap-1.5 px-4 py-2 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors shadow-sm cursor-pointer"
+                            >
+                              <FileDown className="w-3.5 h-3.5" /> Open PDF
+                            </button>
+                            <button
+                              onClick={downloadDoc}
+                              className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors shadow-sm cursor-pointer"
+                            >
+                              Download
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })}
                 </div>
               </div>
             )}
@@ -392,6 +459,12 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
               </button>
             </div>
             <div className="p-6">
+              {assignError && (
+                <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-600 text-sm flex items-center gap-2 border border-red-100">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <p>{assignError}</p>
+                </div>
+              )}
               {!statusMode && (
                 <div className="flex flex-col gap-3">
                   <Button

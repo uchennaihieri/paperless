@@ -49,6 +49,7 @@ type QueueItem = {
   formResponses: Record<string, any>;
   signatories: Signatory[];
   submittedBy: { user_name: string | null; finca_email: string | null; branch: string | null } | null;
+  documents?: Array<{ id: string; fieldName: string; originalName: string }>;
   prerequisites?: {
     id: string;
     targetForm: { name: string };
@@ -400,8 +401,56 @@ function DetailPanel({
             </div>
           </div>
 
+          {/* Completed Generated Documents */}
+          {item.documents && item.documents.some((d) => d.fieldName === "SignedContract") && (
+            <div>
+              <h3 className="text-xs font-semibold text-primary uppercase tracking-widest mb-3 border-b border-gray-100 pb-2">
+                Completed Generated Document
+              </h3>
+              <div className="space-y-2">
+                {item.documents.filter((d) => d.fieldName === "SignedContract").map((doc) => {
+                  const fileUrl = `${BASE_URL}/api/v1/file?docId=${doc.id}`;
+                  const fileName = doc.originalName || "Signed_Contract.pdf";
+                  return (
+                    <div key={doc.id} className="border border-gray-200 rounded-xl bg-gray-50 p-4 flex items-center justify-between gap-3 shadow-sm">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                          <FileText className="w-4 h-4 text-[#b50938]" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-gray-800 truncate">{fileName}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">Signed Contract document</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => openFile(fileUrl, fileName, token)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors cursor-pointer"
+                        >
+                          Open PDF
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const res = await fetch(fileUrl, { headers: { Authorization: `Bearer ${token}` } });
+                            const blob = await res.blob();
+                            const a = document.createElement("a");
+                            a.href = URL.createObjectURL(blob);
+                            a.download = fileName;
+                            a.click();
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
+                        >
+                          Download
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
-          {/* ── Signatories ── */}
+
           <div>
             <h3 className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">
               Signatories
