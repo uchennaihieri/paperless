@@ -6,7 +6,7 @@ import { Providers } from "./providers";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "Paperless by FINCA NG",
+  title: "FINCALite",
   description: "Operations tool by FINCA NG",
 };
 

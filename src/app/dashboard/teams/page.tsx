@@ -4,7 +4,7 @@ import TeamsClientPage from "./client-page";
 import { redirect } from "next/navigation";
 
 export const metadata = {
-  title: 'Teams Management - Paperless',
+  title: 'Teams Management - FINCALite',
 };
 
 export default async function TeamsPage() {

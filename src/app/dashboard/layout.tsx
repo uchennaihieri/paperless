@@ -80,7 +80,7 @@ export default function DashboardLayout({
         <div className="h-16 flex items-center justify-between px-6 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-2 text-primary font-bold text-xl">
             <Building2 className="h-6 w-6" />
-            Paperless 2.0
+            FINCALite
           </div>
           <button className="md:hidden p-1 text-gray-500" onClick={() => setIsMobileMenuOpen(false)}>
             <X className="w-5 h-5" />

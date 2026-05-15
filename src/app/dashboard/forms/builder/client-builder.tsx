@@ -396,7 +396,7 @@ export default function FormBuilderClient({
             </div>
             <div>
               <h3 className="text-sm font-bold text-indigo-900">Account Services Presets</h3>
-              <p className="text-xs text-indigo-700 mt-0.5">Start from a pre-built template that matches the PaperlessApp account forms — all fields are pre-configured for you.</p>
+              <p className="text-xs text-indigo-700 mt-0.5">Start from a pre-built template that matches the FINCALite account forms — all fields are pre-configured for you.</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -499,7 +499,7 @@ export default function FormBuilderClient({
                     <Label htmlFor="mobile-enabled" className="text-sm cursor-pointer font-bold text-emerald-900">
                       Enable for Mobile App
                     </Label>
-                    <span className="text-xs text-emerald-700">Form will be accessible in the PaperlessApp mobile application.</span>
+                    <span className="text-xs text-emerald-700">Form will be accessible in the FINCALite mobile application.</span>
                   </div>
                 </div>
               </div>

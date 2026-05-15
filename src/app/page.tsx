@@ -166,7 +166,7 @@ export default function LoginPage() {
           <Building2 size={32} />
         </div>
         <h2 className="mt-2 text-center text-3xl font-bold tracking-tight text-gray-900">
-          Paperless 2.0 by FINCA
+          FINCALite
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">{meta.subtitle}</p>
       </div>
