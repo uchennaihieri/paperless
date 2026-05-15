@@ -1,4 +1,5 @@
 import { getSubmission, getFormTemplate } from "@/app/actions/form";
+import { auth } from "@/auth";
 import { getPrerequisites } from "@/app/actions/prerequisites";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -9,6 +10,7 @@ import { RegeneratePdfButton } from "./regenerate-button";
 import { RemindButton } from "./remind-button";
 import { PrereqRemindButton } from "./prereq-remind-button";
 import { FormResponseCell } from "./form-response-cell";
+import { SoftDeleteButton } from "./soft-delete-button";
 
 function statusVariant(status: string) {
   switch (status) {
@@ -37,10 +39,22 @@ function PrereqStatusIcon({ status }: { status: string }) {
 
 export default async function SubmissionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [submission, prerequisites] = await Promise.all([
+  const [submission, prerequisites, session] = await Promise.all([
     getSubmission(id),
     getPrerequisites(id),
+    auth().catch(() => null),
   ]);
+
+  let isAdmin = false;
+  try {
+    const rolesStr = (session?.user as any)?.roles;
+    if (rolesStr) {
+      const roles = typeof rolesStr === "string" ? JSON.parse(rolesStr) : rolesStr;
+      const activeId = (session?.user as any)?.activeRoleId;
+      const activeRole = roles.find((r: any) => String(r.id) === String(activeId)) || roles[0];
+      isAdmin = activeRole?.user_role?.toLowerCase() === "administrator" || activeRole?.specialAccess?.toLowerCase().includes("administrator");
+    }
+  } catch (e) {}
 
   if (!submission) notFound();
 
@@ -105,9 +119,12 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
             {new Date(submission.createdAt).toLocaleString()}
           </p>
         </div>
-        <Badge variant={statusVariant(submission.status) as any} className="text-sm px-3">
-          {submission.status}
-        </Badge>
+        <div className="flex items-center gap-3">
+          <Badge variant={statusVariant(submission.status) as any} className="text-sm px-3">
+            {submission.status}
+          </Badge>
+          {isAdmin && <SoftDeleteButton submissionId={submission.id} />}
+        </div>
       </div>
 
       {/* Blocked banner */}

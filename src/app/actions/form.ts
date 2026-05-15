@@ -140,3 +140,17 @@ export async function deleteSubmission(id: string) {
   revalidatePath("/dashboard/forms");
   return result;
 }
+
+export async function softDeleteSubmission(id: string, reason: string) {
+  try {
+    const result = await apiClient(`/submissions/${id}/soft-delete`, {
+      method: "PATCH",
+      body: JSON.stringify({ reason }),
+    });
+    revalidatePath("/dashboard/forms");
+    return { success: true, data: result };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to soft delete submission" };
+  }
+}
+

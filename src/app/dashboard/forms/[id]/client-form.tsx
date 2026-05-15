@@ -575,11 +575,13 @@ function FormFieldsStep({
                       'bg-white border-gray-200 text-gray-400'}`}>
                   {i < sectionIdx ? '✓' : i + 1}
                 </span>
-                <span className={`text-xs font-medium whitespace-nowrap hidden sm:block
-                  ${i === sectionIdx ? 'text-primary font-semibold' : i < sectionIdx ? 'text-gray-600' : 'text-gray-400'}`}>
-                  {sec.title || 'General'}
-                </span>
-                {i < sections.length - 1 && <span className={`h-px w-8 flex-shrink-0 ${i < sectionIdx ? 'bg-primary' : 'bg-gray-200'}`} />}
+                {(sections.length <= 6 || i === sectionIdx) && (
+                  <span className={`text-xs font-medium whitespace-nowrap hidden sm:block
+                    ${i === sectionIdx ? 'text-primary font-semibold' : i < sectionIdx ? 'text-gray-600' : 'text-gray-400'}`}>
+                    {sec.title || 'General'}
+                  </span>
+                )}
+                {i < sections.length - 1 && <span className={`h-px flex-shrink-0 ${sections.length > 6 ? 'w-4' : 'w-8'} ${i < sectionIdx ? 'bg-primary' : 'bg-gray-200'}`} />}
               </span>
             ))}
           </div>
