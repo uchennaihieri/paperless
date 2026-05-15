@@ -409,7 +409,7 @@ function DetailPanel({
               </h3>
               <div className="space-y-2">
                 {item.documents.filter((d) => d.fieldName === "SignedContract").map((doc) => {
-                  const fileUrl = `${BASE_URL}/api/v1/file?docId=${doc.id}`;
+                  const fileUrl = `/api/v1/file?docId=${doc.id}`;
                   const fileName = doc.originalName || "Signed_Contract.pdf";
                   return (
                     <div key={doc.id} className="border border-gray-200 rounded-xl bg-gray-50 p-4 flex items-center justify-between gap-3 shadow-sm">

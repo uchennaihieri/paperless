@@ -389,7 +389,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                   {/* Signed Contract Document */}
                   {selected.documents && selected.documents.map((doc: any) => {
                     if (doc.fieldName === "SignedContract") {
-                      const fileUrl = `${BASE_URL}/api/v1/file?docId=${doc.id}`;
+                      const fileUrl = `/api/v1/file?docId=${doc.id}`;
                       const fileName = doc.originalName || "Signed_Contract.pdf";
                       const openDoc = async () => {
                         const newWindow = window.open("", "_blank");
