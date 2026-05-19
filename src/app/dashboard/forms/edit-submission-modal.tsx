@@ -226,8 +226,8 @@ export default function EditSubmissionModal({
       email: s.email,
     }))
   );
-  const [internalFormsData, setInternalFormsData] = useState<Record<string, any>>({});
-  const [activeInternalFormTarget, setActiveInternalFormTarget] = useState<{ fieldId: string, templateId: string } | null>(null);
+  const [internalFormsData, setInternalFormsData] = useState<Record<string, any[]>>({});
+  const [activeInternalFormTarget, setActiveInternalFormTarget] = useState<{ fieldId: string, templateId: string, index?: number } | null>(null);
   const [signingType, setSigningType] = useState<SigningType>(
     (submission.signingType as SigningType) ?? "sequential"
   );
@@ -437,18 +437,56 @@ export default function EditSubmissionModal({
                       ) : field.type === "file" ? (
                         <div className="space-y-3">
                           {(field as any).linkedInternalFormId && (
-                            <div className="flex items-center gap-3 bg-orange-50 border border-orange-100 p-4 rounded-lg">
-                              <div className="flex-1">
-                                <h4 className="text-sm font-semibold text-orange-900">Custom Form Attachment</h4>
-                                <p className="text-xs text-orange-700">You can fill out the required internal form. Note: Any previously generated PDF will be replaced.</p>
+                            <div className="flex flex-col space-y-4 bg-orange-50 border border-orange-100 p-4 rounded-lg w-full">
+                              <div>
+                                <h4 className="text-sm font-semibold text-orange-900">Custom Form Attachments</h4>
+                                <p className="text-xs text-orange-700 mt-1">You can fill out the required internal form. Note: Any previously generated PDF will be replaced.</p>
                               </div>
-                              <Button 
-                                type="button" 
-                                variant={internalFormsData[field.id] ? "default" : "outline"}
-                                className={`shrink-0 ${internalFormsData[field.id] ? "bg-orange-600 hover:bg-orange-700 text-white border-none" : "border-orange-300 text-orange-700 hover:bg-orange-100"}`}
+                              <div className="w-full space-y-3 mt-4">
+                                {(internalFormsData[field.id] || []).map((filledForm: any, fIdx: number) => (
+                                  <div key={fIdx} className="flex items-center justify-between p-3 bg-white border border-orange-200 rounded-lg shadow-sm">
+                                    <div className="flex items-center gap-3">
+                                      <div className="bg-orange-100 p-2 rounded-full text-orange-600 font-bold text-xs">
+                                        #{fIdx + 1}
+                                      </div>
+                                      <div className="text-left">
+                                        <p className="text-sm font-semibold text-gray-800">{filledForm.templateName || "Internal Form"}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
+                                        onClick={() => setActiveInternalFormTarget({ fieldId: field.id, templateId: (field as any).linkedInternalFormId, index: fIdx })}
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2"
+                                        onClick={() => setInternalFormsData(prev => {
+                                          const arr = prev[field.id] ? [...prev[field.id]] : [];
+                                          arr.splice(fIdx, 1);
+                                          return { ...prev, [field.id]: arr };
+                                        })}
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="w-fit border-orange-300 text-orange-700 hover:bg-orange-100"
                                 onClick={() => setActiveInternalFormTarget({ fieldId: field.id, templateId: (field as any).linkedInternalFormId })}
                               >
-                                {internalFormsData[field.id] ? "Edit Filled Form" : "Re-fill Custom Form"}
+                                {(internalFormsData[field.id] || []).length > 0 ? "Add Another Custom Form" : "Fill Custom Form"}
                               </Button>
                             </div>
                           )}
@@ -615,20 +653,37 @@ export default function EditSubmissionModal({
       {activeInternalFormTarget && (
         <InternalFormModal
           templateId={activeInternalFormTarget.templateId}
-          initialData={internalFormsData[activeInternalFormTarget.fieldId]?.data}
+          initialData={
+            activeInternalFormTarget.index !== undefined 
+              ? internalFormsData[activeInternalFormTarget.fieldId]?.[activeInternalFormTarget.index]?.data 
+              : undefined
+          }
           parentFormData={formData}
           parentTemplate={template}
           onClose={() => setActiveInternalFormTarget(null)}
-          onSave={(data, tmpl) => {
-            setInternalFormsData(prev => ({
-              ...prev,
-              [activeInternalFormTarget.fieldId]: {
+          onSave={(data, tmpl, rawData) => {
+            setInternalFormsData(prev => {
+              const existingArray = prev[activeInternalFormTarget.fieldId] || [];
+              const newItem = {
                 type: "internal_form",
                 templateId: tmpl.id,
                 templateName: tmpl.name,
-                data
+                data,
+                rawData
+              };
+              
+              const newArray = [...existingArray];
+              if (activeInternalFormTarget.index !== undefined) {
+                newArray[activeInternalFormTarget.index] = newItem;
+              } else {
+                newArray.push(newItem);
               }
-            }));
+              
+              return {
+                ...prev,
+                [activeInternalFormTarget.fieldId]: newArray
+              };
+            });
             setActiveInternalFormTarget(null);
           }}
         />
@@ -649,7 +704,7 @@ function InternalFormModal({
 }: { 
   templateId: string; 
   onClose: () => void; 
-  onSave: (data: Record<string, any>, template: any) => void;
+  onSave: (data: Record<string, any>, template: any, rawData: Record<string, any>) => void;
   initialData?: Record<string, any>;
   parentFormData?: Record<string, any>;
   parentTemplate?: any;
@@ -766,7 +821,19 @@ function InternalFormModal({
             </div>
             <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-gray-100">
                <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-               <Button type="submit">Save Form Attachment</Button>
+               <Button type="submit" onClick={(e) => {
+                 e.preventDefault();
+                 const fields: any[] = typeof template.fields === "string" ? JSON.parse(template.fields) : template.fields ?? [];
+                 const labeledData: Record<string, any> = {};
+                 fields.forEach(f => {
+                   if (f.type !== "section_header" && f.type !== "instructions") {
+                     labeledData[f.label] = formData[f.id] ?? "";
+                   }
+                 });
+                 onSave(labeledData, template, formData);
+               }}>
+                 Save Form Attachment
+               </Button>
             </div>
           </form>
         </div>

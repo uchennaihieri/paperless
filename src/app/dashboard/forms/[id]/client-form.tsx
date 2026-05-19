@@ -299,10 +299,11 @@ function FormFieldsStep({
 }: {
   template: any;
   formData: Record<string, any>;
-  internalFormsData: Record<string, any>;
+  internalFormsData: Record<string, any[]>;
   onChange: (id: string, value: any) => void;
   onNext: () => void;
-  onFillInternalForm: (fieldId: string, linkedFormId: string) => void;
+  onFillInternalForm: (fieldId: string, linkedFormId: string, index?: number) => void;
+  onRemoveInternalForm: (fieldId: string, index: number) => void;
   token?: string;
   currentUser?: { userName: string; email: string };
 }) {
@@ -699,21 +700,55 @@ function FormFieldsStep({
                         </div>
                         <div className="p-5">
                           {(attachmentMode[field.id] || 'custom') === 'custom' ? (
-                            <div className="flex flex-col items-center justify-center text-center space-y-3 py-4">
+                            <div className="flex flex-col items-center justify-center text-center space-y-4 py-4 w-full">
                               <Layers className="w-10 h-10 text-orange-200" />
                               <div>
-                                <h4 className="text-sm font-semibold text-gray-900">Custom Form Attachment</h4>
+                                <h4 className="text-sm font-semibold text-gray-900">Custom Form Attachments</h4>
                                 <p className="text-xs text-gray-500 max-w-sm mt-1">Fill out the designated internal form to proceed with this requirement.</p>
+                              </div>
+                              <div className="w-full max-w-md space-y-3 mt-4">
+                                {(internalFormsData[field.id] || []).map((filledForm: any, idx: number) => (
+                                  <div key={idx} className="flex items-center justify-between p-3 bg-white border border-orange-200 rounded-lg shadow-sm">
+                                    <div className="flex items-center gap-3">
+                                      <div className="bg-orange-100 p-2 rounded-full text-orange-600 font-bold text-xs">
+                                        #{idx + 1}
+                                      </div>
+                                      <div className="text-left">
+                                        <p className="text-sm font-semibold text-gray-800">{filledForm.templateName || "Internal Form"}</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-8 text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
+                                        onClick={() => onFillInternalForm(field.id, (field as any).linkedInternalFormId, idx)}
+                                      >
+                                        Edit
+                                      </Button>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2"
+                                        onClick={() => onRemoveInternalForm(field.id, idx)}
+                                      >
+                                        <X className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                               <Button
                                 type="button"
-                                variant={internalFormsData[field.id] ? "default" : "outline"}
-                                className={`mt-2 ${internalFormsData[field.id] ? "bg-orange-600 hover:bg-orange-700 text-white border-none" : "border-orange-300 text-orange-700 hover:bg-orange-100"}`}
+                                variant="outline"
+                                className="mt-2 border-orange-300 text-orange-700 hover:bg-orange-100"
                                 onClick={() => onFillInternalForm(field.id, (field as any).linkedInternalFormId)}
                               >
-                                {internalFormsData[field.id] ? "Edit Filled Form" : "Fill Custom Form"}
+                                {(internalFormsData[field.id] || []).length > 0 ? "Add Another Custom Form" : "Fill Custom Form"}
                               </Button>
-                              {field.required && !internalFormsData[field.id] && (
+                              {field.required && (!internalFormsData[field.id] || internalFormsData[field.id].length === 0) && (
                                 <input type="text" className="opacity-0 absolute w-0 h-0 -z-10" required />
                               )}
                             </div>
@@ -1238,8 +1273,8 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState<Record<string, any>>(initialFormData || {});
-  const [internalFormsData, setInternalFormsData] = useState<Record<string, any>>({});
-  const [activeInternalFormTarget, setActiveInternalFormTarget] = useState<{ fieldId: string, templateId: string } | null>(null);
+  const [internalFormsData, setInternalFormsData] = useState<Record<string, any[]>>({});
+  const [activeInternalFormTarget, setActiveInternalFormTarget] = useState<{ fieldId: string, templateId: string, index?: number } | null>(null);
   const [signatories, setSignatories] = useState<SignatoryInput[]>([{
     position: 1,
     userName: currentUser.userName,
@@ -1359,7 +1394,12 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
             internalFormsData={internalFormsData}
             onChange={handleFieldChange}
             onNext={() => setStep(2)}
-            onFillInternalForm={(fieldId, templateId) => setActiveInternalFormTarget({ fieldId, templateId })}
+            onFillInternalForm={(fieldId, templateId, index) => setActiveInternalFormTarget({ fieldId, templateId, index })}
+            onRemoveInternalForm={(fieldId, index) => setInternalFormsData(prev => {
+              const arr = prev[fieldId] ? [...prev[fieldId]] : [];
+              arr.splice(index, 1);
+              return { ...prev, [fieldId]: arr };
+            })}
             token={currentUser.token}
             currentUser={currentUser}
           />
@@ -1439,20 +1479,37 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
       {activeInternalFormTarget && (
         <InternalFormModal
           templateId={activeInternalFormTarget.templateId}
-          initialData={internalFormsData[activeInternalFormTarget.fieldId]?.data}
+          initialData={
+            activeInternalFormTarget.index !== undefined 
+              ? internalFormsData[activeInternalFormTarget.fieldId]?.[activeInternalFormTarget.index]?.data 
+              : undefined
+          }
           parentFormData={formData}
           parentTemplate={template}
           onClose={() => setActiveInternalFormTarget(null)}
-          onSave={(data, tmpl) => {
-            setInternalFormsData(prev => ({
-              ...prev,
-              [activeInternalFormTarget.fieldId]: {
+          onSave={(data, tmpl, rawData) => {
+            setInternalFormsData(prev => {
+              const existingArray = prev[activeInternalFormTarget.fieldId] || [];
+              const newItem = {
                 type: "internal_form",
                 templateId: tmpl.id,
                 templateName: tmpl.name,
-                data
+                data,
+                rawData
+              };
+              
+              const newArray = [...existingArray];
+              if (activeInternalFormTarget.index !== undefined) {
+                newArray[activeInternalFormTarget.index] = newItem;
+              } else {
+                newArray.push(newItem);
               }
-            }));
+              
+              return {
+                ...prev,
+                [activeInternalFormTarget.fieldId]: newArray
+              };
+            });
             setActiveInternalFormTarget(null);
           }}
         />
@@ -1471,7 +1528,7 @@ function InternalFormModal({
 }: {
   templateId: string;
   onClose: () => void;
-  onSave: (data: Record<string, any>, template: any) => void;
+  onSave: (data: Record<string, any>, template: any, rawData: Record<string, any>) => void;
   initialData?: Record<string, any>;
   parentFormData?: Record<string, any>;
   parentTemplate?: any;
@@ -1589,7 +1646,19 @@ function InternalFormModal({
             </div>
             <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-gray-100">
               <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-              <Button type="submit">Save Form Attachment</Button>
+              <Button type="submit" onClick={(e) => {
+                e.preventDefault();
+                const fields: any[] = typeof template.fields === "string" ? JSON.parse(template.fields) : template.fields ?? [];
+                const labeledData: Record<string, any> = {};
+                fields.forEach(f => {
+                  if (f.type !== "section_header" && f.type !== "instructions") {
+                    labeledData[f.label] = formData[f.id] ?? "";
+                  }
+                });
+                onSave(labeledData, template, formData);
+              }}>
+                Save Form Attachment
+              </Button>
             </div>
           </form>
         </div>

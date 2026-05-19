@@ -97,6 +97,8 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
   const [isManagingForms, setIsManagingForms] = useState(false);
   const [isLoadingForms, setIsLoadingForms] = useState(false);
   const [assignedTemplates, setAssignedTemplates] = useState<Set<string>>(new Set());
+  const [initialAssignedTemplates, setInitialAssignedTemplates] = useState<Set<string>>(new Set());
+  const [applyToAll, setApplyToAll] = useState(false);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [isEditingUser, setIsEditingUser] = useState(false);
 
@@ -275,6 +277,8 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
       if (res.success) {
         const assignedIds = res.data.map((r: any) => r.templateId);
         setAssignedTemplates(new Set(assignedIds));
+        setInitialAssignedTemplates(new Set(assignedIds));
+        setApplyToAll(false);
       } else {
         showError(res.error || "Failed to load assigned forms");
       }
@@ -289,7 +293,20 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
     if (!activeUser?.email) return;
     try {
       setIsLoadingForms(true);
-      const res = await updateUserFormAccess(activeUser.email, Array.from(assignedTemplates));
+
+      const currentArr = Array.from(assignedTemplates);
+      const initialArr = Array.from(initialAssignedTemplates);
+      
+      const addedIds = currentArr.filter(id => !initialAssignedTemplates.has(id));
+      const removedIds = initialArr.filter(id => !assignedTemplates.has(id));
+
+      const res = await updateUserFormAccess(
+        activeUser.email, 
+        currentArr,
+        applyToAll,
+        addedIds,
+        removedIds
+      );
       if (res.success) {
         setIsManagingForms(false);
       } else {
@@ -310,6 +327,32 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
       return next;
     });
   };
+
+  const toggleGroupAccess = (groupIds: string[], selectAll: boolean) => {
+    setAssignedTemplates(prev => {
+      const next = new Set(prev);
+      if (selectAll) {
+        groupIds.forEach(id => next.add(id));
+      } else {
+        groupIds.forEach(id => next.delete(id));
+      }
+      return next;
+    });
+  };
+
+  const groupedTemplates = useMemo(() => {
+    const groups: Record<string, any[]> = {};
+    templates.forEach(tpl => {
+      if (tpl.isInternal) return; // Skip internal forms
+      const owner = tpl.formOwner || "Uncategorized";
+      if (!groups[owner]) groups[owner] = [];
+      groups[owner].push(tpl);
+    });
+    return Object.keys(groups).sort().map(owner => ({
+      owner,
+      items: groups[owner]
+    }));
+  }, [templates]);
 
   return (
     <div className="space-y-6">
@@ -696,33 +739,61 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
                   No forms available in the system.
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {templates.map((tpl: any) => {
-                    const isSelected = assignedTemplates.has(tpl.id);
+                <div className="space-y-6">
+                  {groupedTemplates.map(group => {
+                    const groupIds = group.items.map((t: any) => t.id);
+                    const allSelected = groupIds.length > 0 && groupIds.every(id => assignedTemplates.has(id));
+                    const someSelected = groupIds.some(id => assignedTemplates.has(id));
+                    
                     return (
-                      <div
-                        key={tpl.id}
-                        onClick={() => toggleFormAccess(tpl.id)}
-                        className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
-                          isSelected 
-                            ? "bg-white border-primary/40 shadow-sm ring-1 ring-primary/10" 
-                            : "bg-white border-gray-200 hover:border-gray-300"
-                        }`}
-                      >
-                        <div className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center shrink-0 border ${
-                          isSelected 
-                            ? "bg-primary border-primary text-white" 
-                            : "bg-white border-gray-300 text-transparent"
-                        }`}>
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                        </div>
-                        <div>
-                          <h4 className={`text-sm font-semibold mb-0.5 ${isSelected ? "text-gray-900" : "text-gray-700"}`}>
-                            {tpl.name}
+                      <div key={group.owner} className="space-y-3">
+                        <div className="flex items-center justify-between pb-2 border-b border-gray-200">
+                          <h4 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+                            {group.owner}
+                            <span className="text-xs font-normal text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">{group.items.length}</span>
                           </h4>
-                          <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
-                            {tpl.description || "No description"}
-                          </p>
+                          <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-600 hover:text-gray-900 transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={allSelected}
+                              ref={el => { if (el) el.indeterminate = !allSelected && someSelected; }}
+                              onChange={(e) => toggleGroupAccess(groupIds, e.target.checked)}
+                              className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                            />
+                            Select All
+                          </label>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {group.items.map((tpl: any) => {
+                            const isSelected = assignedTemplates.has(tpl.id);
+                            return (
+                              <div
+                                key={tpl.id}
+                                onClick={() => toggleFormAccess(tpl.id)}
+                                className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
+                                  isSelected 
+                                    ? "bg-white border-primary/40 shadow-sm ring-1 ring-primary/10" 
+                                    : "bg-white border-gray-200 hover:border-gray-300"
+                                }`}
+                              >
+                                <div className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center shrink-0 border ${
+                                  isSelected 
+                                    ? "bg-primary border-primary text-white" 
+                                    : "bg-white border-gray-300 text-transparent"
+                                }`}>
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                </div>
+                                <div>
+                                  <h4 className={`text-sm font-semibold mb-0.5 ${isSelected ? "text-gray-900" : "text-gray-700"}`}>
+                                    {tpl.name}
+                                  </h4>
+                                  <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
+                                    {tpl.description || "No description"}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );
@@ -732,9 +803,20 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
             </div>
 
             <div className="p-4 sm:p-6 border-t border-gray-100 bg-white shrink-0 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <span className="text-sm text-gray-500 font-medium text-center sm:text-left">
-                {assignedTemplates.size} form{assignedTemplates.size === 1 ? "" : "s"} selected
-              </span>
+              <div className="flex flex-col gap-1 text-center sm:text-left">
+                <span className="text-sm text-gray-500 font-medium">
+                  {assignedTemplates.size} form{assignedTemplates.size === 1 ? "" : "s"} selected
+                </span>
+                <label className="flex items-center gap-2 cursor-pointer text-xs text-amber-700 font-medium justify-center sm:justify-start hover:text-amber-900">
+                  <input
+                    type="checkbox"
+                    checked={applyToAll}
+                    onChange={(e) => setApplyToAll(e.target.checked)}
+                    className="rounded border-amber-300 text-amber-600 focus:ring-amber-500 w-4 h-4 cursor-pointer"
+                  />
+                  Apply added/removed forms to ALL users
+                </label>
+              </div>
               <div className="flex gap-3 w-full sm:w-auto">
                 <button
                   onClick={() => setIsManagingForms(false)}

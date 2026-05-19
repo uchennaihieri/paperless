@@ -73,10 +73,16 @@ export async function getUserFormAccess(email: string) {
   return result;
 }
 
-export async function updateUserFormAccess(email: string, templateIds: string[]) {
+export async function updateUserFormAccess(
+  email: string, 
+  templateIds: string[],
+  applyToAll: boolean = false,
+  addedTemplateIds: string[] = [],
+  removedTemplateIds: string[] = []
+) {
   const result = await apiClient(`/forms-access/user/${encodeURIComponent(email)}`, {
     method: "POST",
-    body: JSON.stringify({ templateIds })
+    body: JSON.stringify({ templateIds, applyToAll, addedTemplateIds, removedTemplateIds })
   });
   revalidatePath("/dashboard/teams");
   return result;
