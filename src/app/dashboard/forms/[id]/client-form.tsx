@@ -294,6 +294,7 @@ function FormFieldsStep({
   onChange,
   onNext,
   onFillInternalForm,
+  onRemoveInternalForm,
   token,
   currentUser,
 }: {
