@@ -1583,6 +1583,17 @@ function InternalFormModal({
 
   const fields: any[] = typeof template.fields === "string" ? JSON.parse(template.fields) : template.fields ?? [];
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const labeledData: Record<string, any> = {};
+    fields.forEach(f => {
+      if (f.type !== "section_header" && f.type !== "instructions") {
+        labeledData[f.label] = formData[f.id] ?? "";
+      }
+    });
+    onSave(labeledData, template, formData);
+  };
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
@@ -1591,7 +1602,7 @@ function InternalFormModal({
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
         </div>
         <div className="overflow-y-auto flex-1 p-6 space-y-6">
-          <form onSubmit={(e) => { e.preventDefault(); onSave(formData, template); }}>
+          <form onSubmit={handleSubmit}>
             <div className="space-y-6">
               {fields.filter(f => f.type !== "section_header" && f.type !== "instructions").map((field, idx) => {
                 const isParentRef = field.description ? /View parent "([^"]+)"/i.test(field.description) : false;
@@ -1647,17 +1658,7 @@ function InternalFormModal({
             </div>
             <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-gray-100">
               <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
-              <Button type="submit" onClick={(e) => {
-                e.preventDefault();
-                const fields: any[] = typeof template.fields === "string" ? JSON.parse(template.fields) : template.fields ?? [];
-                const labeledData: Record<string, any> = {};
-                fields.forEach(f => {
-                  if (f.type !== "section_header" && f.type !== "instructions") {
-                    labeledData[f.label] = formData[f.id] ?? "";
-                  }
-                });
-                onSave(labeledData, template, formData);
-              }}>
+              <Button type="submit">
                 Save Form Attachment
               </Button>
             </div>
