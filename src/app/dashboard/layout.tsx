@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import {
   Building2, FileText, CheckSquare, PenTool, LayoutDashboard,
-  LogOut, Users, BarChart2, Menu, X, History, Settings, ShieldCheck, Zap, BookOpen
+  LogOut, Users, BarChart2, Menu, X, History, Settings, ShieldCheck, Zap, BookOpen,
+  FolderOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
@@ -14,6 +15,7 @@ import { SettingsModal } from "@/components/SettingsModal";
 import { AuditTrailModal } from "@/components/AuditTrailModal";
 import { JournalLedgerModal } from "@/components/JournalLedgerModal";
 import { SessionGuard } from "@/components/SessionGuard";
+import { FilingsModal } from "@/components/FilingsModal";
 
 const navigation = [
   { name: "Workflow", href: "/dashboard/workflow", icon: LayoutDashboard },
@@ -45,6 +47,7 @@ export default function DashboardLayout({
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen]       = useState(false);
+  const [isFilingsOpen, setIsFilingsOpen]       = useState(false);
   const [isSettingsOpen, setIsSettingsOpen]     = useState(false);
   const [isAuditOpen, setIsAuditOpen]           = useState(false);
   const [isJournalLedgerOpen, setIsJournalLedgerOpen] = useState(false);
@@ -170,6 +173,12 @@ export default function DashboardLayout({
                   >
                     <History className="w-4 h-4 text-gray-400" /> History
                   </button>
+                  <button
+                    onClick={() => { setIsFilingsOpen(true); setIsAvatarMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <FolderOpen className="w-4 h-4 text-gray-400" /> Filings
+                  </button>
                   {activeRole?.specialAccess?.toLowerCase().includes("control") && (
                     <button
                       onClick={() => { setIsAuditOpen(true); setIsAvatarMenuOpen(false); }}
@@ -215,6 +224,7 @@ export default function DashboardLayout({
     {/* Global Modals */}
     <SessionGuard />
     <HistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} />
+    <FilingsModal isOpen={isFilingsOpen} onClose={() => setIsFilingsOpen(false)} />
     <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     <AuditTrailModal isOpen={isAuditOpen} onClose={() => setIsAuditOpen(false)} />
     <JournalLedgerModal isOpen={isJournalLedgerOpen} onClose={() => setIsJournalLedgerOpen(false)} />
