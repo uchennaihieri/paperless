@@ -343,7 +343,7 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
   const groupedTemplates = useMemo(() => {
     const groups: Record<string, any[]> = {};
     templates.forEach(tpl => {
-      if (tpl.isInternal) return; // Skip internal forms
+      // Include all forms (internal and non-internal) so admins can assign them
       const owner = tpl.formOwner || "Uncategorized";
       if (!groups[owner]) groups[owner] = [];
       groups[owner].push(tpl);
@@ -783,10 +783,17 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
                                 }`}>
                                   <CheckCircle2 className="w-3.5 h-3.5" />
                                 </div>
-                                <div>
-                                  <h4 className={`text-sm font-semibold mb-0.5 ${isSelected ? "text-gray-900" : "text-gray-700"}`}>
-                                    {tpl.name}
-                                  </h4>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                                    <h4 className={`text-sm font-semibold ${isSelected ? "text-gray-900" : "text-gray-700"}`}>
+                                      {tpl.name}
+                                    </h4>
+                                    {tpl.isInternal && (
+                                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200 shrink-0">
+                                        Internal
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
                                     {tpl.description || "No description"}
                                   </p>
