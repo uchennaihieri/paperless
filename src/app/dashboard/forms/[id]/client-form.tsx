@@ -1371,14 +1371,20 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
       }
     }
 
-    const res = await submitForm(formDataPayload);
-    setSubmitting(false);
-    setShowTokenModal(false);
+    try {
+      const res = await submitForm(formDataPayload);
+      setSubmitting(false);
+      setShowTokenModal(false);
 
-    if (res.success) {
-      router.push("/dashboard/forms");
-    } else {
-      setError(res.error ?? "Something went wrong.");
+      if (res?.success) {
+        router.push("/dashboard/forms");
+      } else {
+        setError(res?.error ?? "Something went wrong. Please try again.");
+      }
+    } catch (e: any) {
+      setSubmitting(false);
+      setShowTokenModal(false);
+      setError(e?.message ?? "Submission failed. Please check your token and try again.");
     }
   };
 
