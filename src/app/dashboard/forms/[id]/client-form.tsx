@@ -545,11 +545,25 @@ function FormFieldsStep({
   }, [fields, token, BASE_URL]);
 
   const handleSectionNext = () => {
-    const missing = (section?.fields ?? []).filter((f: any) =>
-      f.type !== 'instructions' && f.required &&
-      (formData[f.id] === undefined || formData[f.id] === null || formData[f.id] === '' ||
-        (Array.isArray(formData[f.id]) && formData[f.id].length === 0))
-    );
+    const missing = (section?.fields ?? []).filter((f: any) => {
+      if (f.type === 'instructions') return false;
+      if (!f.required) return false;
+
+      // For file fields linked to an internal form, either an uploaded file OR
+      // a filled internal form satisfies the requirement.
+      if (f.type === 'file' && f.linkedInternalFormId) {
+        const hasFile = formData[f.id] && formData[f.id].length > 0;
+        const hasInternalForm = internalFormsData[f.id] && internalFormsData[f.id].length > 0;
+        return !hasFile && !hasInternalForm;
+      }
+
+      return (
+        formData[f.id] === undefined ||
+        formData[f.id] === null ||
+        formData[f.id] === '' ||
+        (Array.isArray(formData[f.id]) && formData[f.id].length === 0)
+      );
+    });
     if (missing.length > 0) {
       setSectionError(`Please fill in: ${missing.map((f: any) => f.label).join(', ')}`);
       return;
