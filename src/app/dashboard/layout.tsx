@@ -6,7 +6,7 @@ import { useSession, signOut } from "next-auth/react";
 import {
   Building2, FileText, CheckSquare, PenTool, LayoutDashboard,
   LogOut, Users, BarChart2, Menu, X, History, Settings, ShieldCheck, Zap, BookOpen,
-  FolderOpen
+  FolderOpen, Smartphone
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
@@ -26,6 +26,7 @@ const navigation = [
   { name: "Reports", href: "/dashboard/reports", icon: BarChart2 },
   { name: "Teams", href: "/dashboard/teams", icon: Users },
   { name: "Templates", href: "/dashboard/templates", icon: FileText },
+  { name: "App Download", href: "/dashboard/app-download", icon: Smartphone },
 ];
 
 
@@ -52,6 +53,8 @@ export default function DashboardLayout({
   const [isAuditOpen, setIsAuditOpen]           = useState(false);
   const [isJournalLedgerOpen, setIsJournalLedgerOpen] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement>(null);
+  const [latestAppVersion, setLatestAppVersion] = useState<string | null>(null);
+  const [seenAppVersion, setSeenAppVersion] = useState<string | null>(null);
 
   // Close avatar menu when clicking outside
   useEffect(() => {
@@ -63,6 +66,18 @@ export default function DashboardLayout({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  // Fetch latest app version for the badge
+  useEffect(() => {
+    const stored = typeof window !== "undefined" ? localStorage.getItem("seenAppVersion") : null;
+    setSeenAppVersion(stored);
+    fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/v1/app-version`, {
+      headers: { Authorization: `Bearer ${(session as any)?.accessToken ?? ""}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.data?.version) setLatestAppVersion(d.data.version); })
+      .catch(() => {});
+  }, [session]);
 
   return (
     <>
@@ -105,6 +120,8 @@ export default function DashboardLayout({
           </div>
           {navigation
             .filter((item) => {
+              // App Download is rendered as its own button below — not a standard nav link
+              if (item.name === "App Download") return false;
               if (item.name === "Teams" || item.name === "Templates") {
                 return activeRole?.user_role?.toLowerCase() === "administrator" || activeRole?.specialAccess?.toLowerCase().includes("administrator");
               }
@@ -128,6 +145,35 @@ export default function DashboardLayout({
                 </Link>
               );
             })}
+
+          {/* Download App Button — shown to all users */}
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <Link
+              href="/dashboard/app-download"
+              id="download-app-nav-btn"
+              onClick={() => {
+                if (latestAppVersion) {
+                  localStorage.setItem("seenAppVersion", latestAppVersion);
+                  setSeenAppVersion(latestAppVersion);
+                }
+                setIsMobileMenuOpen(false);
+              }}
+              className={cn(
+                "relative flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-semibold transition-all w-full",
+                pathname === "/dashboard/app-download"
+                  ? "bg-primary text-white shadow-md shadow-primary/30"
+                  : "bg-primary/5 text-primary hover:bg-primary hover:text-white hover:shadow-md hover:shadow-primary/30 border border-primary/20 hover:border-primary"
+              )}
+            >
+              <Smartphone className="h-5 w-5 shrink-0" />
+              <span>Download App</span>
+              {latestAppVersion && latestAppVersion !== seenAppVersion && (
+                <span className="absolute -top-1.5 -right-1.5 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-900 text-[10px] font-bold leading-none shadow-sm animate-pulse">
+                  New!
+                </span>
+              )}
+            </Link>
+          </div>
         </div>
       </div>
 
