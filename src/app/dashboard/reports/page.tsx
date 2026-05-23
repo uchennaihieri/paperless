@@ -12,9 +12,11 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   getMyReports, getAllReports, getReport, createReport, updateReport,
-  deleteReport, spoolReport, getBranches,
+  deleteReport, spoolReport, getBranches, getExcelEnabledForms,
   type MyReport, type AdminReport, type Branch,
 } from "@/app/actions/reports";
+
+const SUBMISSION_STATUSES = ["Submitted", "In-review", "Processing", "Awaiting Final Approval", "Completed", "Rejected"];
 
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -26,7 +28,7 @@ function formatColHeader(col: string) {
 function downloadCsv(data: Record<string, any>[], filename: string) {
   if (!data.length) return;
   const cols = Object.keys(data[0]);
-  const rows = [cols.join(","), ...data.map((r) => cols.map((c) => `"${r[c] ?? ""}"`).join(","))];
+  const rows = [cols.join(","), ...data.map((r) => cols.map((c) => `"${String(r[c] ?? "").replace(/"/g, '""')}"`).join(","))];
   const blob = new Blob([rows.join("\n")], { type: "text/csv" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -34,6 +36,17 @@ function downloadCsv(data: Record<string, any>[], filename: string) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function downloadXlsx(data: Record<string, any>[], filename: string) {
+  if (!data.length) return;
+  // Dynamically import xlsx (already in dependencies)
+  import("xlsx").then((XLSX) => {
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Report");
+    XLSX.writeFile(wb, filename);
+  });
 }
 
 // ── Spool Results Table ───────────────────────────────────────────────────────
@@ -162,9 +175,16 @@ function SpoolModal({
             {isPending ? "Running…" : "Run Report"}
           </Button>
           {results && results.length > 0 && (
-            <Button variant="outline" className="h-9" onClick={() => downloadCsv(results, `${report.name}.csv`)}>
-              <Download className="w-4 h-4 mr-2" /> Download CSV
-            </Button>
+            <>
+              <Button variant="outline" className="h-9" onClick={() => downloadCsv(results, `${report.name}.csv`)}>
+                <Download className="w-4 h-4 mr-2" /> Download CSV
+              </Button>
+              {(report as any).reportType === "form" && (
+                <Button variant="outline" className="h-9 border-emerald-300 text-emerald-700 hover:bg-emerald-50" onClick={() => downloadXlsx(results, `${report.name}.xlsx`)}>
+                  <FileSpreadsheet className="w-4 h-4 mr-2" /> Download Excel
+                </Button>
+              )}
+            </>
           )}
         </div>
 
@@ -201,22 +221,53 @@ function ReportFormModal({
 }) {
   const [name, setName] = useState(existing?.name ?? "");
   const [description, setDescription] = useState(existing?.description ?? "");
+  const [reportType, setReportType] = useState<"manual" | "form">(existing?.reportType === "form" ? "form" : "manual");
   const [script, setScript] = useState(existing?.script ?? "");
+  const [formTemplateId, setFormTemplateId] = useState(existing?.formTemplateId ?? "");
+  const [formStatuses, setFormStatuses] = useState<string[]>(
+    Array.isArray(existing?.formStatuses) ? (existing!.formStatuses as string[]) : ["Completed"]
+  );
+  const [excelForms, setExcelForms] = useState<{ id: string; name: string }[]>([]);
   const [emails, setEmails] = useState<string>(existing?.access.map((a) => a.userEmail).join("\n") ?? "");
   const [isPending, start] = useTransition();
   const [error, setError] = useState("");
 
+  useEffect(() => {
+    getExcelEnabledForms().then(setExcelForms);
+  }, []);
+
+  const toggleStatus = (status: string) => {
+    setFormStatuses(prev =>
+      prev.includes(status) ? prev.filter(s => s !== status) : [...prev, status]
+    );
+  };
+
   const handleSave = () => {
     setError("");
-    if (!name.trim() || !description.trim() || !script.trim()) {
-      setError("Name, description, and script are required.");
+    if (!name.trim() || !description.trim()) {
+      setError("Name and description are required.");
+      return;
+    }
+    if (reportType === "manual" && !script.trim()) {
+      setError("SQL script is required for manual reports.");
+      return;
+    }
+    if (reportType === "form" && !formTemplateId) {
+      setError("Please select a form template.");
+      return;
+    }
+    if (reportType === "form" && formStatuses.length === 0) {
+      setError("Please select at least one submission status to include.");
       return;
     }
     const granted_emails = emails.split(/[\n,]+/).map((e) => e.trim()).filter(Boolean);
     start(async () => {
+      const payload = reportType === "form"
+        ? { name, description, reportType, formTemplateId, formStatuses, granted_emails }
+        : { name, description, reportType, script, granted_emails };
       const res = existing
-        ? await updateReport(existing.id, { name, description, script, granted_emails })
-        : await createReport({ name, description, script, granted_emails });
+        ? await updateReport(existing.id, payload)
+        : await createReport(payload as any);
       if (res.success) {
         onSaved();
       } else {
@@ -235,24 +286,96 @@ function ReportFormModal({
         <div className="flex-1 overflow-auto p-6 space-y-5">
           <div className="space-y-1.5">
             <Label htmlFor="report-name">Name</Label>
-            <Input id="report-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Monthly Sales Report" />
+            <Input id="report-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Monthly Deposit Accounts" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="report-description">Description</Label>
             <Input id="report-description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What does this report show?" />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="report-script">SQL Script</Label>
-            <p className="text-xs text-gray-400">Use <code className="bg-gray-100 px-1 rounded">:from_date</code>, <code className="bg-gray-100 px-1 rounded">:to_date</code>, <code className="bg-gray-100 px-1 rounded">:branch</code> as placeholders.</p>
-            <textarea
-              id="report-script"
-              rows={10}
-              value={script}
-              onChange={(e) => setScript(e.target.value)}
-              className="w-full font-mono text-xs border border-gray-200 rounded-lg p-3 resize-y focus:outline-none focus:ring-2 focus:ring-primary/30"
-              placeholder={`SELECT branch, COUNT(*) AS total\nFROM deposit_accounts\nWHERE created_at BETWEEN :from_date AND :to_date\n  AND (:branch = 'ALL' OR branch = :branch)\nGROUP BY branch`}
-            />
+
+          {/* Source Toggle */}
+          <div className="space-y-2">
+            <Label>Report Source</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setReportType("manual")}
+                className={`py-2.5 px-4 rounded-lg border text-sm font-medium transition-colors ${
+                  reportType === "manual" ? "border-gray-900 bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-600 hover:border-gray-400"
+                }`}
+              >
+                🗄️ Manual SQL Script
+              </button>
+              <button
+                type="button"
+                onClick={() => setReportType("form")}
+                className={`py-2.5 px-4 rounded-lg border text-sm font-medium transition-colors ${
+                  reportType === "form" ? "border-emerald-600 bg-emerald-600 text-white" : "border-gray-200 bg-white text-gray-600 hover:border-gray-400"
+                }`}
+              >
+                📊 From Form Data
+              </button>
+            </div>
           </div>
+
+          {/* Manual: SQL Script */}
+          {reportType === "manual" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="report-script">SQL Script</Label>
+              <p className="text-xs text-gray-400">Use <code className="bg-gray-100 px-1 rounded">:from_date</code>, <code className="bg-gray-100 px-1 rounded">:to_date</code>, <code className="bg-gray-100 px-1 rounded">:branch</code> as placeholders.</p>
+              <textarea
+                id="report-script"
+                rows={10}
+                value={script}
+                onChange={(e) => setScript(e.target.value)}
+                className="w-full font-mono text-xs border border-gray-200 rounded-lg p-3 resize-y focus:outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder={`SELECT branch, COUNT(*) AS total\nFROM deposit_accounts\nWHERE created_at BETWEEN :from_date AND :to_date\n  AND (:branch = 'ALL' OR branch = :branch)\nGROUP BY branch`}
+              />
+            </div>
+          )}
+
+          {/* Form: select form + statuses */}
+          {reportType === "form" && (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="report-form-select">Form Template</Label>
+                <p className="text-xs text-gray-400">Only forms with "Generate Excel Data Dump" enabled are shown.</p>
+                {excelForms.length === 0 ? (
+                  <p className="text-xs text-amber-600">No Excel-enabled forms found. Enable "Generate Excel Data Dump" on a form first.</p>
+                ) : (
+                  <select
+                    id="report-form-select"
+                    value={formTemplateId}
+                    onChange={(e) => setFormTemplateId(e.target.value)}
+                    className="w-full h-10 pl-3 pr-8 border border-gray-200 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                  >
+                    <option value="">— Select form —</option>
+                    {excelForms.map(f => (
+                      <option key={f.id} value={f.id}>{f.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label>Include Submissions with Status</Label>
+                <p className="text-xs text-gray-400">Only submissions matching the selected statuses will be included in the spool.</p>
+                <div className="flex flex-wrap gap-2">
+                  {SUBMISSION_STATUSES.map(status => (
+                    <label key={status} className="flex items-center gap-1.5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formStatuses.includes(status)}
+                        onChange={() => toggleStatus(status)}
+                        className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                      />
+                      <span className="text-sm text-gray-700">{status}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
           <div className="space-y-1.5">
             <Label htmlFor="report-emails" className="flex items-center gap-1"><Users className="w-3.5 h-3.5" /> Granted Emails</Label>
             <p className="text-xs text-gray-400">One email per line (or comma-separated). Leave empty for admins-only access.</p>
@@ -409,6 +532,11 @@ export default function ReportsPage() {
                   </div>
                   <CardTitle className="text-base mt-3 leading-snug">{report.name}</CardTitle>
                   <CardDescription className="text-xs line-clamp-2">{report.description}</CardDescription>
+                  {(report as any).reportType === "form" && (
+                    <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <FileSpreadsheet className="w-3 h-3" /> Form Data
+                    </span>
+                  )}
                 </CardHeader>
                 <CardContent className="pt-0 mt-auto">
                   {isAdmin && adminReport.access?.length > 0 && (

@@ -8,6 +8,9 @@ export interface MyReport {
   id: string;
   name: string;
   description: string;
+  reportType?: string;
+  formTemplateId?: string | null;
+  formStatuses?: string[] | null;
 }
 
 export interface ReportAccessEntry {
@@ -16,7 +19,7 @@ export interface ReportAccessEntry {
 }
 
 export interface AdminReport extends MyReport {
-  script: string;
+  script?: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -48,11 +51,20 @@ export async function getReport(id: string): Promise<AdminReport | null> {
   return result.data || null;
 }
 
+// GET /api/v1/forms/excel-enabled — admin only
+export async function getExcelEnabledForms(): Promise<{ id: string; name: string }[]> {
+  const result = await apiClient("/forms/excel-enabled", { method: "GET" }).catch(() => ({ data: [] }));
+  return result.data || [];
+}
+
 // POST /api/v1/reports — admin only
 export async function createReport(body: {
   name: string;
   description: string;
-  script: string;
+  reportType: string;
+  script?: string;
+  formTemplateId?: string;
+  formStatuses?: string[];
   granted_emails: string[];
 }) {
   return apiClient("/reports", { method: "POST", body: JSON.stringify(body) });
@@ -61,7 +73,15 @@ export async function createReport(body: {
 // PUT /api/v1/reports/:id — admin only
 export async function updateReport(
   id: string,
-  body: { name?: string; description?: string; script?: string; granted_emails?: string[] }
+  body: {
+    name?: string;
+    description?: string;
+    reportType?: string;
+    script?: string;
+    formTemplateId?: string;
+    formStatuses?: string[];
+    granted_emails?: string[];
+  }
 ) {
   return apiClient(`/reports/${id}`, { method: "PUT", body: JSON.stringify(body) });
 }

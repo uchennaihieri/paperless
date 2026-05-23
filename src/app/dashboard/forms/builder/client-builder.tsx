@@ -153,6 +153,7 @@ export default function FormBuilderClient({
   const [accountServicesEnabled, setAccountServicesEnabled] = useState(initialTemplate?.accountServicesEnabled || false);
   const [formOwner, setFormOwner] = useState(initialTemplate?.formOwner || "");
   const [formTreater, setFormTreater] = useState(initialTemplate?.formTreater || "");
+  const [generatesExcel, setGeneratesExcel] = useState(initialTemplate?.generatesExcel || false);
   const [pdfTemplateId, setPdfTemplateId] = useState(initialTemplate?.pdfTemplateId || "");
   // Derive initial pdfType from the stored pdfGeneratorType field ("document" | "html" | "")
   const [pdfType, setPdfType] = useState<"document" | "html" | "">(
@@ -337,7 +338,8 @@ export default function FormBuilderClient({
         accountServicesEnabled,
         isInternal,
         needsContract,
-        contractTemplateId || undefined
+        contractTemplateId || undefined,
+        generatesExcel
       );
     } else {
       res = await createFormTemplate(
@@ -351,7 +353,8 @@ export default function FormBuilderClient({
         accountServicesEnabled,
         isInternal,
         needsContract,
-        contractTemplateId || undefined
+        contractTemplateId || undefined,
+        generatesExcel
       );
     }
     
@@ -535,7 +538,7 @@ export default function FormBuilderClient({
                   onChange={(e) => setFormTreater(e.target.value)}
                   className={SELECT_CLASS}
                 >
-                  <option value="">— Select branch —</option>
+                  <option value="">— None (No Treater Required) —</option>
                   {branches.map((b) => (
                     <option key={b} value={b}>{b}</option>
                   ))}
@@ -689,6 +692,20 @@ export default function FormBuilderClient({
                     )}
                   </div>
                 )}
+              </div>
+
+              {/* Excel Data Dump */}
+              <div className="md:col-span-2 space-y-4 bg-emerald-50 border border-emerald-100 rounded-lg p-5 mt-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label className="font-semibold text-emerald-900">Generate Excel Data Dump</Label>
+                    <p className="text-xs text-emerald-700 mt-0.5">When enabled, this form can be selected as a data source when creating a Report. Admins can then spool an Excel export of all submissions at any time.</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" className="sr-only peer" checked={generatesExcel} onChange={(e) => setGeneratesExcel(e.target.checked)} />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-emerald-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                  </label>
+                </div>
               </div>
             </div>
 
