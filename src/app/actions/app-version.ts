@@ -13,7 +13,7 @@ export interface AppVersion {
 
 export async function getLatestAppVersion(): Promise<AppVersion | null> {
   try {
-    const res = await apiClient("/app-version", { method: "GET", next: { revalidate: 60 } });
+    const res = await apiClient("/app-version", { method: "GET", next: { revalidate: 0 } });
     return res.data ?? null;
   } catch {
     return null;
@@ -22,7 +22,7 @@ export async function getLatestAppVersion(): Promise<AppVersion | null> {
 
 export async function publishAppVersion(body: {
   version: string;
-  downloadUrl?: string;
+  downloadUrl: string;
   releaseNotes?: string;
 }): Promise<{ success: boolean; data?: AppVersion; error?: string }> {
   return apiClient("/app-version", { method: "PUT", body: JSON.stringify(body) });

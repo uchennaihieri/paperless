@@ -53,8 +53,6 @@ export default function DashboardLayout({
   const [isAuditOpen, setIsAuditOpen]           = useState(false);
   const [isJournalLedgerOpen, setIsJournalLedgerOpen] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement>(null);
-  const [latestAppVersion, setLatestAppVersion] = useState<string | null>(null);
-  const [seenAppVersion, setSeenAppVersion] = useState<string | null>(null);
 
   // Close avatar menu when clicking outside
   useEffect(() => {
@@ -67,17 +65,6 @@ export default function DashboardLayout({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Fetch latest app version for the badge
-  useEffect(() => {
-    const stored = typeof window !== "undefined" ? localStorage.getItem("seenAppVersion") : null;
-    setSeenAppVersion(stored);
-    fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/v1/app-version`, {
-      headers: { Authorization: `Bearer ${(session as any)?.accessToken ?? ""}` },
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.data?.version) setLatestAppVersion(d.data.version); })
-      .catch(() => {});
-  }, [session]);
 
   return (
     <>
@@ -151,15 +138,9 @@ export default function DashboardLayout({
             <Link
               href="/dashboard/app-download"
               id="download-app-nav-btn"
-              onClick={() => {
-                if (latestAppVersion) {
-                  localStorage.setItem("seenAppVersion", latestAppVersion);
-                  setSeenAppVersion(latestAppVersion);
-                }
-                setIsMobileMenuOpen(false);
-              }}
+              onClick={() => setIsMobileMenuOpen(false)}
               className={cn(
-                "relative flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-semibold transition-all w-full",
+                "flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-semibold transition-all w-full",
                 pathname === "/dashboard/app-download"
                   ? "bg-primary text-white shadow-md shadow-primary/30"
                   : "bg-primary/5 text-primary hover:bg-primary hover:text-white hover:shadow-md hover:shadow-primary/30 border border-primary/20 hover:border-primary"
@@ -167,11 +148,6 @@ export default function DashboardLayout({
             >
               <Smartphone className="h-5 w-5 shrink-0" />
               <span>Download App</span>
-              {latestAppVersion && latestAppVersion !== seenAppVersion && (
-                <span className="absolute -top-1.5 -right-1.5 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-400 text-amber-900 text-[10px] font-bold leading-none shadow-sm animate-pulse">
-                  New!
-                </span>
-              )}
             </Link>
           </div>
         </div>

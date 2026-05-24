@@ -4,8 +4,8 @@ import { useState, useEffect, useTransition } from "react";
 import { useSession } from "next-auth/react";
 import { QRCodeSVG } from "qrcode.react";
 import {
-  Smartphone, CheckCircle, AlertCircle, Loader2, Settings,
-  RefreshCw, History, ChevronDown, ExternalLink, X, Plus, FileText
+  Smartphone, CheckCircle, AlertCircle, Settings,
+  RefreshCw, History, ChevronDown, X, Plus, FileText, Link2, Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,10 +14,6 @@ import {
   getLatestAppVersion, publishAppVersion, getAppVersionHistory,
   type AppVersion
 } from "@/app/actions/app-version";
-
-// The public (no-auth) streaming download endpoint served by the backend
-const PUBLIC_DOWNLOAD_URL =
-  (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000") + "/app/download";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -32,6 +28,7 @@ function formatDate(dateStr: string) {
 
 function PublishModal({ onClose, onPublished }: { onClose: () => void; onPublished: () => void }) {
   const [version, setVersion] = useState("");
+  const [downloadUrl, setDownloadUrl] = useState("");
   const [releaseNotes, setReleaseNotes] = useState("");
   const [isPending, start] = useTransition();
   const [error, setError] = useState("");
@@ -39,12 +36,13 @@ function PublishModal({ onClose, onPublished }: { onClose: () => void; onPublish
   const handlePublish = () => {
     setError("");
     if (!version.trim()) { setError("Version number is required."); return; }
+    if (!downloadUrl.trim()) { setError("Download URL is required."); return; }
+    try { new URL(downloadUrl.trim()); } catch { setError("Please enter a valid URL."); return; }
+
     start(async () => {
-      // downloadUrl stored in DB is the internal SharePoint drive path.
-      // Users always download via the public streaming endpoint.
       const res = await publishAppVersion({
         version: version.trim(),
-        downloadUrl: PUBLIC_DOWNLOAD_URL, // always the streaming endpoint
+        downloadUrl: downloadUrl.trim(),
         releaseNotes: releaseNotes.trim() || undefined,
       });
       if (res.success) {
@@ -66,6 +64,7 @@ function PublishModal({ onClose, onPublished }: { onClose: () => void; onPublish
             <X className="w-4 h-4 text-gray-500" />
           </button>
         </div>
+
         <div className="p-6 space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="pub-version">Version Number <span className="text-red-500">*</span></Label>
@@ -77,6 +76,23 @@ function PublishModal({ onClose, onPublished }: { onClose: () => void; onPublish
               className="font-mono"
             />
           </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="pub-url" className="flex items-center gap-1.5">
+              <Link2 className="w-3.5 h-3.5 text-gray-400" />
+              GitHub Release Download URL <span className="text-red-500">*</span>
+            </Label>
+            <Input
+              id="pub-url"
+              value={downloadUrl}
+              onChange={(e) => setDownloadUrl(e.target.value)}
+              placeholder="https://github.com/org/repo/releases/download/v1.2.3/app.apk"
+            />
+            <p className="text-xs text-gray-400">
+              Paste the direct APK download link from your GitHub Release assets.
+            </p>
+          </div>
+
           <div className="space-y-1.5">
             <Label htmlFor="pub-notes">Release Notes (optional)</Label>
             <textarea
@@ -88,16 +104,14 @@ function PublishModal({ onClose, onPublished }: { onClose: () => void; onPublish
               placeholder="What's new in this version?"
             />
           </div>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
-            <strong>Note:</strong> Users will download the APK by scanning the QR code on this page.
-            Make sure the APK file has been uploaded to the <code className="bg-blue-100 px-1 rounded">mobileapp/</code> folder on SharePoint before publishing.
-          </div>
+
           {error && (
             <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-4 py-3 rounded-lg">
               <AlertCircle className="w-4 h-4 shrink-0" /> {error}
             </div>
           )}
         </div>
+
         <div className="px-6 py-4 border-t border-gray-100 flex justify-end gap-3">
           <Button variant="ghost" onClick={onClose} disabled={isPending}>Cancel</Button>
           <Button id="publish-version-btn" onClick={handlePublish} disabled={isPending}>
@@ -131,10 +145,8 @@ function HistoryPanel({ versions }: { versions: AppVersion[] }) {
         <div className="mt-3 border border-gray-100 rounded-xl overflow-hidden">
           {past.map((v) => (
             <div key={v.id} className="flex items-center justify-between px-4 py-3 bg-white hover:bg-gray-50 border-b border-gray-50 last:border-0">
-              <div>
-                <span className="font-mono text-sm font-semibold text-gray-800">v{v.version}</span>
-                <span className="ml-3 text-xs text-gray-400">{formatDate(v.publishedAt)}</span>
-              </div>
+              <span className="font-mono text-sm font-semibold text-gray-800">v{v.version}</span>
+              <span className="text-xs text-gray-400">{formatDate(v.publishedAt)}</span>
             </div>
           ))}
         </div>
@@ -156,33 +168,33 @@ export default function AppDownloadPage() {
 
   const [latest, setLatest] = useState<AppVersion | null>(null);
   const [history, setHistory] = useState<AppVersion[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showPublish, setShowPublish] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const load = async () => {
-    setLoading(true);
+    setIsRefreshing(true);
     const [v, h] = await Promise.all([
       getLatestAppVersion(),
       isAdmin ? getAppVersionHistory() : Promise.resolve([]),
     ]);
     setLatest(v);
     setHistory(h);
-    setLoading(false);
+    setIsRefreshing(false);
   };
 
   useEffect(() => { load(); }, [isAdmin]);
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
-      {/* Page Header */}
+      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-gray-900">FINCALite Mobile App</h2>
-          <p className="text-gray-500 text-sm mt-1">Scan the QR code below to download the latest version.</p>
+          <p className="text-gray-500 text-sm mt-1">Scan the QR code below with your phone to download.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${loading ? "animate-spin" : ""}`} /> Refresh
+          <Button variant="outline" size="sm" onClick={load} disabled={isRefreshing}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} /> Refresh
           </Button>
           {isAdmin && (
             <Button id="publish-app-btn" size="sm" onClick={() => setShowPublish(true)}>
@@ -192,12 +204,8 @@ export default function AppDownloadPage() {
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-32">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        </div>
-      ) : !latest ? (
-        /* ── No version yet ── */
+      {!latest ? (
+        /* ── No version published yet ── */
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-12 flex flex-col items-center text-center gap-4">
           <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center">
             <Smartphone className="w-8 h-8 text-gray-400" />
@@ -206,17 +214,17 @@ export default function AppDownloadPage() {
             <p className="text-lg font-semibold text-gray-800">No app version published yet</p>
             <p className="text-sm text-gray-400 mt-1">
               {isAdmin
-                ? <><strong>Update Version</strong> to publish the first APK.</>
-                : "The mobile app download is not available yet. Contact your administrator."}
+                ? <><strong>Update Version</strong> to publish the first release URL.</>
+                : "The mobile app is not available for download yet. Contact your administrator."}
             </p>
           </div>
         </div>
       ) : (
-        /* ── Version Card ── */
+        /* ── Version available ── */
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
           {/* Left: Info */}
-          <div className="space-y-6">
+          <div className="space-y-5">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="h-1.5 bg-gradient-to-r from-primary via-red-400 to-rose-500" />
               <div className="p-6">
@@ -257,34 +265,32 @@ export default function AppDownloadPage() {
               </div>
             </div>
 
-            {/* Installation Steps */}
+            {/* Installation steps */}
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
               <p className="text-sm font-bold text-amber-900 mb-3">📱 How to Install</p>
               <ol className="space-y-2 text-sm text-amber-800">
                 <li className="flex gap-2"><span className="font-bold shrink-0">1.</span> Open your phone&apos;s camera and point it at the QR code.</li>
-                <li className="flex gap-2"><span className="font-bold shrink-0">2.</span> Tap the notification to open the download link.</li>
-                <li className="flex gap-2"><span className="font-bold shrink-0">3.</span> On your Android device, go to <strong>Settings → Security</strong> and enable <strong>Install from unknown sources</strong>.</li>
+                <li className="flex gap-2"><span className="font-bold shrink-0">2.</span> Tap the notification to start downloading the APK.</li>
+                <li className="flex gap-2"><span className="font-bold shrink-0">3.</span> Go to <strong>Settings → Security</strong> and enable <strong>Install from unknown sources</strong>.</li>
                 <li className="flex gap-2"><span className="font-bold shrink-0">4.</span> Open the downloaded APK and tap <strong>Install</strong>.</li>
                 <li className="flex gap-2"><span className="font-bold shrink-0">5.</span> Launch <strong>FINCALite</strong> and sign in with your work credentials.</li>
               </ol>
             </div>
 
-            {/* Admin history */}
             {isAdmin && <HistoryPanel versions={history} />}
           </div>
 
-          {/* Right: QR Code — the ONLY download entry point */}
+          {/* Right: QR Code — points directly to the GitHub release download URL */}
           <div className="flex flex-col items-center">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 w-full flex flex-col items-center gap-4 sticky top-24">
               <div className="text-center">
                 <p className="text-sm font-semibold text-gray-700">Scan to download</p>
-                <p className="text-xs text-gray-400 mt-0.5">Point your phone camera at the QR code below</p>
+                <p className="text-xs text-gray-400 mt-0.5">Point your phone camera at the QR code</p>
               </div>
 
-              {/* QR Code — always points to the public streaming endpoint */}
               <div className="flex items-center justify-center bg-white p-4 rounded-2xl border-2 border-gray-100 shadow-inner">
                 <QRCodeSVG
-                  value={PUBLIC_DOWNLOAD_URL}
+                  value={latest.downloadUrl}
                   size={210}
                   fgColor="#B50938"
                   bgColor="#ffffff"
@@ -297,20 +303,24 @@ export default function AppDownloadPage() {
                 FINCALite v{latest.version} &bull; Android APK
               </p>
 
-              {/* Subtle endpoint label — no clickable link for end users */}
-              <div className="w-full bg-gray-50 rounded-xl px-4 py-3 text-center">
-                <p className="text-[11px] text-gray-400 font-mono">/app/download</p>
+              {/* Show the release source label for context */}
+              <div className="w-full bg-gray-50 rounded-xl px-4 py-2.5 flex items-center gap-2">
+                <Link2 className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                <p className="text-[11px] text-gray-400 font-mono truncate">GitHub Releases</p>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Publish Modal */}
       {showPublish && (
         <PublishModal
           onClose={() => setShowPublish(false)}
-          onPublished={() => { setShowPublish(false); load(); }}
+          onPublished={() => { 
+            setShowPublish(false); 
+            load(); 
+            window.dispatchEvent(new CustomEvent("app-version-updated"));
+          }}
         />
       )}
     </div>
