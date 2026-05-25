@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
   Search, X, Plus, Loader2, CheckCircle, XCircle, AlertCircle,
-  RefreshCw, ArrowLeft, FileText, Download, Copy, Check,
+  RefreshCw, ArrowLeft, FileText, Download, Copy, Check, History
 } from "lucide-react";
-import { getIdentityLogs, runBvnCheck, runNinCheck, type IdentityLog } from "@/app/actions/identity";
+import { getIdentityLogs, runBvnCheck, runNinCheck, checkIdentityHistory, type IdentityLog } from "@/app/actions/identity";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -211,23 +211,38 @@ function ViewerModal({ log, onClose, apiBase, token }: {
 
 // ── New Check Modal ────────────────────────────────────────────────────────────
 
-function NewCheckModal({ checkType, fields, onClose, onSuccess }: {
+function NewCheckModal({ checkType, fields, onClose, onSuccess, onView }: {
   checkType: CheckType; fields: FieldDef[];
-  onClose: () => void; onSuccess: (log: IdentityLog) => void;
+  onClose: () => void; onSuccess: (log: IdentityLog) => void; onView: (log: IdentityLog) => void;
 }) {
   const [form, setForm] = useState<Record<string, string>>({});
   const [isPending, startT] = useTransition();
   const [error, setError] = useState("");
+  const [historyLog, setHistoryLog] = useState<IdentityLog | null>(null);
   const set = (id: string, v: string) => setForm(p => ({ ...p, [id]: v }));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault(); setError("");
     startT(async () => {
+      if (!historyLog) {
+        const histRes = await checkIdentityHistory(checkType, form.idNumber);
+        if (histRes.success && histRes.data) {
+          setHistoryLog(histRes.data);
+          return;
+        }
+      }
+      runCheck(false);
+    });
+  };
+
+  const runCheck = (forceNew: boolean) => {
+    setError("");
+    startT(async () => {
       let res: any;
       if (checkType === "nin") {
-        res = await runNinCheck({ idNumber: form.idNumber, firstname: form.firstname, lastname: form.lastname });
+        res = await runNinCheck({ idNumber: form.idNumber, firstname: form.firstname, lastname: form.lastname, forceNew });
       } else {
-        res = await runBvnCheck({ idNumber: form.idNumber, firstname: form.firstname, lastname: form.lastname });
+        res = await runBvnCheck({ idNumber: form.idNumber, firstname: form.firstname, lastname: form.lastname, forceNew });
       }
       if (!res.success && !res.data) { setError(res.error || "Verification failed."); return; }
       onSuccess({
@@ -241,6 +256,35 @@ function NewCheckModal({ checkType, fields, onClose, onSuccess }: {
       });
     });
   };
+
+  if (historyLog) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm animate-in fade-in zoom-in-95 duration-200 p-6 text-center">
+          <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <History className="w-8 h-8 text-blue-500" />
+          </div>
+          <h3 className="font-bold text-gray-900 text-lg mb-2">Previous Check Found</h3>
+          <p className="text-sm text-gray-500 mb-6">
+            A check for this {checkType.toUpperCase()} was previously performed on <br/>
+            <span className="font-semibold text-gray-800">{fmtDate(historyLog.createdAt)}</span>.
+            <span className="mt-2 block"><StatusBadge status={historyLog.status} /></span>
+          </p>
+          <div className="flex flex-col gap-3">
+            <Button onClick={() => { onClose(); onView(historyLog); }} className="w-full bg-blue-600 hover:bg-blue-700">
+              View Previous Result
+            </Button>
+            <Button onClick={() => runCheck(true)} variant="outline" className="w-full" disabled={isPending}>
+              {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Run Entirely New Check
+            </Button>
+            <Button onClick={onClose} variant="ghost" className="w-full text-gray-500">Cancel</Button>
+          </div>
+          {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -476,7 +520,7 @@ export default function IdentityCheckDashboard({ config }: { config: CheckPageCo
 
       {showModal && config.fields && (
         <NewCheckModal checkType={config.checkType} fields={config.fields}
-          onClose={() => setShowModal(false)} onSuccess={handleNewCheck} />
+          onClose={() => setShowModal(false)} onSuccess={handleNewCheck} onView={(log) => { setShowModal(false); setViewing(log); }} />
       )}
 
       {viewing && (

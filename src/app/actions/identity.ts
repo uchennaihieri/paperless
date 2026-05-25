@@ -39,6 +39,12 @@ export async function getIdentityLogs(params: {
   };
 }
 
+export async function checkIdentityHistory(idType: string, idNumber: string): Promise<{ success: boolean; data?: IdentityLog | null; error?: string }> {
+  return apiClient(`/identity/lookup/${encodeURIComponent(idType)}/${encodeURIComponent(idNumber)}`, {
+    method: "GET",
+  }).catch((e: any) => ({ success: false, error: e.message }));
+}
+
 export async function runBvnCheck(payload: {
   idNumber: string;
   firstname: string;
@@ -47,6 +53,7 @@ export async function runBvnCheck(payload: {
   phone?: string;
   email?: string;
   gender?: string;
+  forceNew?: boolean;
 }): Promise<{ success: boolean; data?: any; reference?: string; status?: string; error?: string }> {
   return apiClient(`/identity/bvn/${encodeURIComponent(payload.idNumber)}`, {
     method: "POST",
@@ -57,6 +64,7 @@ export async function runBvnCheck(payload: {
       phone:     payload.phone,
       email:     payload.email,
       gender:    payload.gender,
+      forceNew:  payload.forceNew,
     }),
   }).catch((e: any) => ({ success: false, error: e.message }));
 }
@@ -70,6 +78,7 @@ export async function runNinCheck(payload: {
   phone?: string;
   email?: string;
   gender?: string;
+  forceNew?: boolean;
 }): Promise<{ success: boolean; data?: any; reference?: string; status?: string; error?: string }> {
   return apiClient(`/identity/nin/${encodeURIComponent(payload.idNumber)}`, {
     method: "POST",
@@ -81,6 +90,7 @@ export async function runNinCheck(payload: {
       phone:      payload.phone,
       email:      payload.email,
       gender:     payload.gender,
+      forceNew:   payload.forceNew,
     }),
   }).catch((e: any) => ({ success: false, error: e.message }));
 }

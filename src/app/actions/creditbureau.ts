@@ -37,10 +37,17 @@ export async function getCreditBureauLogs(params: {
   return { data: result.data ?? [], total: result.total ?? 0, page: result.page ?? 1, limit: result.limit ?? 20 };
 }
 
+export async function checkCrbHistory(bvn: string): Promise<{ success: boolean; data?: CreditBureauLog | null; error?: string }> {
+  return apiClient(`/credit-bureau/lookup/${encodeURIComponent(bvn)}`, {
+    method: "GET",
+  }).catch((e: any) => ({ success: false, error: e.message }));
+}
+
 export async function runFirstCentralCheck(payload: {
   bvn: string;
   enquiryReason?: string;
   productId?: number;
+  forceNew?: boolean;
 }): Promise<{ success: boolean; reference?: string; status?: string; count?: number; matched?: any[]; error?: string }> {
   return apiClient("/credit-bureau/consumer/bvn", {
     method: "POST",

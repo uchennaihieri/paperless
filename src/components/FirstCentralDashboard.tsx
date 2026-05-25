@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useSession } from "next-auth/react";
 import {
   Search, X, Plus, Loader2, CheckCircle, XCircle, AlertCircle,
-  RefreshCw, ArrowLeft, FileText, Download, Copy, Check,
+  RefreshCw, ArrowLeft, FileText, Download, Copy, Check, History
 } from "lucide-react";
-import { getCreditBureauLogs, runFirstCentralCheck, runFirstCentralReport, type CreditBureauLog } from "@/app/actions/creditbureau";
+import { getCreditBureauLogs, runFirstCentralCheck, runFirstCentralReport, checkCrbHistory, type CreditBureauLog } from "@/app/actions/creditbureau";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -315,18 +315,33 @@ function ViewerModal({ log, onClose, apiBase, token }: {
 
 // ── New Check Modal ────────────────────────────────────────────────────────────
 
-function NewCheckModal({ onClose, onSuccess }: {
-  onClose: () => void; onSuccess: (log: CreditBureauLog) => void;
+function NewCheckModal({ onClose, onSuccess, onView }: {
+  onClose: () => void; onSuccess: (log: CreditBureauLog) => void; onView: (log: CreditBureauLog) => void;
 }) {
   const [bvn, setBvn] = useState("");
   const [isPending, startT] = useTransition();
   const [error, setError] = useState("");
+  const [historyLog, setHistoryLog] = useState<CreditBureauLog | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault(); setError("");
     if (!/^\d{11}$/.test(bvn.trim())) { setError("BVN must be exactly 11 digits."); return; }
     startT(async () => {
-      const res = await runFirstCentralCheck({ bvn: bvn.trim(), enquiryReason: "Credit Check" });
+      if (!historyLog) {
+        const histRes = await checkCrbHistory(bvn.trim());
+        if (histRes.success && histRes.data) {
+          setHistoryLog(histRes.data);
+          return;
+        }
+      }
+      runCheck(false);
+    });
+  };
+
+  const runCheck = (forceNew: boolean) => {
+    setError("");
+    startT(async () => {
+      const res = await runFirstCentralCheck({ bvn: bvn.trim(), enquiryReason: "Credit Check", forceNew });
       if (!res.success) { setError(res.error || "Check failed."); return; }
       onSuccess({
         id: res.reference ?? Date.now().toString(),
@@ -345,6 +360,35 @@ function NewCheckModal({ onClose, onSuccess }: {
       });
     });
   };
+
+  if (historyLog) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm animate-in fade-in zoom-in-95 duration-200 p-6 text-center">
+          <div className="w-16 h-16 bg-sky-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <History className="w-8 h-8 text-sky-600" />
+          </div>
+          <h3 className="font-bold text-gray-900 text-lg mb-2">Previous Check Found</h3>
+          <p className="text-sm text-gray-500 mb-6">
+            A CRB check for this BVN was previously performed on <br/>
+            <span className="font-semibold text-gray-800">{fmtDate(historyLog.createdAt)}</span>.
+            <span className="mt-2 block"><StatusBadge status={historyLog.status} /></span>
+          </p>
+          <div className="flex flex-col gap-3">
+            <Button onClick={() => { onClose(); onView(historyLog); }} className="w-full bg-sky-600 hover:bg-sky-700 text-white">
+              View Previous Result
+            </Button>
+            <Button onClick={() => runCheck(true)} variant="outline" className="w-full" disabled={isPending}>
+              {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Run Entirely New Check
+            </Button>
+            <Button onClick={onClose} variant="ghost" className="w-full text-gray-500">Cancel</Button>
+          </div>
+          {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
@@ -527,7 +571,7 @@ export default function FirstCentralDashboard() {
         )}
       </div>
 
-      {showModal && <NewCheckModal onClose={() => setShowModal(false)} onSuccess={handleNew} />}
+      {showModal && <NewCheckModal onClose={() => setShowModal(false)} onSuccess={handleNew} onView={(log) => { setShowModal(false); setViewing(log); }} />}
       {viewing   && <ViewerModal log={viewing} apiBase={apiBase} token={token} onClose={() => setViewing(null)} />}
     </div>
   );
