@@ -338,26 +338,30 @@ function NewCheckModal({ onClose, onSuccess, onView }: {
     });
   };
 
-  const runCheck = (forceNew: boolean) => {
+  const runCheck = (forceNew: boolean, cloneFromReference?: string) => {
     setError("");
     startT(async () => {
-      const res = await runFirstCentralCheck({ bvn: bvn.trim(), enquiryReason: "Credit Check", forceNew });
+      const res = await runFirstCentralCheck({ bvn: bvn.trim(), enquiryReason: "Credit Check", forceNew, cloneFromReference });
       if (!res.success) { setError(res.error || "Check failed."); return; }
-      onSuccess({
-        id: res.reference ?? Date.now().toString(),
+      
+      const newLogObj: CreditBureauLog = {
+        id: res.id ?? res.reference ?? Date.now().toString(),
         reference: res.reference ?? "—",
         bureau: "firstcentral", bvn: bvn.trim(),
-        subjectName: res.matched?.[0]
+        subjectName: res.subjectName ?? (res.matched?.[0]
           ? [res.matched[0].FirstName, res.matched[0].SecondName, res.matched[0].Surname].filter(Boolean).join(" ")
-          : "",
+          : ""),
         status: res.status ?? "No Match",
         matchCount: res.count ?? 0,
         pdfPath: null, enquiryReason: "Credit Check",
-        verifiedBy: "You", createdAt: new Date().toISOString(),
+        verifiedBy: res.verifiedBy ?? "You", createdAt: res.createdAt ?? new Date().toISOString(),
         requestData: { bvn: bvn.trim() },
         responseData: { matched: res.matched ?? [] },
-        reportData: null,
-      });
+        reportData: cloneFromReference ? (historyLog?.reportData ?? null) : null,
+      };
+
+      onSuccess(newLogObj);
+      onView(newLogObj);
     });
   };
 
@@ -375,14 +379,15 @@ function NewCheckModal({ onClose, onSuccess, onView }: {
             <span className="mt-2 block"><StatusBadge status={historyLog.status} /></span>
           </p>
           <div className="flex flex-col gap-3">
-            <Button onClick={() => { onClose(); onView(historyLog); }} className="w-full bg-sky-600 hover:bg-sky-700 text-white">
-              View Previous Result
+            <Button onClick={() => runCheck(false, historyLog.reference)} className="w-full bg-sky-600 hover:bg-sky-700 text-white" disabled={isPending}>
+              {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Use Previous Record
             </Button>
             <Button onClick={() => runCheck(true)} variant="outline" className="w-full" disabled={isPending}>
               {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Run Entirely New Check
             </Button>
-            <Button onClick={onClose} variant="ghost" className="w-full text-gray-500">Cancel</Button>
+            <Button onClick={onClose} variant="ghost" className="w-full text-gray-500" disabled={isPending}>Cancel</Button>
           </div>
           {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
         </div>

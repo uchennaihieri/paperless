@@ -48,7 +48,8 @@ export async function runFirstCentralCheck(payload: {
   enquiryReason?: string;
   productId?: number;
   forceNew?: boolean;
-}): Promise<{ success: boolean; reference?: string; status?: string; count?: number; matched?: any[]; error?: string }> {
+  cloneFromReference?: string;
+}): Promise<{ success: boolean; id?: string; reference?: string; status?: string; count?: number; matched?: any[]; verifiedBy?: string; createdAt?: string; subjectName?: string; error?: string }> {
   return apiClient("/credit-bureau/consumer/bvn", {
     method: "POST",
     body: JSON.stringify(payload),

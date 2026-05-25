@@ -54,6 +54,7 @@ export async function runBvnCheck(payload: {
   email?: string;
   gender?: string;
   forceNew?: boolean;
+  cloneFromReference?: string;
 }): Promise<{ success: boolean; data?: any; reference?: string; status?: string; error?: string }> {
   return apiClient(`/identity/bvn/${encodeURIComponent(payload.idNumber)}`, {
     method: "POST",
@@ -65,6 +66,7 @@ export async function runBvnCheck(payload: {
       email:     payload.email,
       gender:    payload.gender,
       forceNew:  payload.forceNew,
+      cloneFromReference: payload.cloneFromReference,
     }),
   }).catch((e: any) => ({ success: false, error: e.message }));
 }
@@ -79,6 +81,7 @@ export async function runNinCheck(payload: {
   email?: string;
   gender?: string;
   forceNew?: boolean;
+  cloneFromReference?: string;
 }): Promise<{ success: boolean; data?: any; reference?: string; status?: string; error?: string }> {
   return apiClient(`/identity/nin/${encodeURIComponent(payload.idNumber)}`, {
     method: "POST",
@@ -91,6 +94,7 @@ export async function runNinCheck(payload: {
       email:      payload.email,
       gender:     payload.gender,
       forceNew:   payload.forceNew,
+      cloneFromReference: payload.cloneFromReference,
     }),
   }).catch((e: any) => ({ success: false, error: e.message }));
 }

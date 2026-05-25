@@ -235,25 +235,29 @@ function NewCheckModal({ checkType, fields, onClose, onSuccess, onView }: {
     });
   };
 
-  const runCheck = (forceNew: boolean) => {
+  const runCheck = (forceNew: boolean, cloneFromReference?: string) => {
     setError("");
     startT(async () => {
       let res: any;
       if (checkType === "nin") {
-        res = await runNinCheck({ idNumber: form.idNumber, firstname: form.firstname, lastname: form.lastname, forceNew });
+        res = await runNinCheck({ idNumber: form.idNumber, firstname: form.firstname, lastname: form.lastname, forceNew, cloneFromReference });
       } else {
-        res = await runBvnCheck({ idNumber: form.idNumber, firstname: form.firstname, lastname: form.lastname, forceNew });
+        res = await runBvnCheck({ idNumber: form.idNumber, firstname: form.firstname, lastname: form.lastname, forceNew, cloneFromReference });
       }
       if (!res.success && !res.data) { setError(res.error || "Verification failed."); return; }
-      onSuccess({
-        id: res.reference ?? Date.now().toString(),
+      
+      const newLogObj: IdentityLog = {
+        id: res.id ?? res.reference ?? Date.now().toString(),
         reference: res.reference ?? "—",
         idType: checkType, idNumber: form.idNumber,
-        subjectName: `${form.firstname} ${form.lastname}`,
+        subjectName: res.subjectName ?? `${form.firstname} ${form.lastname}`,
         status: res.status ?? "Verified", pdfPath: null,
-        verifiedBy: "You", createdAt: new Date().toISOString(),
+        verifiedBy: res.verifiedBy ?? "You", createdAt: res.createdAt ?? new Date().toISOString(),
         requestData: form, responseData: res.data ?? {},
-      });
+      };
+
+      onSuccess(newLogObj);
+      onView(newLogObj);
     });
   };
 
@@ -271,14 +275,15 @@ function NewCheckModal({ checkType, fields, onClose, onSuccess, onView }: {
             <span className="mt-2 block"><StatusBadge status={historyLog.status} /></span>
           </p>
           <div className="flex flex-col gap-3">
-            <Button onClick={() => { onClose(); onView(historyLog); }} className="w-full bg-blue-600 hover:bg-blue-700">
-              View Previous Result
+            <Button onClick={() => runCheck(false, historyLog.reference)} className="w-full bg-blue-600 hover:bg-blue-700 text-white" disabled={isPending}>
+              {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Use Previous Record
             </Button>
             <Button onClick={() => runCheck(true)} variant="outline" className="w-full" disabled={isPending}>
               {isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
               Run Entirely New Check
             </Button>
-            <Button onClick={onClose} variant="ghost" className="w-full text-gray-500">Cancel</Button>
+            <Button onClick={onClose} variant="ghost" className="w-full text-gray-500" disabled={isPending}>Cancel</Button>
           </div>
           {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
         </div>
