@@ -280,11 +280,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                 <Button size="sm" variant="outline" onClick={openStatusModal} className="cursor-pointer">
                   Change Status
                 </Button>
-                {selected.status?.startsWith("Assigned") && isAccountant && selected.treaterEmail?.toLowerCase() === currentUserEmail && (
-                  <Button size="sm" variant="outline" onClick={() => setIsJournalOpen(true)} className="cursor-pointer">
-                    <BookOpen className="w-4 h-4 mr-2" /> Journal
-                  </Button>
-                )}
+
                 {selected.status === "Completed" && (
                   <Button size="sm" variant="outline" onClick={() => handleRegenerate(selected.id)} disabled={isRegenerating} className="cursor-pointer border-amber-200 text-amber-700 hover:bg-amber-50">
                     <RefreshCw className={`w-4 h-4 mr-2 ${isRegenerating ? "animate-spin" : ""}`} />
@@ -642,17 +638,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
         </div>
       )}
 
-      {/* Journal Modal */}
-      {selected && (
-        <JournalModal
-          isOpen={isJournalOpen}
-          onClose={() => setIsJournalOpen(false)}
-          sessionRef={selected.reference ?? selected.id}
-          formName={selected.formName}
-          token={token}
-          baseUrl={BASE_URL}
-        />
-      )}
+
 
     </div>
   );

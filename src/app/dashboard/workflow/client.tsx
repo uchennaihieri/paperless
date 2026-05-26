@@ -256,16 +256,7 @@ function DetailPanel({
               {item.signingType === "sequential" ? <GitBranch className="w-3 h-3" /> : <Layers className="w-3 h-3" />}
               {item.signingType}
             </span>
-            {item.status === "Awaiting Final Approval" && item.reference && isAccountant && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setIsJournalOpen(true)}
-                className="cursor-pointer border-blue-200 text-blue-700 hover:bg-blue-50 text-xs h-7 px-2"
-              >
-                <BookOpen className="w-3.5 h-3.5 mr-1" /> Journal
-              </Button>
-            )}
+
             <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-100 transition-colors ml-1 hidden sm:block">
               <X className="w-5 h-5 text-gray-400" />
             </button>
@@ -863,18 +854,7 @@ function DetailPanel({
         )}
       </div>
 
-      {/* Journal Modal — read-only committed entries for the approver */}
-      {item.reference && (
-        <JournalModal
-          isOpen={isJournalOpen}
-          onClose={() => setIsJournalOpen(false)}
-          sessionRef={item.reference}
-          formName={item.formName}
-          token={token}
-          baseUrl={BASE_URL}
-          readOnly
-        />
-      )}
+
     </div>
   );
 }

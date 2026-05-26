@@ -3,15 +3,13 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   X, Search, ChevronLeft, ChevronRight, Loader2,
-  TrendingUp, TrendingDown, BookOpen, Filter, Plus, Upload
+  TrendingUp, TrendingDown, BookOpen, Filter, Download
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { useSession } from "next-auth/react";
-import { AddActionItemsModal } from "./AddActionItemsModal";
-import { JournalUploadModal } from "./JournalUploadModal";
 import Link from "next/link";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -85,8 +83,61 @@ export function JournalLedgerModal({
   const [form, setForm] = useState("");
   const [page, setPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
-  const [showAddItems, setShowAddItems] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownloadLegacy = async () => {
+    if (!token) return;
+    setDownloading(true);
+    try {
+      const params = new URLSearchParams();
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      if (account) params.set("account", account);
+      if (description) params.set("description", description);
+      if (form) params.set("form", form);
+      params.set("limit", "100000"); // fetch all entries to save legacy data
+
+      const res = await fetch(`${BASE_URL}/api/v1/journal?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        const allEntries = data.data;
+        if (allEntries.length === 0) {
+          alert("No journal entries found to download.");
+          return;
+        }
+
+        const rows = allEntries.map((e: any) => ({
+          "Journal ID": e.journalId || "—",
+          "Date": fmt(e.date),
+          "Reference/SessionRef": e.sessionRef,
+          "Form Name": e.formName,
+          "Type": e.type,
+          "Account Code": e.accountCode,
+          "Account Name": e.accountName,
+          "Description": e.description,
+          "Batch Number": e.batchNumber || "—",
+          "Branch": e.branch || "—",
+          "Status": e.committed ? "Committed" : "Pending",
+          "Amount": parseFloat(e.amount),
+          "Created By": e.createdBy
+        }));
+
+        const XLSX = await import("xlsx");
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "General Ledger");
+        XLSX.writeFile(wb, "general_ledger_legacy_data.xlsx");
+      } else {
+        alert(data.error || "Failed to fetch ledger data.");
+      }
+    } catch (err) {
+      alert("Failed to download general ledger data.");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   // Determine if the current user is an accountant
   const rolesStr = (session?.user as any)?.roles;
@@ -161,25 +212,24 @@ export function JournalLedgerModal({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {isAccountant && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setShowUploadModal(true)}
-                className="cursor-pointer bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-              >
-                <Upload className="w-4 h-4 mr-1" />
-                Upload Excel
-              </Button>
-            )}
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setShowAddItems(true)}
-              className="cursor-pointer bg-white"
+              onClick={handleDownloadLegacy}
+              disabled={downloading}
+              className="cursor-pointer bg-white border-blue-200 text-blue-700 hover:bg-blue-50"
             >
-              <Plus className="w-4 h-4 mr-1" />
-              Add items
+              {downloading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                  Downloading...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 mr-1" />
+                  Download Legacy
+                </>
+              )}
             </Button>
             <Button
               size="sm"
@@ -395,23 +445,7 @@ export function JournalLedgerModal({
         )}
       </div>
 
-      <AddActionItemsModal
-        isOpen={showAddItems}
-        onClose={() => {
-          setShowAddItems(false);
-          fetchLedger();
-        }}
-      />
-
-      <JournalUploadModal
-        isOpen={showUploadModal}
-        onClose={(uploaded) => {
-          setShowUploadModal(false);
-          if (uploaded) fetchLedger();
-        }}
-        token={token}
-        baseUrl={BASE_URL}
-      />
+      {/* Modals removed in legacy mode */}
     </div>
   );
 }
