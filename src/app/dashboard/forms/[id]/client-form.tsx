@@ -1286,16 +1286,40 @@ function ReviewStep({
 
 export default function FormFillerClient({ template, currentUser, draftId, initialFormData }: { template: any, currentUser: { userName: string; email: string; token?: string }, draftId?: string, initialFormData?: Record<string, any> }) {
   const router = useRouter();
-  const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState<Record<string, any>>(initialFormData || {});
-  const [internalFormsData, setInternalFormsData] = useState<Record<string, any[]>>({});
+
+  // ── Form state persistence (localStorage) ──────────────────────────────────
+  const STORAGE_KEY = `form_draft_${template.id}`;
+
+  // Load saved state from localStorage on mount
+  const loadSavedState = useCallback(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (!saved) return null;
+      return JSON.parse(saved);
+    } catch {
+      return null;
+    }
+  }, [STORAGE_KEY]);
+
+  const savedState = useRef(loadSavedState());
+
+  const [step, setStep] = useState(() => savedState.current?.step || 1);
+  const [formData, setFormData] = useState<Record<string, any>>(() => {
+    // initialFormData (from drafts) takes priority, then saved state, then empty
+    if (initialFormData && Object.keys(initialFormData).length > 0) return initialFormData;
+    return savedState.current?.formData || {};
+  });
+  const [internalFormsData, setInternalFormsData] = useState<Record<string, any[]>>(() => savedState.current?.internalFormsData || {});
   const [activeInternalFormTarget, setActiveInternalFormTarget] = useState<{ fieldId: string, templateId: string, index?: number } | null>(null);
-  const [signatories, setSignatories] = useState<SignatoryInput[]>([{
-    position: 1,
-    userName: currentUser.userName,
-    email: currentUser.email
-  }]);
-  const [signingType, setSigningType] = useState<SigningType>("sequential");
+  const [signatories, setSignatories] = useState<SignatoryInput[]>(() =>
+    savedState.current?.signatories || [{
+      position: 1,
+      userName: currentUser.userName,
+      email: currentUser.email
+    }]
+  );
+  const [signingType, setSigningType] = useState<SigningType>(() => savedState.current?.signingType || "sequential");
   const [submitting, setSubmitting] = useState(false);
   const [signatureToken, setSignatureToken] = useState("");
   const [showToken, setShowToken] = useState(false);
@@ -1305,6 +1329,37 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
   const fields: Field[] = typeof template.fields === "string"
     ? JSON.parse(template.fields)
     : template.fields ?? [];
+
+  // Auto-save form state to localStorage on every change
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      // Filter out File objects from formData (they can't be serialized)
+      const serializableFormData: Record<string, any> = {};
+      for (const [key, value] of Object.entries(formData)) {
+        if (value instanceof File || value instanceof FileList) continue;
+        if (Array.isArray(value) && value.length > 0 && value[0] instanceof File) continue;
+        serializableFormData[key] = value;
+      }
+      const state = {
+        formData: serializableFormData,
+        internalFormsData,
+        signatories,
+        signingType,
+        step,
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      // localStorage full or unavailable — silently ignore
+    }
+  }, [formData, internalFormsData, signatories, signingType, step, STORAGE_KEY]);
+
+  // Clear saved state
+  const clearSavedState = useCallback(() => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }, [STORAGE_KEY]);
 
   const handleFieldChange = (id: string, value: any) => {
     setFormData((prev) => ({ ...prev, [id]: value }));
@@ -1377,6 +1432,7 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
       setShowTokenModal(false);
 
       if (res?.success) {
+        clearSavedState();
         router.push("/dashboard/forms");
       } else {
         setError(res?.error ?? "Something went wrong. Please try again.");
@@ -1390,7 +1446,7 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
-      <Link href="/dashboard/forms" className="inline-flex items-center text-sm text-gray-500 hover:text-primary transition-colors">
+      <Link href="/dashboard/forms" onClick={clearSavedState} className="inline-flex items-center text-sm text-gray-500 hover:text-primary transition-colors">
         <ArrowLeft className="w-4 h-4 mr-1" /> Back to forms
       </Link>
 
