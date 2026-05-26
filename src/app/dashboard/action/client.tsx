@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileDown, ChevronRight, CheckSquare, X, User, RefreshCw, AlertTriangle, Loader2, Eye, EyeOff, BookOpen } from "lucide-react";
-import { assignToSelf, revertAssignment, completeProcessWithApprover, searchActiveWorkflowUsers, regeneratePdf } from "@/app/actions/workflow";
+import { assignToSelf, revertAssignment, completeProcessWithApprover, searchActiveWorkflowUsers, regeneratePdf, getSubmissionDetail } from "@/app/actions/workflow";
 import { getActionItems } from "@/app/actions/form";
 import { useSmartFetch } from "@/hooks/useSmartFetch";
 import { FormReferenceLink, isFormReferenceField } from "@/components/FormReferenceLink";
@@ -93,6 +93,41 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
   const [showToken, setShowToken] = useState(false);
   const [isJournalOpen, setIsJournalOpen] = useState(false);
   const [assignError, setAssignError] = useState("");
+  const [showCheckPdfErrorModal, setShowCheckPdfErrorModal] = useState(false);
+
+  // Keep the selected item in sync with fetched localItems to automatically receive new PDF/status updates
+  useEffect(() => {
+    if (selected) {
+      const upToDate = localItems.find(item => item.id === selected.id);
+      if (upToDate) {
+        setSelected(upToDate);
+      }
+    }
+  }, [localItems, selected?.id]);
+
+  const handleCheckPdf = async (id: string) => {
+    setIsRegenerating(true);
+    setRegenError("");
+    try {
+      const res = await regeneratePdf(id);
+      if (!res.success) {
+        setShowCheckPdfErrorModal(true);
+        return;
+      }
+
+      // Fetch up-to-date detail to see if PDF was generated successfully
+      const freshDetail = await getSubmissionDetail(id);
+      if (freshDetail?.formResponses?.["CompletedFormPDF"]?.[0]?.url) {
+        await forceRefresh();
+      } else {
+        setShowCheckPdfErrorModal(true);
+      }
+    } catch {
+      setShowCheckPdfErrorModal(true);
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
 
   const handleRegenerate = async (id: string) => {
     setIsRegenerating(true);
@@ -287,12 +322,29 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                     {isRegenerating ? "Regenerating..." : "Regenerate PDF"}
                   </Button>
                 )}
-                {selected?.formResponses?.["CompletedFormPDF"]?.[0]?.url && (
+                {selected?.formResponses?.["CompletedFormPDF"]?.[0]?.url ? (
                   <a href={selected.formResponses["CompletedFormPDF"][0].url} target="_blank" rel="noopener noreferrer">
                     <Button size="sm" className="cursor-pointer">
                       <FileDown className="w-4 h-4 mr-2" /> Open PDF
                     </Button>
                   </a>
+                ) : (
+                  <Button
+                    size="sm"
+                    disabled={isRegenerating}
+                    onClick={() => handleCheckPdf(selected.id)}
+                    className="cursor-pointer"
+                  >
+                    {isRegenerating ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Checking...
+                      </>
+                    ) : (
+                      <>
+                        <FileDown className="w-4 h-4 mr-2" /> Check PDF
+                      </>
+                    )}
+                  </Button>
                 )}
               </div>
               {regenError && (
@@ -639,6 +691,31 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
       )}
 
 
+
+      {/* Unable to Check PDF Error Modal */}
+      {showCheckPdfErrorModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 text-center space-y-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-bold text-gray-900 text-lg">Unable to Check PDF</h3>
+                <p className="text-sm text-gray-500">
+                  We could not verify or generate a PDF document for this action item. Please try again or contact support.
+                </p>
+              </div>
+              <Button
+                onClick={() => setShowCheckPdfErrorModal(false)}
+                className="w-full cursor-pointer"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
