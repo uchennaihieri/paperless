@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   X, Plus, Loader2, CheckCircle2, AlertCircle, Trash2,
-  TrendingUp, TrendingDown, Scale, Download, Pencil, Save, XCircle
+  TrendingUp, TrendingDown, Scale, Download, Pencil, Save, XCircle,
+  FileSpreadsheet, Link2, Unlink
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -99,6 +100,115 @@ export function JournalModal({
   const [amount, setAmount] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Uploaded journal state
+  type UploadedJournalItem = {
+    id: string;
+    uploadId: string;
+    fileName: string;
+    totalDebit: string;
+    totalCredit: string;
+    uploadedBy: string;
+    uploadedAt: string;
+    linkedSessionRef?: string | null;
+  };
+  const [showSelectJournal, setShowSelectJournal] = useState(false);
+  const [availableUploads, setAvailableUploads] = useState<UploadedJournalItem[]>([]);
+  const [loadingUploads, setLoadingUploads] = useState(false);
+  const [linkedUpload, setLinkedUpload] = useState<UploadedJournalItem | null>(null);
+  const [linkedContent, setLinkedContent] = useState<{ sheets: Record<string, any[]>; fileName: string } | null>(null);
+  const [loadingContent, setLoadingContent] = useState(false);
+  const [linkingId, setLinkingId] = useState<string | null>(null);
+
+  // Fetch available uploads for the selector (latest 10)
+  const fetchUploads = useCallback(async () => {
+    if (!token) return;
+    setLoadingUploads(true);
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/journal/uploads`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) setAvailableUploads(data.data || []);
+    } catch { /* silent */ } finally {
+      setLoadingUploads(false);
+    }
+  }, [token, baseUrl]);
+
+  // Fetch the upload linked to this session (for approver auto-display)
+  const fetchLinkedUpload = useCallback(async () => {
+    if (!sessionRef || !token) return;
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/journal/uploads/linked/${encodeURIComponent(sessionRef)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        setLinkedUpload(data.data);
+        // Auto-fetch content
+        fetchUploadContent(data.data.id);
+      } else {
+        setLinkedUpload(null);
+        setLinkedContent(null);
+      }
+    } catch { /* silent */ }
+  }, [sessionRef, token, baseUrl]);
+
+  // Fetch parsed Excel content for a given upload
+  const fetchUploadContent = async (uploadId: string) => {
+    setLoadingContent(true);
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/journal/uploads/content/${uploadId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success && data.data?.sheets) {
+        setLinkedContent({ sheets: data.data.sheets, fileName: data.data.fileName });
+      }
+    } catch { /* silent */ } finally {
+      setLoadingContent(false);
+    }
+  };
+
+  // Link an uploaded journal to this session
+  const handleLinkUpload = async (uploadId: string) => {
+    setLinkingId(uploadId);
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/journal/uploads/${uploadId}/link`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ sessionRef }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLinkedUpload(data.data);
+        setShowSelectJournal(false);
+        fetchUploadContent(uploadId);
+      }
+    } catch { /* silent */ } finally {
+      setLinkingId(null);
+    }
+  };
+
+  // Unlink the currently linked upload
+  const handleUnlinkUpload = async () => {
+    if (!linkedUpload) return;
+    setLinkingId(linkedUpload.id);
+    try {
+      const res = await fetch(`${baseUrl}/api/v1/journal/uploads/${linkedUpload.id}/link`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ sessionRef: null }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLinkedUpload(null);
+        setLinkedContent(null);
+      }
+    } catch { /* silent */ } finally {
+      setLinkingId(null);
+    }
+  };
+
   const fetchEntries = useCallback(async () => {
     if (!sessionRef || !token) return;
     setLoadingEntries(true);
@@ -142,8 +252,9 @@ export function JournalModal({
     if (isOpen) {
       fetchEntries();
       fetchBalance();
+      fetchLinkedUpload();
     }
-  }, [isOpen, fetchEntries, fetchBalance]);
+  }, [isOpen, fetchEntries, fetchBalance, fetchLinkedUpload]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,15 +308,21 @@ export function JournalModal({
     setIsMarkingComplete(true);
     setCommitError("");
     try {
-      const res = await fetch(`${baseUrl}/api/v1/journal/commit/${encodeURIComponent(sessionRef)}`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Failed to commit entries");
-      setCommitted(true);
-      await fetchEntries();
-      await fetchBalance();
+      // If an uploaded journal is linked, entries are already committed at upload time.
+      // Just mark as complete locally — no need to call the commit endpoint.
+      if (linkedUpload) {
+        setCommitted(true);
+      } else {
+        const res = await fetch(`${baseUrl}/api/v1/journal/commit/${encodeURIComponent(sessionRef)}`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (!data.success) throw new Error(data.error || "Failed to commit entries");
+        setCommitted(true);
+        await fetchEntries();
+        await fetchBalance();
+      }
     } catch (err: any) {
       setCommitError(err.message || "Unexpected error");
     } finally {
@@ -253,7 +370,8 @@ export function JournalModal({
 
   if (!isOpen) return null;
 
-  const canMarkComplete = balance && balance.balanced && parseFloat(balance.debits) > 0;
+  const hasLinkedUpload = !!linkedUpload;
+  const canMarkComplete = hasLinkedUpload || (balance && balance.balanced && parseFloat(balance.debits) > 0);
 
   const debits = entries.filter((e) => e.type === "debit");
   const credits = entries.filter((e) => e.type === "credit");
@@ -303,7 +421,16 @@ export function JournalModal({
                 &nbsp;·&nbsp;{formName}
               </p>
               {/* Balance status pill */}
-              {!loadingBalance && balance && (
+              {hasLinkedUpload ? (
+                <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
+                  linkedUpload.totalDebit === linkedUpload.totalCredit
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-red-100 text-red-600"
+                }`}>
+                  <Scale className="w-3 h-3" />
+                  {linkedUpload.totalDebit === linkedUpload.totalCredit ? "Balanced" : "Unbalanced"}
+                </span>
+              ) : !loadingBalance && balance && (
                 <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${
                   balance.balanced
                     ? "bg-emerald-100 text-emerald-700"
@@ -336,7 +463,8 @@ export function JournalModal({
           </div>
         </div>
 
-        {/* Balance Banner */}
+        {/* Balance Banner — only show when NOT using an uploaded journal */}
+        {!hasLinkedUpload && (
         <div className={`border-b shrink-0 ${balance?.balanced ? "bg-emerald-50 border-emerald-100" : "bg-red-50 border-red-100"}`}>
           <div className="flex items-center gap-4 px-5 py-3">
             <div className="flex items-center gap-4 ml-2 text-sm">
@@ -361,7 +489,8 @@ export function JournalModal({
                 </span>
               )}
 
-              {!readOnly && !committed && (
+              {/* Add Line — only when no linked upload */}
+              {!readOnly && !committed && !hasLinkedUpload && (
                 <Button
                   type="button"
                   size="sm"
@@ -371,6 +500,19 @@ export function JournalModal({
                   <Plus className="w-4 h-4 mr-1" /> Add Line
                 </Button>
               )}
+              {/* Select Journal — only when no manual entries */}
+              {!readOnly && !committed && entries.length === 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => { setShowSelectJournal((v) => !v); if (!showSelectJournal) fetchUploads(); }}
+                  className="cursor-pointer border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                >
+                  <FileSpreadsheet className="w-4 h-4 mr-1" /> Select Journal
+                </Button>
+              )}
+              {/* Mark Complete — always visible when not readOnly/committed */}
               {!readOnly && !committed && (
                 <Button
                   type="button"
@@ -393,9 +535,63 @@ export function JournalModal({
             </div>
           </div>
         </div>
+        )}
 
-        {/* Add Line Form */}
-        {showAddForm && (
+        {/* Linked upload banner — replaces balance banner when upload is linked */}
+        {hasLinkedUpload && (
+        <div className="border-b shrink-0 bg-indigo-50 border-indigo-100">
+          <div className="flex items-center gap-4 px-5 py-3">
+            <div className="flex items-center gap-2 text-sm">
+              <FileSpreadsheet className="w-4 h-4 text-indigo-600" />
+              <span className="font-semibold text-indigo-800">{linkedUpload.uploadId} — {linkedUpload.fileName}</span>
+              <span className="text-indigo-500 text-xs">
+                Dr: ₦{fmtAmount(linkedUpload.totalDebit)} · Cr: ₦{fmtAmount(linkedUpload.totalCredit)}
+              </span>
+            </div>
+            <div className="ml-auto flex items-center gap-2">
+              {commitError && (
+                <span className="text-xs text-red-500 flex items-center gap-1">
+                  <AlertCircle className="w-3 h-3" />{commitError}
+                </span>
+              )}
+              {committed && (
+                <span className="text-xs text-emerald-600 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> Committed to ledger
+                </span>
+              )}
+              {!readOnly && !committed && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleUnlinkUpload}
+                  disabled={!!linkingId}
+                  className="cursor-pointer text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100"
+                >
+                  <Unlink className="w-3.5 h-3.5 mr-1" /> Unlink
+                </Button>
+              )}
+              {!readOnly && !committed && (
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={!canMarkComplete || isMarkingComplete}
+                  onClick={handleMarkComplete}
+                  className="cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  {isMarkingComplete ? (
+                    <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Committing…</>
+                  ) : (
+                    <><CheckCircle2 className="w-4 h-4 mr-1" /> Mark Complete</>
+                  )}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+        )}
+
+        {/* Add Line Form — only when no linked upload */}
+        {showAddForm && !hasLinkedUpload && (
           <div className="border-b border-gray-100 bg-gray-50 px-5 py-4 shrink-0">
             <h3 className="text-sm font-semibold text-gray-700 mb-3">New Journal Line</h3>
             <form onSubmit={handleAdd} className="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -468,7 +664,8 @@ export function JournalModal({
           </div>
         )}
 
-        {/* Entries */}
+        {/* Entries — only when no linked upload */}
+        {!hasLinkedUpload && (
         <div className="flex-1 overflow-y-auto">
           {loadingEntries ? (
             <div className="flex items-center justify-center py-16">
@@ -478,7 +675,7 @@ export function JournalModal({
             <div className="flex flex-col items-center justify-center py-16 text-gray-400">
               <Scale className="w-10 h-10 mb-3 opacity-30" />
               <p className="text-sm font-medium">No journal entries yet</p>
-              <p className="text-xs mt-1">Click "Add Line" to record a debit or credit.</p>
+              <p className="text-xs mt-1">Click "Add Line" to record a debit or credit, or use "Select Journal" to link an uploaded Excel.</p>
             </div>
           ) : (
             <table className="w-full text-sm">
@@ -602,9 +799,10 @@ export function JournalModal({
             </table>
           )}
         </div>
+        )}
 
-        {/* Footer totals */}
-        {entries.length > 0 && (
+        {/* Footer totals — only when no linked upload */}
+        {!hasLinkedUpload && entries.length > 0 && (
           <div className="border-t border-gray-100 px-5 py-3 flex items-center justify-end gap-6 text-sm shrink-0">
             <span className="text-gray-500">{entries.length} line{entries.length !== 1 ? "s" : ""}</span>
             <span className="font-semibold text-blue-700">
@@ -613,6 +811,108 @@ export function JournalModal({
             <span className="font-semibold text-purple-700">
               Cr total: ₦{fmtAmount(balance?.credits ?? "0")}
             </span>
+          </div>
+        )}
+
+        {/* ── Select Journal Dropdown (treater only) ── */}
+        {showSelectJournal && !readOnly && (
+          <div className="border-t border-gray-100 bg-indigo-50 px-5 py-4 shrink-0 max-h-[250px] overflow-y-auto">
+            <h3 className="text-sm font-semibold text-indigo-800 mb-3 flex items-center gap-2">
+              <FileSpreadsheet className="w-4 h-4" /> Select an Uploaded Journal
+            </h3>
+            {loadingUploads ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+              </div>
+            ) : availableUploads.length === 0 ? (
+              <p className="text-xs text-indigo-500 py-4 text-center">No uploaded journals found. Upload one from the General Ledger first.</p>
+            ) : (
+              <div className="space-y-2">
+                {availableUploads.map((u) => (
+                  <div
+                    key={u.id}
+                    className={`flex items-center justify-between p-3 rounded-lg border transition-all text-xs ${
+                      linkedUpload?.id === u.id
+                        ? "border-indigo-400 bg-indigo-100"
+                        : "border-indigo-200 bg-white hover:border-indigo-300"
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold text-gray-900">{u.uploadId} — {u.fileName}</div>
+                      <div className="text-gray-500 mt-0.5">
+                        Dr: ₦{fmtAmount(u.totalDebit)} · Cr: ₦{fmtAmount(u.totalCredit)} · by {u.uploadedBy} · {new Date(u.uploadedAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={linkedUpload?.id === u.id ? "default" : "outline"}
+                      disabled={linkingId === u.id}
+                      onClick={() => linkedUpload?.id === u.id ? handleUnlinkUpload() : handleLinkUpload(u.id)}
+                      className={`cursor-pointer ml-3 shrink-0 ${linkedUpload?.id === u.id ? "bg-indigo-600 text-white" : ""}`}
+                    >
+                      {linkingId === u.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : linkedUpload?.id === u.id ? (
+                        <><Unlink className="w-3.5 h-3.5 mr-1" /> Unlink</>
+                      ) : (
+                        <><Link2 className="w-3.5 h-3.5 mr-1" /> Link</>
+                      )}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Linked Uploaded Journal Content (both treater & approver) ── */}
+        {linkedUpload && (
+          <div className="flex-1 overflow-y-auto">
+            {loadingContent ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-5 h-5 animate-spin text-indigo-600" />
+              </div>
+            ) : linkedContent && Object.keys(linkedContent.sheets).length > 0 ? (
+              <div>
+                {Object.entries(linkedContent.sheets).map(([sheetName, rows]) => {
+                  if (rows.length === 0) return null;
+                  const headers = Object.keys(rows[0]);
+                  return (
+                    <div key={sheetName}>
+                      {Object.keys(linkedContent.sheets).length > 1 && (
+                        <div className="px-5 py-1.5 bg-gray-100 text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+                          Sheet: {sheetName}
+                        </div>
+                      )}
+                      <table className="w-full text-xs">
+                        <thead className="sticky top-0 bg-gray-100 border-b border-gray-200">
+                          <tr>
+                            {headers.map((h) => (
+                              <th key={h} className="text-left px-3 py-2 font-semibold text-gray-600 whitespace-nowrap">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {rows.map((row: any, idx: number) => (
+                            <tr key={idx} className="hover:bg-gray-50">
+                              {headers.map((h) => (
+                                <td key={h} className="px-3 py-1.5 text-gray-700 whitespace-nowrap">{String(row[h] ?? "")}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                <FileSpreadsheet className="w-10 h-10 mb-3 opacity-30" />
+                <p className="text-sm font-medium">Excel content will appear here</p>
+                <p className="text-xs mt-1">The file content from SharePoint is loading or unavailable.</p>
+              </div>
+            )}
           </div>
         )}
       </div>

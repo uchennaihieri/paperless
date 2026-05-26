@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   X, Search, ChevronLeft, ChevronRight, Loader2,
-  TrendingUp, TrendingDown, BookOpen, Filter, Plus
+  TrendingUp, TrendingDown, BookOpen, Filter, Plus, Upload
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { useSession } from "next-auth/react";
 import { AddActionItemsModal } from "./AddActionItemsModal";
+import { JournalUploadModal } from "./JournalUploadModal";
 import Link from "next/link";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -31,6 +32,7 @@ type LedgerEntry = {
   createdBy: string;
   date: string;
   committed: boolean;
+  uploadedJournalId?: string | null;
 };
 
 type Meta = {
@@ -84,6 +86,14 @@ export function JournalLedgerModal({
   const [page, setPage] = useState(1);
   const [showFilters, setShowFilters] = useState(false);
   const [showAddItems, setShowAddItems] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+
+  // Determine if the current user is an accountant
+  const rolesStr = (session?.user as any)?.roles;
+  const roles = typeof rolesStr === "string" ? JSON.parse(rolesStr) : rolesStr || [];
+  const activeId = (session?.user as any)?.activeRoleId;
+  const activeRole = roles.find((r: any) => String(r.id) === String(activeId)) || roles[0];
+  const isAccountant = activeRole?.specialAccess?.toLowerCase().includes("accountant");
 
   const fetchLedger = useCallback(async () => {
     if (!token) return;
@@ -151,6 +161,17 @@ export function JournalLedgerModal({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {isAccountant && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowUploadModal(true)}
+                className="cursor-pointer bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+              >
+                <Upload className="w-4 h-4 mr-1" />
+                Upload Excel
+              </Button>
+            )}
             <Button
               size="sm"
               variant="outline"
@@ -264,9 +285,44 @@ export function JournalLedgerModal({
                     <td className="px-4 py-3 font-mono text-xs text-gray-500">{entry.journalId || "—"}</td>
                     <td className="px-4 py-3 text-gray-500 text-xs whitespace-nowrap">{fmt(entry.date)}</td>
                     <td className="px-4 py-3 font-semibold text-primary text-xs hover:underline hover:text-blue-600 transition-colors">
-                      <Link href={`/dashboard/view/${entry.sessionRef}`} target="_blank" rel="noopener noreferrer">
-                        {entry.sessionRef}
-                      </Link>
+                      {entry.uploadedJournalId ? (
+                        <button
+                          onClick={async () => {
+                            try {
+                              const res = await fetch(`${BASE_URL}/api/v1/journal/uploads/content/${entry.uploadedJournalId}`, {
+                                headers: { Authorization: `Bearer ${token}` },
+                              });
+                              const data = await res.json();
+                              if (data.success && data.data?.sheets) {
+                                // Convert first sheet to CSV-like content and download as Excel
+                                const firstSheetName = Object.keys(data.data.sheets)[0];
+                                const rows = data.data.sheets[firstSheetName] || [];
+                                if (rows.length === 0) {
+                                  alert("The uploaded Excel file is empty.");
+                                  return;
+                                }
+                                // Import xlsx dynamically and build a download
+                                const XLSX = await import("xlsx");
+                                const ws = XLSX.utils.json_to_sheet(rows);
+                                const wb = XLSX.utils.book_new();
+                                XLSX.utils.book_append_sheet(wb, ws, firstSheetName);
+                                XLSX.writeFile(wb, data.data.fileName || "journal.xlsx");
+                              } else {
+                                alert(data.error || "Failed to fetch file content.");
+                              }
+                            } catch {
+                              alert("Failed to download the journal file.");
+                            }
+                          }}
+                          className="text-left cursor-pointer text-primary font-semibold hover:underline"
+                        >
+                          {entry.sessionRef}
+                        </button>
+                      ) : (
+                        <Link href={`/dashboard/view/${entry.sessionRef}`} target="_blank" rel="noopener noreferrer">
+                          {entry.sessionRef}
+                        </Link>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-700 text-xs max-w-[120px] truncate">{entry.formName}</td>
                     <td className="px-4 py-3">
@@ -345,6 +401,16 @@ export function JournalLedgerModal({
           setShowAddItems(false);
           fetchLedger();
         }}
+      />
+
+      <JournalUploadModal
+        isOpen={showUploadModal}
+        onClose={(uploaded) => {
+          setShowUploadModal(false);
+          if (uploaded) fetchLedger();
+        }}
+        token={token}
+        baseUrl={BASE_URL}
       />
     </div>
   );
