@@ -741,9 +741,13 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
               ) : (
                 <div className="space-y-6">
                   {groupedTemplates.map(group => {
-                    const groupIds = group.items.map((t: any) => t.id);
-                    const allSelected = groupIds.length > 0 && groupIds.every(id => assignedTemplates.has(id));
-                    const someSelected = groupIds.some(id => assignedTemplates.has(id));
+                    const togglableItems = group.items.filter((t: any) => {
+                      return !activeUser?.roles?.some((r: any) => r.branch && r.branch === t.formOwner);
+                    });
+                    const togglableIds = togglableItems.map((t: any) => t.id);
+                    
+                    const allSelected = togglableIds.length > 0 && togglableIds.every((id: string) => assignedTemplates.has(id));
+                    const someSelected = togglableIds.some((id: string) => assignedTemplates.has(id));
                     
                     return (
                       <div key={group.owner} className="space-y-3">
@@ -752,45 +756,56 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
                             {group.owner}
                             <span className="text-xs font-normal text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">{group.items.length}</span>
                           </h4>
-                          <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-600 hover:text-gray-900 transition-colors">
-                            <input
-                              type="checkbox"
-                              checked={allSelected}
-                              ref={el => { if (el) el.indeterminate = !allSelected && someSelected; }}
-                              onChange={(e) => toggleGroupAccess(groupIds, e.target.checked)}
-                              className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4 cursor-pointer"
-                            />
-                            Select All
-                          </label>
+                          {togglableIds.length > 0 && (
+                            <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-600 hover:text-gray-900 transition-colors">
+                              <input
+                                type="checkbox"
+                                checked={allSelected}
+                                ref={el => { if (el) el.indeterminate = !allSelected && someSelected; }}
+                                onChange={(e) => toggleGroupAccess(togglableIds, e.target.checked)}
+                                className="rounded border-gray-300 text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                              />
+                              Select All
+                            </label>
+                          )}
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           {group.items.map((tpl: any) => {
-                            const isSelected = assignedTemplates.has(tpl.id);
+                            const isAutoAssigned = activeUser?.roles?.some((r: any) => r.branch && r.branch === tpl.formOwner);
+                            const isSelected = isAutoAssigned || assignedTemplates.has(tpl.id);
+                            
                             return (
                               <div
                                 key={tpl.id}
-                                onClick={() => toggleFormAccess(tpl.id)}
-                                className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
-                                  isSelected 
-                                    ? "bg-white border-primary/40 shadow-sm ring-1 ring-primary/10" 
-                                    : "bg-white border-gray-200 hover:border-gray-300"
+                                onClick={() => { if (!isAutoAssigned) toggleFormAccess(tpl.id); }}
+                                className={`flex items-start gap-3 p-4 rounded-xl border transition-all ${
+                                  isAutoAssigned
+                                    ? "bg-gray-50 border-gray-200 cursor-not-allowed opacity-80"
+                                    : isSelected 
+                                      ? "bg-white border-primary/40 shadow-sm ring-1 ring-primary/10 cursor-pointer" 
+                                      : "bg-white border-gray-200 hover:border-gray-300 cursor-pointer"
                                 }`}
                               >
                                 <div className={`mt-0.5 w-5 h-5 rounded flex items-center justify-center shrink-0 border ${
                                   isSelected 
-                                    ? "bg-primary border-primary text-white" 
+                                    ? isAutoAssigned ? "bg-gray-400 border-gray-400 text-white" : "bg-primary border-primary text-white" 
                                     : "bg-white border-gray-300 text-transparent"
                                 }`}>
                                   <CheckCircle2 className="w-3.5 h-3.5" />
                                 </div>
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                                    <h4 className={`text-sm font-semibold ${isSelected ? "text-gray-900" : "text-gray-700"}`}>
+                                    <h4 className={`text-sm font-semibold ${isSelected && !isAutoAssigned ? "text-gray-900" : "text-gray-700"}`}>
                                       {tpl.name}
                                     </h4>
                                     {tpl.isInternal && (
                                       <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 border border-amber-200 shrink-0">
                                         Internal
+                                      </span>
+                                    )}
+                                    {isAutoAssigned && (
+                                      <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded bg-gray-200 text-gray-700 border border-gray-300 shrink-0" title="User is automatically assigned this form because their branch matches the form owner.">
+                                        Auto-Assigned
                                       </span>
                                     )}
                                   </div>

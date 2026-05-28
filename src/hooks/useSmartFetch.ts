@@ -1,5 +1,42 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
+function showUpdateToast() {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  if (document.getElementById("smartfetch-update-toast")) return;
+
+  const toast = document.createElement("div");
+  toast.id = "smartfetch-update-toast";
+  Object.assign(toast.style, {
+    position: "fixed",
+    bottom: "24px",
+    right: "24px",
+    backgroundColor: "#1f2937",
+    color: "#f9fafb",
+    padding: "16px 20px",
+    borderRadius: "12px",
+    boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+    zIndex: "9999",
+    display: "flex",
+    alignItems: "center",
+    gap: "16px",
+    fontFamily: "system-ui, -apple-system, sans-serif",
+    fontSize: "14px",
+    maxWidth: "420px",
+    border: "1px solid #374151"
+  });
+
+  toast.innerHTML = `
+    <div style="flex: 1;">
+      <strong style="display: block; font-size: 15px; margin-bottom: 4px; color: #fff;">Update Available</strong>
+      <span style="color: #d1d5db; line-height: 1.4; display: block;">A new version of the application is available. Please refresh your page to continue.</span>
+    </div>
+    <button onclick="window.location.reload()" style="background: #3b82f6; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px; transition: background 0.2s;">
+      Refresh
+    </button>
+  `;
+  document.body.appendChild(toast);
+}
+
 export function useSmartFetch<T>(
   fetchFn: () => Promise<T>,
   dependencies: any[] = [],
@@ -46,8 +83,17 @@ export function useSmartFetch<T>(
         setLastUpdated(now);
         lastUpdatedRef.current = now.getTime();
         updateTimeAgo();
-      } catch (err) {
+      } catch (err: any) {
         console.error("SmartFetch error:", err);
+        const errMsg = err?.message || String(err);
+        if (
+          errMsg.includes("Failed to find Server Action") || 
+          errMsg.includes("older or newer deployment") ||
+          errMsg.includes("was not found on the server") ||
+          errMsg.includes("UnrecognizedActionError")
+        ) {
+          showUpdateToast();
+        }
       } finally {
         isFetchingRef.current = false;
         setIsFetching(false);

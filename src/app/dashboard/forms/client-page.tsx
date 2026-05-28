@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Search, FilePlus, ChevronRight, ListCollapse, PlusCircle,
-  Edit2, Trash2, AlertTriangle, Pencil, MessageCircle,
+  Edit2, Trash2, AlertTriangle, Pencil, MessageCircle, ChevronDown, ChevronUp
 } from "lucide-react";
 import Link from "next/link";
 import { deleteFormTemplate, deleteSubmission } from "@/app/actions/form";
@@ -67,6 +67,15 @@ export default function FormsClientPage({
   const [viewingReason, setViewingReason]           = useState<any | null>(null); // holds the submission
 
   const [formNavError, setFormNavError]             = useState("");
+
+  const [closedAccordions, setClosedAccordions]     = useState<Record<string, boolean>>({});
+
+  const toggleAccordion = (owner: string) => {
+    setClosedAccordions(prev => ({
+      ...prev,
+      [owner]: !prev[owner]
+    }));
+  };
 
   const allFilteredForms = templates.filter((f: any) =>
     f.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -186,54 +195,93 @@ export default function FormsClientPage({
       {/* ── Back Office & Account Services tabs ── */}
       {(activeTab === "back_office" || activeTab === "account_services") && (() => {
         const displayedForms = activeTab === "back_office" ? backOfficeForms : accountServicesForms;
+        
+        // Group forms by owner
+        const groupedForms = displayedForms.reduce((acc: any, form: any) => {
+          const owner = form.formOwner || "General";
+          if (!acc[owner]) acc[owner] = [];
+          acc[owner].push(form);
+          return acc;
+        }, {});
+
+        const sortedOwners = Object.keys(groupedForms).sort((a, b) => {
+          if (a === "General") return 1;
+          if (b === "General") return -1;
+          return a.localeCompare(b);
+        });
+
         return (
-          <div className="space-y-4">
+          <div className="space-y-6 pb-8">
             {formNavError && (
-              <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl">
+              <div className="flex items-center gap-2 p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl mb-4">
                 <AlertTriangle className="w-5 h-5 shrink-0" />
                 {formNavError}
               </div>
             )}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {displayedForms.map((form: any) => (
-              <Card
-                key={form.id}
-                className={`hover:shadow-md transition-all cursor-pointer border-l-4 group relative overflow-hidden ${activeTab === 'account_services' ? 'border-l-indigo-500' : 'border-l-primary'}`}
-                onClick={() => handleFormClick(form.id)}
-              >
-                <CardContent className="p-5">
-                  {isAdmin && (
-                    <div className="absolute top-3 right-3 flex items-center justify-end gap-1 opacity-0 shrink-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/forms/builder?id=${form.id}`); }}
-                        className="p-1.5 bg-gray-50 border border-gray-200 hover:bg-gray-100 rounded-md text-gray-500 hover:text-primary transition-colors cursor-pointer shadow-sm"
-                        title="Edit Template"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setTemplateToDelete(form); }}
-                        className="p-1.5 bg-red-50 border border-red-100 hover:bg-red-100 rounded-md text-red-500 hover:text-red-600 transition-colors cursor-pointer shadow-sm"
-                        title="Delete Template"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  )}
-                  <div className={`${activeTab === 'account_services' ? 'bg-indigo-100 text-indigo-600' : 'bg-primary/10 text-primary'} w-9 h-9 rounded-lg flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
-                    <FilePlus className="w-5 h-5" />
-                  </div>
-                  <h3 className="font-semibold text-gray-900 line-clamp-2 mb-1 leading-tight">{form.name}</h3>
-                  <p className="text-xs text-gray-400 line-clamp-2">{form.description}</p>
-                </CardContent>
-              </Card>
-            ))}
-            {displayedForms.length === 0 && (
-              <div className="col-span-full py-16 text-center text-gray-400">
+            
+            {sortedOwners.length === 0 ? (
+              <div className="py-16 text-center text-gray-400">
                 No forms found in this category.
               </div>
+            ) : (
+              sortedOwners.map((owner) => {
+                const isClosed = closedAccordions[owner];
+                return (
+                  <div key={owner} className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+                    <button
+                      className="w-full flex items-center justify-between p-4 bg-gray-50/50 hover:bg-gray-100 transition-colors cursor-pointer"
+                      onClick={() => toggleAccordion(owner)}
+                    >
+                      <div className="flex items-center gap-3">
+                        <h3 className="font-bold text-gray-800 text-base">{owner}</h3>
+                        <Badge variant="secondary" className="text-xs bg-white text-gray-500 font-semibold border-gray-200">{groupedForms[owner].length}</Badge>
+                      </div>
+                      {isClosed ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronUp className="w-5 h-5 text-gray-400" />}
+                    </button>
+                    
+                    {!isClosed && (
+                      <div className="p-5 border-t border-gray-100 bg-white">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                          {groupedForms[owner].map((form: any) => (
+                            <Card
+                              key={form.id}
+                              className={`hover:shadow-md transition-all cursor-pointer border-l-4 group relative overflow-hidden ${activeTab === 'account_services' ? 'border-l-indigo-500' : 'border-l-primary'}`}
+                              onClick={() => handleFormClick(form.id)}
+                            >
+                              <CardContent className="p-5">
+                                {isAdmin && (
+                                  <div className="absolute top-3 right-3 flex items-center justify-end gap-1 opacity-0 shrink-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/forms/builder?id=${form.id}`); }}
+                                      className="p-1.5 bg-gray-50 border border-gray-200 hover:bg-gray-100 rounded-md text-gray-500 hover:text-primary transition-colors cursor-pointer shadow-sm"
+                                      title="Edit Template"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); setTemplateToDelete(form); }}
+                                      className="p-1.5 bg-red-50 border border-red-100 hover:bg-red-100 rounded-md text-red-500 hover:text-red-600 transition-colors cursor-pointer shadow-sm"
+                                      title="Delete Template"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                )}
+                                <div className={`${activeTab === 'account_services' ? 'bg-indigo-100 text-indigo-600' : 'bg-primary/10 text-primary'} w-9 h-9 rounded-lg flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
+                                  <FilePlus className="w-5 h-5" />
+                                </div>
+                                <h3 className="font-semibold text-gray-900 line-clamp-2 mb-1 leading-tight">{form.name}</h3>
+                                <p className="text-xs text-gray-400 line-clamp-2">{form.description}</p>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
-          </div>
           </div>
         );
       })()}

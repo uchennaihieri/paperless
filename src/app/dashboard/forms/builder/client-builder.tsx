@@ -339,7 +339,8 @@ export default function FormBuilderClient({
         isInternal,
         needsContract,
         contractTemplateId || undefined,
-        generatesExcel
+        generatesExcel,
+        pdfType || "none"
       );
     } else {
       res = await createFormTemplate(
@@ -354,7 +355,8 @@ export default function FormBuilderClient({
         isInternal,
         needsContract,
         contractTemplateId || undefined,
-        generatesExcel
+        generatesExcel,
+        pdfType || "none"
       );
     }
     

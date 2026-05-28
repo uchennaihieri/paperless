@@ -36,7 +36,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
 
   // Find the exact active role from session
   const roles = session?.user && (session.user as any).roles ? JSON.parse((session.user as any).roles) : [];
@@ -65,6 +65,19 @@ export default function DashboardLayout({
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
+        <Building2 className="h-12 w-12 text-primary/30 animate-pulse mb-6" />
+        <div className="flex items-center gap-2">
+          <div className="w-2.5 h-2.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
+          <div className="w-2.5 h-2.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
+          <div className="w-2.5 h-2.5 rounded-full bg-primary animate-bounce" />
+        </div>
+        <p className="mt-4 text-sm font-medium text-gray-400">Authenticating...</p>
+      </div>
+    );
+  }
 
   return (
     <>
