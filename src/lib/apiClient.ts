@@ -2,11 +2,26 @@
 // It makes server-to-server HTTP requests to the Express backend on Railway.
 // BACKEND_API_URL is a secret env var — never exposed to the browser.
 
-import { auth } from "@/auth";
+import { auth, signOut } from "@/auth";
+import { redirect } from "next/navigation";
 
 const BASE_URL =
   process.env.BACKEND_API_URL ||
   "https://paperlessbackend-production.up.railway.app/api/v1";
+
+/** Error codes / messages that indicate the session is no longer valid. */
+const AUTH_ERROR_CODES = new Set([
+  "INVALID_TOKEN",
+  "TOKEN_EXPIRED",
+  "PASSWORD_CHANGED",
+]);
+
+function isAuthError(status: number, errorData: any): boolean {
+  if (status !== 401) return false;
+  if (errorData?.code && AUTH_ERROR_CODES.has(errorData.code)) return true;
+  const msg = (errorData?.error || "").toLowerCase();
+  return msg.includes("invalid") || msg.includes("expired") || msg.includes("token");
+}
 
 /** Custom error that preserves the backend error code (e.g. "PASSWORD_CHANGED"). */
 export class ApiError extends Error {
@@ -52,6 +67,14 @@ export const apiClient = async (
 
   if (!response.ok) {
     const errorData = await safeJson(response);
+
+    // Auto-logout: if the backend says the token is invalid/expired,
+    // destroy the NextAuth session and redirect to login.
+    if (isAuthError(response.status, errorData)) {
+      await signOut({ redirect: false }).catch(() => {});
+      redirect("/?reason=session_expired");
+    }
+
     throw new ApiError(
       errorData?.error || `API Error: ${response.status} ${response.statusText}`,
       errorData?.code

@@ -377,7 +377,7 @@ function FormFieldsStep({
 
   // Extended Service Live Validation
   const [extendedStatus, setExtendedStatus] = useState<Record<string, { loading: boolean; valid: boolean; label?: string }>>({});
-  
+
   useEffect(() => {
     fields.forEach(field => {
       if ((field as any).type === "extended_service" && (field as any).extendedService) {
@@ -386,10 +386,10 @@ function FormFieldsStep({
           setExtendedStatus(prev => ({ ...prev, [field.id]: { loading: false, valid: false } }));
           return;
         }
-        
+
         const service = (field as any).extendedService;
         const currentRef = val.trim();
-        
+
         const timer = setTimeout(async () => {
           setExtendedStatus(prev => ({ ...prev, [field.id]: { loading: true, valid: false } }));
           try {
@@ -407,7 +407,7 @@ function FormFieldsStep({
             setExtendedStatus(prev => ({ ...prev, [field.id]: { loading: false, valid: false } }));
           }
         }, 800);
-        
+
         return () => clearTimeout(timer);
       }
     });
@@ -696,8 +696,8 @@ function FormFieldsStep({
                             type="button"
                             onClick={() => setAttachmentMode({ ...attachmentMode, [field.id]: 'custom' })}
                             className={`flex-1 py-2.5 px-4 text-sm font-semibold text-center transition-colors ${(attachmentMode[field.id] || 'custom') === 'custom'
-                                ? 'bg-white text-primary border-b-2 border-primary'
-                                : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
+                              ? 'bg-white text-primary border-b-2 border-primary'
+                              : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
                               }`}
                           >
                             Fill Custom Form
@@ -706,8 +706,8 @@ function FormFieldsStep({
                             type="button"
                             onClick={() => setAttachmentMode({ ...attachmentMode, [field.id]: 'file' })}
                             className={`flex-1 py-2.5 px-4 text-sm font-semibold text-center transition-colors ${attachmentMode[field.id] === 'file'
-                                ? 'bg-white text-primary border-b-2 border-primary'
-                                : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
+                              ? 'bg-white text-primary border-b-2 border-primary'
+                              : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
                               }`}
                           >
                             Upload File
@@ -1324,6 +1324,7 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
   const [signatureToken, setSignatureToken] = useState("");
   const [showToken, setShowToken] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
+  const [showPrefillModal, setShowPrefillModal] = useState(false);
   const [error, setError] = useState("");
 
   const fields: Field[] = typeof template.fields === "string"
@@ -1363,6 +1364,23 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
 
   const handleFieldChange = (id: string, value: any) => {
     setFormData((prev) => ({ ...prev, [id]: value }));
+  };
+
+  // ── Prefill handler: map source submission responses onto current template fields ──
+  const handlePrefill = (sourceResponses: Record<string, any>) => {
+    const newFormData: Record<string, any> = {};
+    fields.forEach(field => {
+      if ((field as any).type === 'section_header' || (field as any).type === 'instructions') return;
+      if (field.type === 'file') return;
+      const sourceValue = sourceResponses[field.label];
+      if (sourceValue === undefined || sourceValue === null || sourceValue === '') return;
+      // Skip attachment objects (file references from previous submissions)
+      if (typeof sourceValue === 'object' && !Array.isArray(sourceValue)) return;
+      if (Array.isArray(sourceValue) && sourceValue.some((v: any) => v?.isAttachment)) return;
+      newFormData[field.id] = sourceValue;
+    });
+    setFormData(prev => ({ ...prev, ...newFormData }));
+    setShowPrefillModal(false);
   };
 
   const handleAddSignatory = (user: UserResult) => {
@@ -1446,9 +1464,16 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
 
   return (
     <div className="space-y-4 max-w-3xl mx-auto">
-      <Link href="/dashboard/forms" onClick={clearSavedState} className="inline-flex items-center text-sm text-gray-500 hover:text-primary transition-colors">
-        <ArrowLeft className="w-4 h-4 mr-1" /> Back to forms
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link href="/dashboard/forms" onClick={clearSavedState} className="inline-flex items-center text-sm text-gray-500 hover:text-primary transition-colors">
+          <ArrowLeft className="w-4 h-4 mr-1" /> Back to forms
+        </Link>
+        {step === 1 && (
+          <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => setShowPrefillModal(true)}>
+            <Layers className="w-4 h-4 mr-1" /> Prefill from previous
+          </Button>
+        )}
+      </div>
 
       <StepIndicator currentStep={step} />
 
@@ -1552,13 +1577,23 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
         </div>
       )}
 
+      {/* Prefill Modal */}
+      {showPrefillModal && (
+        <PrefillModal
+          templateId={template.id}
+          token={currentUser.token}
+          onClose={() => setShowPrefillModal(false)}
+          onPrefill={handlePrefill}
+        />
+      )}
+
       {/* Internal Form Modal */}
       {activeInternalFormTarget && (
         <InternalFormModal
           templateId={activeInternalFormTarget.templateId}
           initialData={
-            activeInternalFormTarget.index !== undefined 
-              ? internalFormsData[activeInternalFormTarget.fieldId]?.[activeInternalFormTarget.index]?.data 
+            activeInternalFormTarget.index !== undefined
+              ? internalFormsData[activeInternalFormTarget.fieldId]?.[activeInternalFormTarget.index]?.data
               : undefined
           }
           parentFormData={formData}
@@ -1574,14 +1609,14 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
                 data,
                 rawData
               };
-              
+
               const newArray = [...existingArray];
               if (activeInternalFormTarget.index !== undefined) {
                 newArray[activeInternalFormTarget.index] = newItem;
               } else {
                 newArray.push(newItem);
               }
-              
+
               return {
                 ...prev,
                 [activeInternalFormTarget.fieldId]: newArray
@@ -1591,6 +1626,119 @@ export default function FormFillerClient({ template, currentUser, draftId, initi
           }}
         />
       )}
+    </div>
+  );
+}
+
+// ─── Prefill Modal ────────────────────────────────────────────────────────────
+
+function PrefillModal({
+  templateId,
+  token,
+  onClose,
+  onPrefill,
+}: {
+  templateId: string;
+  token?: string;
+  onClose: () => void;
+  onPrefill: (sourceResponses: Record<string, any>) => void;
+}) {
+  const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
+  const [candidates, setCandidates] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState("");
+  const [prefilling, setPrefilling] = useState(false);
+
+  useEffect(() => {
+    fetch(`${BASE_URL}/api/v1/submissions/prefill-candidates/${templateId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(data => {
+        setCandidates(Array.isArray(data.data) ? data.data : []);
+        setLoading(false);
+      })
+      .catch(() => {
+        setCandidates([]);
+        setLoading(false);
+      });
+  }, [templateId, token, BASE_URL]);
+
+  const options = candidates.map(c => ({
+    label: `${c.reference || c.id.slice(0, 8)} — ${c.submittedBy?.user_name || "Unknown"}`,
+    value: c.id,
+  }));
+
+  const handleConfirm = async () => {
+    if (!selectedId) return;
+    setPrefilling(true);
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/submissions/${selectedId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success && data.data?.formResponses) {
+        onPrefill(data.data.formResponses);
+      }
+    } catch {
+      // silently fail — user can try again
+    } finally {
+      setPrefilling(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
+        <div className="p-6 space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Prefill from Previous</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Select a past submission to auto-fill this form.</p>
+            </div>
+            <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          ) : candidates.length === 0 ? (
+            <div className="text-center py-8">
+              <Layers className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+              <p className="text-sm text-gray-500">No previous submissions found for this form.</p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-700">Select Submission</label>
+              <SearchableSelect
+                id="prefill-select"
+                options={options}
+                value={selectedId}
+                onChange={setSelectedId}
+                placeholder="Search by reference..."
+              />
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+            <Button variant="ghost" onClick={onClose}>Cancel</Button>
+            <Button
+              disabled={!selectedId || prefilling}
+              onClick={handleConfirm}
+              className="cursor-pointer"
+            >
+              {prefilling ? (
+                <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Loading...</>
+              ) : (
+                <><Layers className="w-4 h-4 mr-1" /> Prefill</>
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

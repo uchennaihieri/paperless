@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,8 @@ type Step = "credentials" | "new-password" | "otp";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const sessionExpired = searchParams.get("reason") === "session_expired";
 
   const [step, setStep] = useState<Step>("credentials");
 
@@ -187,6 +189,15 @@ export default function LoginPage() {
                 {i < 2 && <div className={`h-0.5 w-8 ${(["credentials", "new-password", "otp"] as Step[]).indexOf(step) > i ? "bg-green-400" : "bg-gray-200"}`} />}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {sessionExpired && (
+        <div className="sm:mx-auto sm:w-full sm:max-w-md mt-4">
+          <div className="p-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
+            <span>Your session has expired. Please sign in again to continue.</span>
           </div>
         </div>
       )}
