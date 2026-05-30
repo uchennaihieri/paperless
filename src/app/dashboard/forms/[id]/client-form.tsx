@@ -1665,7 +1665,7 @@ function PrefillModal({
   }, [templateId, token, BASE_URL]);
 
   const options = candidates.map(c => ({
-    label: `${c.reference || c.id.slice(0, 8)} — ${c.submittedBy?.user_name || "Unknown"}`,
+    label: c.reference || c.id.slice(0, 8),
     value: c.id,
   }));
 
