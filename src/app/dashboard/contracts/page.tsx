@@ -1,6 +1,8 @@
 import { apiClient } from "@/lib/apiClient";
 import ClientContractsPage from "./client-contracts";
 
+export const dynamic = 'force-dynamic';
+
 export default async function ContractsPage() {
   let contracts = [];
   try {

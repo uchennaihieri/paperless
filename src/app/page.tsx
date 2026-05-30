@@ -17,7 +17,7 @@ const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbacken
 // otp          → user enters the OTP sent to their email
 type Step = "credentials" | "new-password" | "otp";
 
-export default function LoginPage() {
+function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionExpired = searchParams.get("reason") === "session_expired";
@@ -396,5 +396,14 @@ export default function LoginPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+import { Suspense } from "react";
+export default function Page() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
+      <LoginPage />
+    </Suspense>
   );
 }

@@ -12,6 +12,8 @@ interface Template {
   createdAt: string;
 }
 
+export const dynamic = 'force-dynamic';
+
 export default async function TemplatesPage() {
   let templates: Template[] = [];
   try {
