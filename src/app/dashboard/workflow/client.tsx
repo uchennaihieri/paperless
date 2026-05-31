@@ -59,6 +59,8 @@ type QueueItem = {
     status: string;
   }[];
   isPrerequisiteTask?: boolean;
+  type?: string;
+  contractRequestId?: string;
   prerequisiteContext?: {
     mainSubmissionReference: string;
     mainSubmissionName?: string;
@@ -366,7 +368,9 @@ function DetailPanel({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {Object.entries(responses).map(([q, a], i) => {
+                  {Object.entries(responses)
+                    .filter(([q]) => q !== "CompletedFormPDF")
+                    .map(([q, a], i) => {
                     const isAttachmentArray = Array.isArray(a) && a.every(v => v && v.isAttachment);
                     const isRef = isFormReferenceField(q);
                     return (
@@ -400,40 +404,47 @@ function DetailPanel({
           </div>
 
           {/* Completed Generated Documents */}
-          {item.documents && item.documents.some((d) => d.fieldName === "SignedContract") && (
-            <div>
-              <h3 className="text-xs font-semibold text-primary uppercase tracking-widest mb-3 border-b border-gray-100 pb-2">
-                Completed Generated Document
-              </h3>
-              <div className="space-y-2">
-                {item.documents.filter((d) => d.fieldName === "SignedContract").map((doc) => {
-                  const fileUrl = `/api/v1/file?docId=${doc.id}`;
-                  const fileName = doc.originalName || "Signed_Contract.pdf";
-                  return (
-                    <div key={doc.id} className="border border-gray-200 rounded-xl bg-gray-50 p-4 flex items-center justify-between gap-3 shadow-sm">
+          {(() => {
+            const completedPdfArr = Array.isArray(responses["CompletedFormPDF"]) ? responses["CompletedFormPDF"] : [];
+            const signedContractDocs = item.documents?.filter((d) => d.fieldName === "SignedContract") || [];
+            const prerequisiteDocs = item.documents?.filter((d) => d.fieldName?.startsWith("PrerequisitePDF:")) || [];
+
+            if (completedPdfArr.length === 0 && signedContractDocs.length === 0 && prerequisiteDocs.length === 0) {
+              return null;
+            }
+
+            return (
+              <div className="mt-6">
+                <h3 className="text-xs font-semibold text-primary uppercase tracking-widest mb-3 border-b border-gray-100 pb-2">
+                  Completed Generated Document
+                </h3>
+                <div className="space-y-3">
+                  {/* Auto-Generated PDF */}
+                  {completedPdfArr.length > 0 && (
+                    <div className="border border-gray-200 rounded-xl bg-gray-50 p-4 flex items-center justify-between gap-3 shadow-sm">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
                           <FileText className="w-4 h-4 text-[#b50938]" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 truncate">{fileName}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">Signed Contract document</p>
+                          <p className="text-sm font-semibold text-gray-800 truncate">{completedPdfArr[0].name}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">Generated PDF document</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <button
-                          onClick={() => openFile(fileUrl, fileName, token)}
+                          onClick={() => openFile(`${BASE_URL}${completedPdfArr[0].url}`, completedPdfArr[0].name, token)}
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors cursor-pointer"
                         >
                           Open PDF
                         </button>
                         <button
                           onClick={async () => {
-                            const res = await fetch(fileUrl, { headers: { Authorization: `Bearer ${token}` } });
+                            const res = await fetch(`${BASE_URL}${completedPdfArr[0].url}`, { headers: { Authorization: `Bearer ${token}` } });
                             const blob = await res.blob();
                             const a = document.createElement("a");
                             a.href = URL.createObjectURL(blob);
-                            a.download = fileName;
+                            a.download = completedPdfArr[0].name;
                             a.click();
                           }}
                           className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
@@ -442,11 +453,62 @@ function DetailPanel({
                         </button>
                       </div>
                     </div>
-                  );
-                })}
+                  )}
+
+                  {/* Signed Contract & Prerequisite Documents */}
+                  {[...signedContractDocs, ...prerequisiteDocs].map((doc) => {
+                    const fileUrl = `/api/v1/file?docId=${doc.id}`;
+                    let fileName = doc.originalName || "Document.pdf";
+                    let subtitle = "Document";
+
+                    if (doc.fieldName === "SignedContract") {
+                      fileName = doc.originalName || "Signed_Contract.pdf";
+                      subtitle = "Signed Contract document";
+                    } else if (doc.fieldName?.startsWith("PrerequisitePDF:")) {
+                      const prereqName = doc.fieldName.replace("PrerequisitePDF:", "");
+                      fileName = doc.originalName || `${prereqName}_Form.pdf`;
+                      subtitle = `Prerequisite: ${prereqName}`;
+                    }
+
+                    return (
+                      <div key={doc.id} className="border border-gray-200 rounded-xl bg-gray-50 p-4 flex items-center justify-between gap-3 shadow-sm">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                            <FileText className="w-4 h-4 text-[#b50938]" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">{fileName}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => openFile(`${BASE_URL}${fileUrl}`, fileName, token)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors cursor-pointer"
+                          >
+                            Open PDF
+                          </button>
+                          <button
+                            onClick={async () => {
+                              const res = await fetch(`${BASE_URL}${fileUrl}`, { headers: { Authorization: `Bearer ${token}` } });
+                              const blob = await res.blob();
+                              const a = document.createElement("a");
+                              a.href = URL.createObjectURL(blob);
+                              a.download = fileName;
+                              a.click();
+                            }}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
+                          >
+                            Download
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
 
           <div>
@@ -938,7 +1000,9 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
               key={item.id}
               className={`hover:shadow-md transition-all cursor-pointer group border-l-4 ${item.isPrerequisiteTask ? "border-l-indigo-400" : "border-l-amber-400"}`}
               onClick={() => {
-                if (item.isPrerequisiteTask) {
+                if (item.type === "CONTRACT") {
+                  window.location.href = `/dashboard/contracts?contractId=${item.contractRequestId}`;
+                } else if (item.isPrerequisiteTask) {
                   window.location.href = `/dashboard/forms/draft/${item.id}`;
                 } else {
                   setSelectedId(item.id);
@@ -975,10 +1039,12 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
                         <span>By: {item.submittedBy.user_name ?? item.submittedBy.finca_email}</span>
                       )}
                       <span suppressHydrationWarning>{formatDateTime(item.createdAt)}</span>
-                      <span className="font-medium text-amber-600">
-                        {item.signatories.filter((s) => s.status === "Signed").length}/
-                        {item.signatories.length} signed
-                      </span>
+                      {item.signatories && item.signatories.length > 0 && (
+                        <span className="font-medium text-amber-600">
+                          {item.signatories.filter((s) => s.status === "Signed").length}/
+                          {item.signatories.length} signed
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

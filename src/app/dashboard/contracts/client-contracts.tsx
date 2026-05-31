@@ -10,6 +10,23 @@ export default function ClientContractsPage({ initialContracts }: { initialContr
   const [contracts, setContracts] = useState(initialContracts);
   const [selectedContract, setSelectedContract] = useState<any | null>(null);
   
+  // Auto-open contract if contractId is in the URL
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const contractId = urlParams.get("contractId");
+      if (contractId && !selectedContract) {
+        const contractToOpen = contracts.find((c: any) => c.id === contractId);
+        if (contractToOpen) {
+          openContract(contractToOpen);
+          
+          // Optionally clear the query string so it doesn't reopen on refresh
+          window.history.replaceState({}, '', '/dashboard/contracts');
+        }
+      }
+    }
+  }, [contracts, selectedContract]);
+
   // Signing Flow State
   const [step, setStep] = useState<number>(0); // 0 = Preview, 1 = Signature, 2 = Selfie, 3 = Agreement
   const [previewHtml, setPreviewHtml] = useState<string>("");
@@ -23,6 +40,12 @@ export default function ClientContractsPage({ initialContracts }: { initialContr
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // External Signer State
+  const [showExternalModal, setShowExternalModal] = useState(false);
+  const [externalName, setExternalName] = useState("");
+  const [externalEmail, setExternalEmail] = useState("");
+  const [sendingExternal, setSendingExternal] = useState(false);
+
   const sigCanvasRef = useRef<any>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -35,9 +58,11 @@ export default function ClientContractsPage({ initialContracts }: { initialContr
     setDrawnSignature("");
     setSelfie("");
     setIsAgreed(false);
-    setError("");
     setSuccess("");
     stopCamera();
+    setShowExternalModal(false);
+    setExternalName("");
+    setExternalEmail("");
   };
 
   const openContract = async (contract: any) => {
@@ -168,6 +193,43 @@ export default function ClientContractsPage({ initialContracts }: { initialContr
     }
   };
 
+  const handleSendExternal = async () => {
+    if (!externalName || !externalEmail) {
+      setError("Name and Email are required.");
+      return;
+    }
+    setError("");
+    setSuccess("");
+    setSendingExternal(true);
+
+    try {
+      const res = await fetch(`/api/v1/contracts/${selectedContract.id}/send-external`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          externalSignerName: externalName,
+          externalSignerEmail: externalEmail,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccess("Contract sent to external signer successfully!");
+        setShowExternalModal(false);
+        setContracts(contracts.filter(c => c.id !== selectedContract.id));
+        setTimeout(() => {
+          handleClose();
+          router.refresh();
+        }, 2000);
+      } else {
+        setError(data.error || "Failed to send contract");
+      }
+    } catch (err: any) {
+      setError("Network error occurred");
+    } finally {
+      setSendingExternal(false);
+    }
+  };
+
   return (
     <div className="w-full max-w-4xl mx-auto pb-12 space-y-6">
       <button
@@ -279,6 +341,17 @@ export default function ClientContractsPage({ initialContracts }: { initialContr
                       Sign Now <ChevronRight className="w-4 h-4" />
                     </button>
                   </div>
+                )}
+                
+                {!loadingPreview && previewHtml && (
+                   <div className="p-4 border-t border-gray-200 bg-white flex justify-end shrink-0">
+                     <button
+                       onClick={() => setShowExternalModal(true)}
+                       className="px-4 py-2 border border-purple-200 text-purple-600 rounded-lg hover:bg-purple-50 transition-colors font-medium text-sm"
+                     >
+                       Send to External Signer
+                     </button>
+                   </div>
                 )}
               </div>
             )}
@@ -413,6 +486,57 @@ export default function ClientContractsPage({ initialContracts }: { initialContr
                       ) : (
                         "Finish Signing"
                       )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* EXTERNAL SIGNER MODAL */}
+            {showExternalModal && (
+              <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+                  <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                    <h3 className="font-bold text-gray-900">Send to External Signer</h3>
+                    <button onClick={() => setShowExternalModal(false)} className="text-gray-400 hover:text-gray-600">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <p className="text-sm text-gray-500">
+                      The external signer will receive an email with a secure link to review and sign the contract.
+                    </p>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Signer Name</label>
+                      <input 
+                        type="text" 
+                        value={externalName}
+                        onChange={(e) => setExternalName(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-purple-500 focus:border-purple-500"
+                        placeholder="John Doe"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Signer Email</label>
+                      <input 
+                        type="email" 
+                        value={externalEmail}
+                        onChange={(e) => setExternalEmail(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-purple-500 focus:border-purple-500"
+                        placeholder="john@example.com"
+                      />
+                    </div>
+                  </div>
+                  <div className="p-5 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+                    <button onClick={() => setShowExternalModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100">
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={handleSendExternal}
+                      disabled={sendingExternal || !externalName || !externalEmail}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 flex items-center"
+                    >
+                      {sendingExternal ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span> : null}
+                      Send Email
                     </button>
                   </div>
                 </div>
