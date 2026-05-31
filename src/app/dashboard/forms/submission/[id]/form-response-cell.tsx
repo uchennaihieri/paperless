@@ -12,11 +12,11 @@ const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbacken
  * - attachment array    → renders as clickable AttachmentLinks
  * - everything else     → plain string
  */
-export function FormResponseCell({ label, value }: { label: string; value: any }) {
+export function FormResponseCell({ label, value, forceRef = false }: { label: string; value: any; forceRef?: boolean }) {
   const { data: session } = useSession();
   const token = (session?.user as any)?.backendToken ?? "";
 
-  const isRef             = isFormReferenceField(label);
+  const isRef             = forceRef || isFormReferenceField(label);
   const isAttachmentArray = Array.isArray(value) && value.every((v: any) => v?.isAttachment);
 
   if (isRef && typeof value === "string" && value.trim()) {

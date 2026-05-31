@@ -68,6 +68,7 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
   const submitterEmail = (submission as any).submittedBy?.finca_email ?? null;
   const completedPdfArr = responses["CompletedFormPDF"];
   const signedContractDocs: any[] = ((submission as any).documents ?? []).filter((d: any) => d.fieldName === "SignedContract");
+  const prerequisiteDocs: any[] = ((submission as any).documents ?? []).filter((d: any) => d.fieldName?.startsWith("PrerequisitePDF:"));
   const isBlocked = submission.status === "Blocked - Awaiting Prerequisites";
   // Use the Next.js proxy (/api/v1/...) so the browser request is forwarded
   // with the session token automatically — no auth error on direct <a> links.
@@ -78,16 +79,23 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
   const processedKeys = new Set<string>();
 
   templateFields.forEach((field: any) => {
-    const key = field.id || field.label;
-    if (responses[key] !== undefined) {
+    // Check both id and label
+    const valById = responses[field.id];
+    const valByLabel = responses[field.label];
+    
+    if (valById !== undefined || valByLabel !== undefined) {
+      const key = valById !== undefined ? field.id : field.label;
+      const value = valById !== undefined ? valById : valByLabel;
+      
       orderedResponses.push({
         label: field.label || key,
         key,
-        value: responses[key],
+        value: value,
         isPrerequisite: field.isPrerequisite,
         targetFormTemplateId: field.targetFormTemplateId,
       });
-      processedKeys.add(key);
+      if (field.id) processedKeys.add(field.id);
+      if (field.label) processedKeys.add(field.label);
     }
   });
 
@@ -129,16 +137,53 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
 
       {/* Blocked banner */}
       {isBlocked && (
-        <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-semibold text-amber-800">Awaiting Prerequisite Forms</p>
-            <p className="text-xs text-amber-700 mt-0.5">
-              This submission is blocked until all linked prerequisite forms below have been
-              independently filled and approved. Signatories will be notified automatically once
-              all prerequisites are met.
-            </p>
+        <div className="flex flex-col gap-4 p-5 bg-amber-50 border border-amber-200 rounded-xl">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-800">Awaiting Prerequisite Forms</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                This submission is blocked until all sequential prerequisite forms have been
+                completed. The workflow will proceed automatically once all prerequisites are approved.
+              </p>
+            </div>
           </div>
+          {/* Prerequisite Timeline */}
+          {prerequisites.length > 0 && (
+            <div className="flex items-center gap-1 mt-2 w-full overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-amber-200">
+              {[...prerequisites].sort((a, b) => (a.order || 0) - (b.order || 0)).map((pr, idx, arr) => {
+                let nodeColor = "bg-gray-100 text-gray-500 border-gray-200";
+                let icon = <Clock className="w-4 h-4" />;
+                if (pr.status === "Approved") {
+                  nodeColor = "bg-green-50 text-green-700 border-green-200";
+                  icon = <CheckCircle2 className="w-4 h-4 text-green-500" />;
+                } else if (pr.status === "Active") {
+                  nodeColor = "bg-white text-amber-700 border-amber-300 ring-2 ring-amber-400 ring-offset-2 ring-offset-amber-50 shadow-sm";
+                  icon = <Clock className="w-4 h-4 text-amber-500 animate-pulse" />;
+                } else if (pr.status === "Declined") {
+                  nodeColor = "bg-red-50 text-red-700 border-red-200";
+                  icon = <AlertTriangle className="w-4 h-4 text-red-500" />;
+                }
+
+                return (
+                  <div key={pr.id} className="flex items-center">
+                    <div className={`flex flex-col items-center justify-center p-3 rounded-lg border w-[140px] text-center ${nodeColor}`}>
+                      {icon}
+                      <span className="text-xs font-semibold mt-1.5 truncate w-full" title={pr.targetForm?.name || "Prerequisite"}>
+                        {pr.targetForm?.name || "Prerequisite"}
+                      </span>
+                      <span className="text-[10px] opacity-80 mt-0.5 truncate w-full" title={pr.targetEmail}>
+                        {pr.targetEmail}
+                      </span>
+                    </div>
+                    {idx < arr.length - 1 && (
+                      <div className="w-6 h-0.5 bg-amber-200 mx-2 shrink-0" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -226,22 +271,14 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
                     <td className="px-4 py-3 text-gray-600">
                       {linkedPrereq ? (
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-gray-500 text-sm">{String(value)}</span>
+                          <FormResponseCell label={key} value={value} forceRef={true} />
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${prereqStatusColor(linkedPrereq.status)}`}>
                             <PrereqStatusIcon status={linkedPrereq.status} />
                             {linkedPrereq.status}
                           </span>
-                          {linkedPrereq.prereqSubmissionId && (
-                            <Link
-                              href={`/dashboard/forms/submission/${linkedPrereq.prereqSubmissionId}`}
-                              className="text-xs text-primary underline underline-offset-2 hover:text-primary/80"
-                            >
-                              View
-                            </Link>
-                          )}
                         </div>
                       ) : (
-                        <FormResponseCell label={key} value={value} />
+                        <FormResponseCell label={key} value={value} forceRef={isPrerequisite} />
                       )}
                     </td>
                   </tr>
@@ -253,7 +290,7 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
       </div>
 
       {/* Completed Generated Documents */}
-      {((completedPdfArr && completedPdfArr.length > 0) || signedContractDocs.length > 0) && (
+      {((completedPdfArr && completedPdfArr.length > 0) || signedContractDocs.length > 0 || prerequisiteDocs.length > 0) && (
         <div className="mt-8">
           <h3 className="text-xs font-semibold text-primary uppercase tracking-widest border-b border-gray-200 pb-2 mb-3">
             Completed Generated Document
@@ -325,6 +362,43 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
                 </div>
               );
             })}
+
+            {/* Prerequisite PDF Documents */}
+            {prerequisiteDocs.map((doc: any) => {
+              const downloadUrl = `${FILE_PROXY}?docId=${doc.id}`;
+              const docName = doc.fieldName.replace("PrerequisitePDF:", "");
+              return (
+                <div key={doc.id} className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+                      <FileDown className="w-5 h-5 text-orange-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{doc.originalName || `${docName.replace(/\s+/g, "_")}.pdf`}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{docName} (Prerequisite)</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={downloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-xs font-semibold rounded-lg hover:bg-orange-700 transition-colors shadow-sm"
+                    >
+                      <FileDown className="w-3.5 h-3.5" /> Open PDF
+                    </a>
+                    <a
+                      href={downloadUrl}
+                      download
+                      className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors shadow-sm"
+                    >
+                      Download
+                    </a>
+                  </div>
+                </div>
+              );
+            })}
+
           </div>
         </div>
       )}

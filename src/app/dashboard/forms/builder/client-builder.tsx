@@ -112,6 +112,9 @@ type Field = {
   derivedSecondField?: string;
   isPrerequisite?: boolean;
   targetFormTemplateId?: string;
+  prerequisiteOrder?: number;
+  defaultPrereqBranch?: string;
+  defaultPrereqRole?: string;
   // conditional logic extras
   conditionSourceFieldId?: string;
   conditionOperator?: string;
@@ -138,12 +141,14 @@ export default function FormBuilderClient({
   isAdmin,
   branches,
   initialTemplate,
-  availableTemplates = []
+  availableTemplates = [],
+  roles
 }: {
   isAdmin: boolean;
   branches: string[];
   initialTemplate?: any;
   availableTemplates?: any[];
+  roles: string[];
 }) {
   const router = useRouter();
   const [name, setName] = useState(initialTemplate?.name || "");
@@ -1297,21 +1302,68 @@ export default function FormBuilderClient({
                               </div>
                             </div>
                             {(field as any).isPrerequisite && (
-                              <div className="mt-3 ml-6 space-y-1.5 bg-orange-50 border border-orange-200 rounded-lg p-3">
-                                <Label className="text-xs font-semibold text-orange-800">Required Prerequisite Form <span className="text-red-500">*</span></Label>
-                                <select
-                                  value={(field as any).targetFormTemplateId || ""}
-                                  onChange={(e) => updateField(idx, "targetFormTemplateId" as any, e.target.value)}
-                                  className={SELECT_CLASS}
-                                >
-                                  <option value="">— Select the form they must complete —</option>
-                                  {allFormTemplates.map((tpl: any) => (
-                                    <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
-                                  ))}
-                                </select>
-                                {!(field as any).targetFormTemplateId && (
-                                  <p className="text-xs text-orange-600">You must select a prerequisite form template.</p>
-                                )}
+                              <div className="mt-3 ml-6 space-y-4 bg-orange-50 border border-orange-200 rounded-lg p-3">
+                                
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs font-semibold text-orange-800">Required Prerequisite Form <span className="text-red-500">*</span></Label>
+                                  <select
+                                    value={(field as any).targetFormTemplateId || ""}
+                                    onChange={(e) => updateField(idx, "targetFormTemplateId" as any, e.target.value)}
+                                    className={SELECT_CLASS}
+                                  >
+                                    <option value="">— Select the form they must complete —</option>
+                                    {allFormTemplates.map((tpl: any) => (
+                                      <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+                                    ))}
+                                  </select>
+                                  {!(field as any).targetFormTemplateId && (
+                                    <p className="text-xs text-orange-600">You must select a prerequisite form template.</p>
+                                  )}
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold text-orange-800">Execution Order</Label>
+                                    <Input
+                                      type="number"
+                                      min="1"
+                                      value={(field as any).prerequisiteOrder || 1}
+                                      onChange={(e) => updateField(idx, "prerequisiteOrder" as any, parseInt(e.target.value) || 1)}
+                                      className="bg-white text-sm"
+                                    />
+                                    <p className="text-[10px] text-orange-600">Lower numbers execute first.</p>
+                                  </div>
+
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold text-orange-800">Default Assignee Branch</Label>
+                                    <select
+                                      value={(field as any).defaultPrereqBranch || ""}
+                                      onChange={(e) => updateField(idx, "defaultPrereqBranch" as any, e.target.value)}
+                                      className={SELECT_CLASS}
+                                    >
+                                      <option value="">— No Default —</option>
+                                      <option value="USER BRANCH">Current User's Branch</option>
+                                      {branches.map((b) => (
+                                        <option key={b} value={b}>{b}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs font-semibold text-orange-800">Default Assignee Role</Label>
+                                    <select
+                                      value={(field as any).defaultPrereqRole || ""}
+                                      onChange={(e) => updateField(idx, "defaultPrereqRole" as any, e.target.value)}
+                                      className={SELECT_CLASS}
+                                    >
+                                      <option value="">— No Default —</option>
+                                      {roles.map((r) => (
+                                        <option key={r} value={r}>{r}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+
                               </div>
                             )}
                           </div>

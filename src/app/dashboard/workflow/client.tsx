@@ -58,6 +58,13 @@ type QueueItem = {
     targetEmail: string;
     status: string;
   }[];
+  isPrerequisiteTask?: boolean;
+  prerequisiteContext?: {
+    mainSubmissionReference: string;
+    mainSubmissionName?: string;
+    targetEmail: string;
+    prerequisiteId: string;
+  };
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -929,25 +936,41 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
           {queue.map((item) => (
             <Card
               key={item.id}
-              className="hover:shadow-md transition-all cursor-pointer group border-l-4 border-l-amber-400"
-              onClick={() => setSelectedId(item.id)}
+              className={`hover:shadow-md transition-all cursor-pointer group border-l-4 ${item.isPrerequisiteTask ? "border-l-indigo-400" : "border-l-amber-400"}`}
+              onClick={() => {
+                if (item.isPrerequisiteTask) {
+                  window.location.href = `/dashboard/forms/draft/${item.id}`;
+                } else {
+                  setSelectedId(item.id);
+                }
+              }}
             >
               <CardContent className="p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex gap-3 sm:gap-4 items-start md:items-center min-w-0 w-full md:w-auto">
-                  <div className="bg-amber-100 text-amber-600 p-2 sm:p-2.5 rounded-xl shrink-0 mt-1 md:mt-0 hidden sm:block">
+                  <div className={`${item.isPrerequisiteTask ? "bg-indigo-100 text-indigo-600" : "bg-amber-100 text-amber-600"} p-2 sm:p-2.5 rounded-xl shrink-0 mt-1 md:mt-0 hidden sm:block`}>
                     <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start sm:items-center gap-2 flex-col sm:flex-row">
                       <h3 className="font-semibold text-sm sm:text-base text-gray-900 truncate w-full sm:w-auto">{item.formName}</h3>
-                      <span className={`text-[10px] sm:text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1 w-fit ${item.signingType === "sequential" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
-                        }`}>
-                        {item.signingType === "sequential" ? <GitBranch className="w-2.5 h-2.5 shrink-0" /> : <Layers className="w-2.5 h-2.5 shrink-0" />}
-                        {item.signingType}
-                      </span>
+                      {item.isPrerequisiteTask ? (
+                        <span className="text-[10px] sm:text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1 w-fit bg-indigo-100 text-indigo-700">
+                          <Layers className="w-2.5 h-2.5 shrink-0" />
+                          Prerequisite Task
+                        </span>
+                      ) : (
+                        <span className={`text-[10px] sm:text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1 w-fit ${item.signingType === "sequential" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"
+                          }`}>
+                          {item.signingType === "sequential" ? <GitBranch className="w-2.5 h-2.5 shrink-0" /> : <Layers className="w-2.5 h-2.5 shrink-0" />}
+                          {item.signingType}
+                        </span>
+                      )}
                     </div>
                     <div className="text-[10px] sm:text-xs text-gray-400 mt-1.5 flex flex-wrap gap-x-3 gap-y-1">
                       <span>Ref: {item.reference || item.id.slice(-8).toUpperCase()}</span>
+                      {item.isPrerequisiteTask && item.prerequisiteContext && (
+                        <span>For: {item.prerequisiteContext.mainSubmissionName} ({item.prerequisiteContext.mainSubmissionReference})</span>
+                      )}
                       {item.submittedBy && (
                         <span>By: {item.submittedBy.user_name ?? item.submittedBy.finca_email}</span>
                       )}

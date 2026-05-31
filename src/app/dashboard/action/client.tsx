@@ -23,7 +23,7 @@ type ActionItem = {
   formResponses: Record<string, any>;
   signingType: string;
   createdAt: string;
-  template: { name: string; formOwner: string; formTreater: string };
+  template: { name: string; formOwner: string; formTreater: string; fields?: any };
   signatories: Array<{ userName: string; email: string; status: string; signedAt: string; position: number }>;
   submittedBy: { user_name: string; finca_email: string; branch: string } | null;
   documents?: Array<{ id: string; fieldName: string; originalName: string }>;
@@ -240,6 +240,10 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
     setShowTreaterTokenModal(true);
   };
 
+  const completedPdfArr = selected?.formResponses?.["CompletedFormPDF"] || [];
+  const signedContractDocs: any[] = ((selected?.documents || []) as any[]).filter((d: any) => d.fieldName === "SignedContract");
+  const prerequisiteDocs: any[] = ((selected?.documents || []) as any[]).filter((d: any) => d.fieldName?.startsWith("PrerequisitePDF:"));
+
   return (
     <div className="space-y-6 max-w-6xl print:space-y-0">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 print:hidden">
@@ -365,45 +369,81 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                 <div className="w-1/2">VALUE/RESPONSE</div>
               </div>
               <div className="border-x border-b rounded-b-lg border-gray-100 divide-y divide-gray-100">
-                {Object.entries(selected.formResponses).filter(([k]) => k !== "CompletedFormPDF").map(([key, val], i) => {
-                  const isRef = isFormReferenceField(key);
-                  return (
-                    <div key={i} className="flex px-4 py-3 text-xs flex-col sm:flex-row gap-2 sm:gap-0">
-                      <div className="w-full sm:w-1/2 font-semibold text-gray-700">{key}</div>
-                      <div className="w-full sm:w-1/2 text-gray-600 break-words">
-                        {isRef && typeof val === "string" ? (
-                          <FormReferenceLink value={val} token={token} backendUrl={BASE_URL} />
-                        ) : Array.isArray(val) && val.length > 0 && val[0]?.isAttachment
-                          ? val.map((v: any, idx: number) => (
-                            <a
-                              key={idx}
-                              href={v.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center gap-1.5 text-[#b50938] underline hover:text-[#9a0730] transition-colors mb-1"
-                            >
-                              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                              </svg>
-                              {v.name}
-                            </a>
-                          ))
-                          : String(val)}
+                {(() => {
+                  const templateFields = Array.isArray(selected.template.fields)
+                    ? selected.template.fields
+                    : typeof selected.template.fields === "string"
+                      ? JSON.parse(selected.template.fields)
+                      : [];
+
+                  const orderedResponses: any[] = [];
+                  const processedKeys = new Set<string>();
+
+                  templateFields.forEach((field: any) => {
+                    const valById = selected.formResponses[field.id];
+                    const valByLabel = selected.formResponses[field.label];
+                    
+                    if (valById !== undefined || valByLabel !== undefined) {
+                      const key = valById !== undefined ? field.id : field.label;
+                      const value = valById !== undefined ? valById : valByLabel;
+                      
+                      orderedResponses.push({
+                        label: field.label || key,
+                        key,
+                        value: value,
+                        isPrerequisite: field.isPrerequisite,
+                      });
+                      if (field.id) processedKeys.add(field.id);
+                      if (field.label) processedKeys.add(field.label);
+                    }
+                  });
+
+                  Object.entries(selected.formResponses).forEach(([q, a]) => {
+                    if (q !== "CompletedFormPDF" && !processedKeys.has(q)) {
+                      const fallbackLabel = q.charAt(0).toUpperCase() + q.slice(1).replace(/([A-Z])/g, " $1");
+                      orderedResponses.push({ label: fallbackLabel, key: q, value: a, isPrerequisite: false });
+                    }
+                  });
+
+                  return orderedResponses.map(({ label, key, value, isPrerequisite }, i) => {
+                    const isRef = isPrerequisite || isFormReferenceField(key);
+                    return (
+                      <div key={i} className="flex px-4 py-3 text-xs flex-col sm:flex-row gap-2 sm:gap-0">
+                        <div className="w-full sm:w-1/2 font-semibold text-gray-700">{label}</div>
+                        <div className="w-full sm:w-1/2 text-gray-600 break-words">
+                          {isRef && typeof value === "string" ? (
+                            <FormReferenceLink value={value} token={token} backendUrl={BASE_URL} />
+                          ) : Array.isArray(value) && value.length > 0 && value[0]?.isAttachment
+                            ? value.map((v: any, idx: number) => (
+                              <a
+                                key={idx}
+                                href={v.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-1.5 text-[#b50938] underline hover:text-[#9a0730] transition-colors mb-1"
+                              >
+                                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                                </svg>
+                                {v.name}
+                              </a>
+                            ))
+                            : String(value)}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
             </div>
 
             {/* Generated PDFs */}
-            {((selected.formResponses["CompletedFormPDF"] && selected.formResponses["CompletedFormPDF"].length > 0) || 
-              (selected.documents && selected.documents.some((d: any) => d.fieldName === "SignedContract"))) && (
+            {(completedPdfArr.length > 0 || signedContractDocs.length > 0 || prerequisiteDocs.length > 0) && (
               <div className="mb-10">
                 <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Completed Generated Document</h3>
                 <div className="space-y-3">
                   {/* Legacy Auto-Generated PDF */}
-                  {selected.formResponses["CompletedFormPDF"] && selected.formResponses["CompletedFormPDF"].length > 0 && (
+                  {completedPdfArr.length > 0 && (
                     <div className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
@@ -487,6 +527,59 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                       );
                     }
                     return null;
+                  })}
+
+                  {/* Prerequisite PDFs */}
+                  {prerequisiteDocs.map((doc: any) => {
+                    const fileUrl = `/api/v1/file?docId=${doc.id}`;
+                    const docName = doc.fieldName.replace("PrerequisitePDF:", "");
+                    const fileName = doc.originalName || `${docName}.pdf`;
+                    const openDoc = async () => {
+                      const newWindow = window.open("", "_blank");
+                      if (newWindow) newWindow.document.write(`<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;color:#666;">Loading ${fileName}...</div>`);
+                      try {
+                        const res = await fetch(fileUrl, { headers: { Authorization: `Bearer ${token}` } });
+                        const blob = await res.blob();
+                        const url = URL.createObjectURL(blob);
+                        if (newWindow) newWindow.location.href = url;
+                        setTimeout(() => URL.revokeObjectURL(url), 60000);
+                      } catch { if (newWindow) newWindow.document.write(`<div style="color:red;padding:20px;">Failed to load file.</div>`); }
+                    };
+                    const downloadDoc = async () => {
+                      const res = await fetch(fileUrl, { headers: { Authorization: `Bearer ${token}` } });
+                      const blob = await res.blob();
+                      const a = document.createElement("a");
+                      a.href = URL.createObjectURL(blob);
+                      a.download = fileName;
+                      a.click();
+                    };
+                    return (
+                      <div key={doc.id} className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+                            <FileDown className="w-5 h-5 text-orange-600" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-gray-800">{fileName}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">Prerequisite: {docName}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={openDoc}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-xs font-semibold rounded-lg hover:bg-orange-700 transition-colors shadow-sm cursor-pointer"
+                          >
+                            <FileDown className="w-3.5 h-3.5" /> Open PDF
+                          </button>
+                          <button
+                            onClick={downloadDoc}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors shadow-sm cursor-pointer"
+                          >
+                            Download
+                          </button>
+                        </div>
+                      </div>
+                    );
                   })}
                 </div>
               </div>

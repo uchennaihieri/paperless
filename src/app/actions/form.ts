@@ -68,6 +68,11 @@ export async function getBranches(): Promise<string[]> {
   return result.data || [];
 }
 
+export async function getRoles(): Promise<string[]> {
+  const result = await apiClient("/lookup?type=role", { method: "GET" }).catch(e => ({ data: [] }));
+  return result.data || [];
+}
+
 export async function getActionItems() {
   const result = await apiClient("/submissions/action-items", { method: "GET" }).catch(e => ({ data: [] }));
   return result.data || [];

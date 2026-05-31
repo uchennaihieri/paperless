@@ -1,4 +1,4 @@
-import { getFormTemplate, getSubmission } from "@/app/actions/form";
+import { getSubmission } from "@/app/actions/form";
 import FormFillerClient from "../../[id]/client-form";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
@@ -27,8 +27,8 @@ export default async function DraftFillFormPage({ params }: { params: Promise<{ 
     );
   }
 
-  // 2. Fetch the template associated with this draft
-  const template = await getFormTemplate(submission.templateId);
+  // 2. The template is already included in the submission
+  const template = submission.template;
   
   if (!template) {
     notFound();
@@ -38,13 +38,15 @@ export default async function DraftFillFormPage({ params }: { params: Promise<{ 
   const session = await auth();
   const userName = session?.user?.name || "Unknown";
   const email = session?.user?.email || "";
+  const token = (session?.user as any)?.backendToken ?? "";
 
   return (
     <FormFillerClient 
       template={template} 
-      currentUser={{ userName, email }} 
+      currentUser={{ userName, email, token }} 
       draftId={submission.id}
       initialFormData={submission.formResponses}
+      prerequisiteInfo={submission.prerequisiteFor || undefined}
     />
   );
 }

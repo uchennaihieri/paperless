@@ -1,10 +1,10 @@
-import { isAdministrator, getBranches, getFormTemplate } from "@/app/actions/form";
+import { isAdministrator, getBranches, getRoles, getFormTemplate } from "@/app/actions/form";
 import FormBuilderClient from "./client-builder";
 import { apiClient } from "@/lib/apiClient";
 
 export default async function FormBuilderPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
   const resolvedParams = await searchParams;
-  const [admin, branches] = await Promise.all([isAdministrator(), getBranches()]);
+  const [admin, branches, roles] = await Promise.all([isAdministrator(), getBranches(), getRoles()]);
   
   let availableTemplates = [];
   try {
@@ -16,5 +16,5 @@ export default async function FormBuilderPage({ searchParams }: { searchParams: 
   if (resolvedParams?.id) {
     template = await getFormTemplate(resolvedParams.id);
   }
-  return <FormBuilderClient isAdmin={admin} branches={branches} initialTemplate={template} availableTemplates={availableTemplates} />;
+  return <FormBuilderClient isAdmin={admin} branches={branches} roles={roles} initialTemplate={template} availableTemplates={availableTemplates} />;
 }
