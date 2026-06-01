@@ -382,11 +382,11 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                   templateFields.forEach((field: any) => {
                     const valById = selected.formResponses[field.id];
                     const valByLabel = selected.formResponses[field.label];
-                    
+
                     if (valById !== undefined || valByLabel !== undefined) {
                       const key = valById !== undefined ? field.id : field.label;
                       const value = valById !== undefined ? valById : valByLabel;
-                      
+
                       orderedResponses.push({
                         label: field.label || key,
                         key,

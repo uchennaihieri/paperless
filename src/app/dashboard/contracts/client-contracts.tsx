@@ -3,7 +3,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { PenTool, CheckCircle, FileText, AlertCircle, X, Camera, RefreshCw, ChevronRight, CheckSquare, ArrowLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
-import SignatureCanvas from 'react-signature-canvas';
 
 export default function ClientContractsPage({ initialContracts }: { initialContracts: any[] }) {
   const router = useRouter();
@@ -28,13 +27,13 @@ export default function ClientContractsPage({ initialContracts }: { initialContr
   }, [contracts, selectedContract]);
 
   // Signing Flow State
-  const [step, setStep] = useState<number>(0); // 0 = Preview, 1 = Signature, 2 = Selfie, 3 = Agreement
+  const [step, setStep] = useState<number>(0); // 0 = Preview, 1 = Agreement
   const [previewHtml, setPreviewHtml] = useState<string>("");
   const [loadingPreview, setLoadingPreview] = useState<boolean>(false);
   
-  const [drawnSignature, setDrawnSignature] = useState<string>("");
-  const [selfie, setSelfie] = useState<string>("");
   const [isAgreed, setIsAgreed] = useState<boolean>(false);
+  const [tokenModalOpen, setTokenModalOpen] = useState(false);
+  const [tokenInput, setTokenInput] = useState("");
   
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -46,23 +45,18 @@ export default function ClientContractsPage({ initialContracts }: { initialContr
   const [externalEmail, setExternalEmail] = useState("");
   const [sendingExternal, setSendingExternal] = useState(false);
 
-  const sigCanvasRef = useRef<any>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-
   // Close everything and reset state
   const handleClose = () => {
     setSelectedContract(null);
     setStep(0);
     setPreviewHtml("");
-    setDrawnSignature("");
-    setSelfie("");
     setIsAgreed(false);
     setSuccess("");
-    stopCamera();
     setShowExternalModal(false);
     setExternalName("");
     setExternalEmail("");
+    setTokenModalOpen(false);
+    setTokenInput("");
   };
 
   const openContract = async (contract: any) => {
@@ -86,81 +80,17 @@ export default function ClientContractsPage({ initialContracts }: { initialContr
     }
   };
 
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-    } catch (err) {
-      setError("Camera access denied or unavailable. Please check your browser permissions.");
-    }
-  };
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop());
-      streamRef.current = null;
-    }
-  };
-
-  const takeSelfie = () => {
-    if (!videoRef.current) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = videoRef.current.videoWidth;
-    canvas.height = videoRef.current.videoHeight;
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-      setSelfie(canvas.toDataURL("image/jpeg", 0.8));
-    }
-    stopCamera();
-  };
-
-  const retakeSelfie = () => {
-    setSelfie("");
-    startCamera();
-  };
-
-  // Lifecycle for camera based on step
-  useEffect(() => {
-    if (step === 2 && !selfie) {
-      startCamera();
-    } else {
-      stopCamera();
-    }
-    return () => stopCamera();
-  }, [step, selfie]);
-
-  const handleNextStep1 = () => {
-    if (sigCanvasRef.current && !sigCanvasRef.current.isEmpty()) {
-      setDrawnSignature(sigCanvasRef.current.getTrimmedCanvas().toDataURL("image/png"));
-      setStep(2);
-      setError("");
-    } else {
-      setError("Please draw your signature to proceed.");
-    }
-  };
-
-  const handleNextStep2 = () => {
-    if (selfie) {
-      setStep(3);
-      setError("");
-    } else {
-      setError("Please take a selfie to proceed.");
-    }
-  };
-
   const handleFinishSigning = async () => {
     if (!isAgreed) {
       setError("You must agree to the terms to finish signing.");
       return;
     }
-    if (!drawnSignature || !selfie) {
-      setError("Missing signature or selfie data.");
+    if (!tokenInput || tokenInput.length < 8) {
+      setError("Please enter a valid token (min 8 chars).");
       return;
     }
+
+    setTokenModalOpen(false);
 
     setError("");
     setSuccess("");
@@ -170,10 +100,7 @@ export default function ClientContractsPage({ initialContracts }: { initialContr
       const res = await fetch(`/api/v1/contracts/${selectedContract.id}/sign`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          drawnSignatureBase64: drawnSignature,
-          selfieBase64: selfie 
-        }),
+        body: JSON.stringify({ token: tokenInput }),
       });
       const data = await res.json();
       if (data.success) {
@@ -232,14 +159,6 @@ export default function ClientContractsPage({ initialContracts }: { initialContr
 
   return (
     <div className="w-full max-w-4xl mx-auto pb-12 space-y-6">
-      <button
-        onClick={() => router.push("/dashboard/account-services")}
-        className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800 transition-colors group"
-      >
-        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
-        Extended Services
-      </button>
-
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
           <PenTool className="w-5 h-5 text-purple-600" />
@@ -333,12 +252,26 @@ export default function ClientContractsPage({ initialContracts }: { initialContr
                 
                 {!loadingPreview && previewHtml && (
                   <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
-                    <p className="text-sm text-gray-500">Please read the contract entirely before proceeding.</p>
+                    <div className="flex items-center gap-3">
+                      <input 
+                        type="checkbox" 
+                        id="agree"
+                        className="w-4 h-4 text-purple-600"
+                        checked={isAgreed}
+                        onChange={(e) => setIsAgreed(e.target.checked)}
+                      />
+                      <label htmlFor="agree" className="text-sm text-gray-700">I have read and agree to the terms.</label>
+                    </div>
                     <button
-                      onClick={() => setStep(1)}
-                      className="px-6 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium flex items-center gap-2"
+                      disabled={loading || !isAgreed}
+                      onClick={() => setTokenModalOpen(true)}
+                      className={`px-6 py-2.5 rounded-lg font-bold flex items-center gap-2 transition-colors ${
+                        loading || !isAgreed
+                          ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                          : "bg-purple-600 text-white hover:bg-purple-700"
+                      }`}
                     >
-                      Sign Now <ChevronRight className="w-4 h-4" />
+                      {loading ? "Signing..." : "Sign with Token"} <ChevronRight className="w-4 h-4" />
                     </button>
                   </div>
                 )}
@@ -356,90 +289,8 @@ export default function ClientContractsPage({ initialContracts }: { initialContr
               </div>
             )}
 
-            {/* STEP 1: Draw Signature */}
+            {/* STEP 1: Final Agreement */}
             {step === 1 && (
-              <div className="w-full max-w-2xl mt-12">
-                <div className="bg-white rounded-xl shadow-xl overflow-hidden">
-                  <div className="p-6 border-b border-gray-100 bg-gray-50">
-                    <h3 className="text-xl font-bold text-gray-900">Step 1: Draw Your Signature</h3>
-                    <p className="text-sm text-gray-500">Please draw your signature in the box below.</p>
-                  </div>
-                  <div className="p-6">
-                    <div className="border-2 border-dashed border-gray-300 rounded-xl bg-gray-50">
-                      <SignatureCanvas 
-                        ref={sigCanvasRef}
-                        penColor="black"
-                        canvasProps={{ className: "w-full h-64 rounded-xl cursor-crosshair" }}
-                      />
-                    </div>
-                    <div className="flex justify-between items-center mt-4">
-                      <button 
-                        onClick={() => sigCanvasRef.current?.clear()}
-                        className="text-gray-500 hover:text-gray-800 text-sm font-medium flex items-center gap-1"
-                      >
-                        <RefreshCw className="w-4 h-4" /> Clear Signature
-                      </button>
-                      <button
-                        onClick={handleNextStep1}
-                        className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium flex items-center gap-2"
-                      >
-                        Next Step <ChevronRight className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* STEP 2: Take Selfie */}
-            {step === 2 && (
-              <div className="w-full max-w-2xl mt-12">
-                <div className="bg-white rounded-xl shadow-xl overflow-hidden">
-                  <div className="p-6 border-b border-gray-100 bg-gray-50">
-                    <h3 className="text-xl font-bold text-gray-900">Step 2: Verification Selfie</h3>
-                    <p className="text-sm text-gray-500">Take a quick selfie to verify your identity.</p>
-                  </div>
-                  <div className="p-6 flex flex-col items-center">
-                    {!selfie ? (
-                      <>
-                        <div className="relative w-full max-w-md aspect-video bg-black rounded-xl overflow-hidden shadow-inner mb-6">
-                          <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-                        </div>
-                        <button
-                          onClick={takeSelfie}
-                          className="px-6 py-3 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-colors font-bold flex items-center gap-2 shadow-lg"
-                        >
-                          <Camera className="w-5 h-5" /> Take Selfie
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <div className="relative w-full max-w-md aspect-video bg-black rounded-xl overflow-hidden shadow-inner mb-6">
-                          <img src={selfie} alt="Selfie preview" className="w-full h-full object-cover" />
-                        </div>
-                        <div className="flex gap-4 w-full justify-center">
-                          <button
-                            onClick={retakeSelfie}
-                            className="px-6 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium flex items-center gap-2"
-                          >
-                            <RefreshCw className="w-4 h-4" /> Retake
-                          </button>
-                          <button
-                            onClick={handleNextStep2}
-                            className="px-6 py-2.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium flex items-center gap-2"
-                          >
-                            Next Step <ChevronRight className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* STEP 3: Final Agreement */}
-            {step === 3 && (
               <div className="w-full max-w-2xl mt-12">
                 <div className="bg-white rounded-xl shadow-xl overflow-hidden border-2 border-purple-500">
                   <div className="p-6 border-b border-gray-100 bg-purple-50 flex items-center gap-4">
@@ -447,22 +298,12 @@ export default function ClientContractsPage({ initialContracts }: { initialContr
                       <CheckSquare className="w-6 h-6 text-purple-600" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-purple-900">Step 3: Final Agreement</h3>
+                      <h3 className="text-xl font-bold text-purple-900">Step 1: Final Agreement</h3>
                       <p className="text-sm text-purple-700">Almost done! Review and agree to sign.</p>
                     </div>
                   </div>
                   
                   <div className="p-6">
-                    <div className="flex items-center gap-6 mb-8 justify-center">
-                      <div className="text-center">
-                        <img src={drawnSignature} alt="Signature" className="h-16 object-contain border border-gray-200 rounded p-2 bg-white" />
-                        <span className="text-xs text-gray-500 mt-1 block">Your Signature</span>
-                      </div>
-                      <div className="text-center">
-                        <img src={selfie} alt="Selfie" className="h-16 w-16 object-cover border border-gray-200 rounded-full" />
-                        <span className="text-xs text-gray-500 mt-1 block">Your Selfie</span>
-                      </div>
-                    </div>
 
                     <label className="flex items-start gap-3 p-4 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
                       <input 
@@ -472,7 +313,7 @@ export default function ClientContractsPage({ initialContracts }: { initialContr
                         onChange={(e) => setIsAgreed(e.target.checked)}
                       />
                       <span className="text-sm text-gray-700 leading-relaxed">
-                        By checking this box, I confirm that I am the individual pictured in the selfie, that the drawn signature is my own, and I hereby legally bind myself to the terms of the contract: <strong>{selectedContract.submission.formName}</strong>.
+                        By checking this box, I confirm that I agree to the terms of the contract: <strong>{selectedContract.submission.formName}</strong>.
                       </span>
                     </label>
 
@@ -542,6 +383,55 @@ export default function ClientContractsPage({ initialContracts }: { initialContr
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {tokenModalOpen && (
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95">
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <h3 className="font-bold text-gray-900">Sign Contract</h3>
+              <button onClick={() => { setTokenModalOpen(false); setTokenInput(""); }} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600 text-center">
+                Please enter your signature token to authorize this signature.
+              </p>
+              <input
+                autoFocus
+                type="password"
+                minLength={8}
+                maxLength={32}
+                value={tokenInput}
+                onChange={(e) => { setTokenInput(e.target.value); setError(""); }}
+                placeholder="Token..."
+                className="w-full text-center tracking-widest font-mono text-lg h-12 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500"
+              />
+              {error && (
+                <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">
+                  <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+                </div>
+              )}
+            </div>
+            <div className="p-5 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+              <button 
+                onClick={() => { setTokenModalOpen(false); setTokenInput(""); }} 
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleFinishSigning}
+                disabled={loading || tokenInput.length < 8}
+                className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center"
+              >
+                {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> : "Sign"}
+              </button>
+            </div>
           </div>
         </div>
       )}
