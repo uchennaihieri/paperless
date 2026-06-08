@@ -317,7 +317,7 @@ function FormFieldsStep({
   const sections = useMemo(() => groupIntoSections(fields), []); // eslint-disable-line
   const [sectionIdx, setSectionIdx] = useState(0);
   const [sectionError, setSectionError] = useState('');
-  const [attachmentMode, setAttachmentMode] = useState<Record<string, 'file' | 'custom'>>({});
+
   const section = sections[sectionIdx];
   const isLastSection = sectionIdx === sections.length - 1;
   const hasSections = sections.length > 1 || !!sections[0]?.title;
@@ -549,7 +549,7 @@ function FormFieldsStep({
       if (f.type === 'instructions') return false;
       if (!f.required) return false;
 
-      // For file fields linked to an internal form, either an uploaded file OR
+      // For file fields linked to an internal form, an uploaded file AND/OR
       // a filled internal form satisfies the requirement.
       if (f.type === 'file' && f.linkedInternalFormId) {
         const hasFile = formData[f.id] && formData[f.id].length > 0;
@@ -698,119 +698,107 @@ function FormFieldsStep({
                       <div className="space-y-3 max-w-xl">
                         {(field as any).linkedInternalFormId ? (
                           <div className="border border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
-                            <div className="flex bg-gray-50 border-b border-gray-200">
-                              <button
-                                type="button"
-                                onClick={() => setAttachmentMode({ ...attachmentMode, [field.id]: 'custom' })}
-                                className={`flex-1 py-2.5 px-4 text-sm font-semibold text-center transition-colors ${(attachmentMode[field.id] || 'custom') === 'custom'
-                                  ? 'bg-white text-primary border-b-2 border-primary'
-                                  : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
-                                  }`}
-                              >
-                                Fill Custom Form
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setAttachmentMode({ ...attachmentMode, [field.id]: 'file' })}
-                                className={`flex-1 py-2.5 px-4 text-sm font-semibold text-center transition-colors ${attachmentMode[field.id] === 'file'
-                                  ? 'bg-white text-primary border-b-2 border-primary'
-                                  : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100'
-                                  }`}
-                              >
-                                Upload File
-                              </button>
-                            </div>
-                            <div className="p-5">
-                              {(attachmentMode[field.id] || 'custom') === 'custom' ? (
-                                <div className="flex flex-col items-center justify-center text-center space-y-4 py-4 w-full">
-                                  <Layers className="w-10 h-10 text-orange-200" />
-                                  <div>
-                                    <h4 className="text-sm font-semibold text-gray-900">Custom Form Attachments</h4>
-                                    <p className="text-xs text-gray-500 max-w-sm mt-1">Fill out the designated internal form to proceed with this requirement.</p>
-                                  </div>
-                                  <div className="w-full max-w-md space-y-3 mt-4">
-                                    {(internalFormsData[field.id] || []).map((filledForm: any, idx: number) => (
-                                      <div key={idx} className="flex items-center justify-between p-3 bg-white border border-orange-200 rounded-lg shadow-sm">
-                                        <div className="flex items-center gap-3">
-                                          <div className="bg-orange-100 p-2 rounded-full text-orange-600 font-bold text-xs">
-                                            #{idx + 1}
-                                          </div>
-                                          <div className="text-left">
-                                            <p className="text-sm font-semibold text-gray-800">{filledForm.templateName || "Internal Form"}</p>
-                                          </div>
+                            {/* Custom Form Section */}
+                            <div className="p-5 border-b border-gray-100">
+                              <div className="flex flex-col items-center justify-center text-center space-y-4 py-4 w-full">
+                                <Layers className="w-10 h-10 text-orange-200" />
+                                <div>
+                                  <h4 className="text-sm font-semibold text-gray-900">Custom Form Attachments</h4>
+                                  <p className="text-xs text-gray-500 max-w-sm mt-1">Fill out the designated internal form to proceed with this requirement.</p>
+                                </div>
+                                <div className="w-full max-w-md space-y-3 mt-4">
+                                  {(internalFormsData[field.id] || []).map((filledForm: any, idx: number) => (
+                                    <div key={idx} className="flex items-center justify-between p-3 bg-white border border-orange-200 rounded-lg shadow-sm">
+                                      <div className="flex items-center gap-3">
+                                        <div className="bg-orange-100 p-2 rounded-full text-orange-600 font-bold text-xs">
+                                          #{idx + 1}
                                         </div>
-                                        <div className="flex gap-2">
-                                          <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            className="h-8 text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
-                                            onClick={() => onFillInternalForm(field.id, (field as any).linkedInternalFormId, idx)}
-                                          >
-                                            Edit
-                                          </Button>
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-8 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2"
-                                            onClick={() => onRemoveInternalForm(field.id, idx)}
-                                          >
-                                            <X className="w-4 h-4" />
-                                          </Button>
+                                        <div className="text-left">
+                                          <p className="text-sm font-semibold text-gray-800">{filledForm.templateName || "Internal Form"}</p>
                                         </div>
                                       </div>
-                                    ))}
-                                  </div>
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="mt-2 border-orange-300 text-orange-700 hover:bg-orange-100"
-                                    onClick={() => onFillInternalForm(field.id, (field as any).linkedInternalFormId)}
-                                  >
-                                    {(internalFormsData[field.id] || []).length > 0 ? "Add Another Custom Form" : "Fill Custom Form"}
-                                  </Button>
-                                  {field.required && (!internalFormsData[field.id] || internalFormsData[field.id].length === 0) && (
-                                    <input type="text" className="opacity-0 absolute w-0 h-0 -z-10" required />
-                                  )}
+                                      <div className="flex gap-2">
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-8 text-xs border-orange-200 text-orange-700 hover:bg-orange-50"
+                                          onClick={() => onFillInternalForm(field.id, (field as any).linkedInternalFormId, idx)}
+                                        >
+                                          Edit
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-8 text-xs text-red-500 hover:text-red-700 hover:bg-red-50 px-2"
+                                          onClick={() => onRemoveInternalForm(field.id, idx)}
+                                        >
+                                          <X className="w-4 h-4" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ))}
                                 </div>
-                              ) : (
-                                <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 bg-gray-50 hover:bg-gray-100 transition-colors">
-                                  <Input
-                                    id={field.id}
-                                    type="file"
-                                    required={field.required && (!formData[field.id] || formData[field.id].length === 0)}
-                                    accept={field.accept}
-                                    multiple={(field.maxFiles ?? 1) > 1}
-                                    className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
-                                    onChange={async (e) => {
-                                      const newFiles = Array.from(e.target.files ?? []);
-                                      if (newFiles.length === 0) return;
-                                      const existing = (formData[field.id] as File[]) || [];
-                                      const merged = [...existing, ...newFiles];
-                                      onChange(field.id, merged);
-                                      e.target.value = "";
-                                    }}
-                                  />
-                                  {(field.maxFiles ?? 1) > 1 && (
-                                    <p className="text-xs text-gray-400 mt-2">You can select multiple files. Each pick adds to the list below.</p>
-                                  )}
-                                  {formData[field.id] && formData[field.id].length > 0 && (
-                                    <ul className="mt-4 space-y-2">
-                                      {(formData[field.id] as File[]).map((f, i) => (
-                                        <li key={i} className="text-sm text-gray-600 flex items-center justify-between bg-white px-3 py-2 rounded-md border border-gray-200 shadow-sm">
-                                          <span className="truncate">{f.name}</span>
-                                          <button type="button" onClick={() => {
-                                            const newFiles = (formData[field.id] as File[]).filter((_, idx) => idx !== i);
-                                            onChange(field.id, newFiles.length > 0 ? newFiles : null);
-                                          }} className="text-red-400 hover:text-red-600 font-bold p-1">&times;</button>
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  )}
-                                </div>
-                              )}
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="mt-2 border-orange-300 text-orange-700 hover:bg-orange-100"
+                                  onClick={() => onFillInternalForm(field.id, (field as any).linkedInternalFormId)}
+                                >
+                                  {(internalFormsData[field.id] || []).length > 0 ? "Add Another Custom Form" : "Fill Custom Form"}
+                                </Button>
+                              </div>
                             </div>
+
+                            {/* Divider */}
+                            <div className="flex items-center gap-3 px-5 py-2 bg-gray-50">
+                              <div className="h-px flex-1 bg-gray-200" />
+                              <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">Also attach files</span>
+                              <div className="h-px flex-1 bg-gray-200" />
+                            </div>
+
+                            {/* File Upload Section */}
+                            <div className="p-5">
+                              <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 bg-gray-50 hover:bg-gray-100 transition-colors">
+                                <Input
+                                  id={field.id}
+                                  type="file"
+                                  accept={field.accept}
+                                  multiple={(field.maxFiles ?? 1) > 1}
+                                  className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                                  onChange={async (e) => {
+                                    const newFiles = Array.from(e.target.files ?? []);
+                                    if (newFiles.length === 0) return;
+                                    const existing = (formData[field.id] as File[]) || [];
+                                    const merged = [...existing, ...newFiles];
+                                    onChange(field.id, merged);
+                                    e.target.value = "";
+                                  }}
+                                />
+                                {(field.maxFiles ?? 1) > 1 && (
+                                  <p className="text-xs text-gray-400 mt-2">You can select multiple files. Each pick adds to the list below.</p>
+                                )}
+                                {formData[field.id] && formData[field.id].length > 0 && (
+                                  <ul className="mt-4 space-y-2">
+                                    {(formData[field.id] as File[]).map((f, i) => (
+                                      <li key={i} className="text-sm text-gray-600 flex items-center justify-between bg-white px-3 py-2 rounded-md border border-gray-200 shadow-sm">
+                                        <span className="truncate">{f.name}</span>
+                                        <button type="button" onClick={() => {
+                                          const newFiles = (formData[field.id] as File[]).filter((_, idx) => idx !== i);
+                                          onChange(field.id, newFiles.length > 0 ? newFiles : null);
+                                        }} className="text-red-400 hover:text-red-600 font-bold p-1">&times;</button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Required validation: at least one of custom form or file must be provided */}
+                            {field.required && (!internalFormsData[field.id] || internalFormsData[field.id].length === 0) && (!formData[field.id] || formData[field.id].length === 0) && (
+                              <input type="text" className="opacity-0 absolute w-0 h-0 -z-10" required />
+                            )}
                           </div>
                         ) : (
                           <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 bg-gray-50 hover:bg-gray-100 transition-colors">
