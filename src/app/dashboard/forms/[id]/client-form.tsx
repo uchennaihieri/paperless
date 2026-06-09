@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { submitForm, searchUsers, SignatoryInput, SigningType } from "@/app/actions/form";
+import { searchUsers, SignatoryInput, SigningType } from "@/app/actions/form";
 import { X, Search, Check, ChevronRight, GitBranch, Layers, Send, UserPlus, ArrowLeft, KeyRound, Loader2, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { numberToWords } from "@/lib/toWords";
@@ -1590,12 +1590,26 @@ export default function FormFillerClient({
     }
 
     try {
-      const res = await submitForm(formDataPayload);
+      const response = await fetch("/api/v1/submissions", {
+        method: "POST",
+        body: formDataPayload,
+      });
+
+      let res: any;
+      if (response.ok) {
+        res = await response.json().catch(() => ({}));
+        if (res.success === undefined) res.success = true;
+      } else {
+        const errData = await response.json().catch(() => ({}));
+        res = { success: false, error: errData.error || `Submission failed: ${response.statusText}` };
+      }
+
       setSubmitting(false);
       setShowTokenModal(false);
 
       if (res?.success) {
         clearSavedState();
+        router.refresh();
         router.push("/dashboard/forms");
       } else {
         setError(res?.error ?? "Something went wrong. Please try again.");

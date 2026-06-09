@@ -29,26 +29,20 @@ async function proxyRequest(req: NextRequest, { params }: { params: Promise<{ sl
   });
   headers.set("Authorization", `Bearer ${backendToken}`);
 
-  let body = undefined;
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-    if (req.headers.get("Content-Type")?.includes("multipart/form-data")) {
-        body = await req.formData();
-    } else if (req.headers.get("Content-Type")?.includes("application/json")) {
-        body = await req.text();
-    } else {
-        try {
-            body = await req.blob();
-        } catch(e) {}
-    }
+  const fetchOptions: RequestInit & { duplex?: 'half' } = {
+    method: req.method,
+    headers,
+  };
+
+  // Directly forward the raw stream to bypass Next.js memory and parsing limits.
+  // 'duplex: half' is required by Node.js fetch when streaming a request body.
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && req.body) {
+    fetchOptions.body = req.body as any;
+    fetchOptions.duplex = 'half';
   }
 
   try {
-    const response = await fetch(url, {
-      method: req.method,
-      headers,
-      body: body as BodyInit,
-      // Pass the request cache setting along or omit
-    });
+    const response = await fetch(url, fetchOptions);
 
     const isJson = response.headers.get("Content-Type")?.includes("application/json");
 
