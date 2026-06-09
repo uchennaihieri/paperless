@@ -79,12 +79,16 @@ export async function getActionItems() {
 }
 
 export async function submitForm(formData: FormData) {
-  const result = await apiClient("/submissions", {
-    method: "POST",
-    body: formData
-  });
-  revalidatePath("/dashboard/forms");
-  return result;
+  try {
+    const result = await apiClient("/submissions", {
+      method: "POST",
+      body: formData
+    });
+    revalidatePath("/dashboard/forms");
+    return result;
+  } catch (error: any) {
+    return { success: false, error: error.message || "Submission failed. Please try again." };
+  }
 }
 
 export async function getMySubmissions() {
