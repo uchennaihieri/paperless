@@ -6,14 +6,14 @@ import { useRouter } from "next/navigation";
 import {
   X, Search, ChevronLeft, ChevronRight, Loader2,
   FileText, Clock, CheckCircle2, XCircle, PenTool, ShieldCheck, AlertTriangle,
-  ExternalLink, Link2,
+  ExternalLink, Link2, Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type MyRole = "submitted" | "signed" | "declined" | "treated" | "approved" | "shared";
+type MyRole = "submitted" | "signed" | "declined" | "treated" | "approved" | "shared" | "branch_treated";
 
 type HistoryItem = {
   id: string;
@@ -48,6 +48,7 @@ const ROLE_OPTIONS: { value: MyRole; label: string; icon: React.ReactNode }[] = 
   { value: "treated",   label: "I Treated",        icon: <CheckCircle2 className="w-3 h-3" /> },
   { value: "approved",  label: "I Approved",       icon: <ShieldCheck className="w-3 h-3" /> },
   { value: "shared",   label: "Shared with me",   icon: <Link2 className="w-3 h-3" /> },
+  { value: "branch_treated", label: "Branch Treated", icon: <Users className="w-3 h-3" /> },
 ];
 
 function statusVariant(status: string) {
@@ -69,6 +70,7 @@ const ROLE_COLORS: Record<MyRole, string> = {
   treated:   "bg-purple-100 text-purple-700",
   approved:  "bg-amber-100 text-amber-700",
   shared:    "bg-gray-100 text-gray-600",
+  branch_treated: "bg-teal-100 text-teal-700",
 };
 
 const SIG_COLORS: Record<string, string> = {
