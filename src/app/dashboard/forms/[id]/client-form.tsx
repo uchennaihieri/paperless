@@ -297,6 +297,7 @@ function FormFieldsStep({
   onRemoveInternalForm,
   token,
   currentUser,
+  submitting,
 }: {
   template: any;
   formData: Record<string, any>;
@@ -307,6 +308,7 @@ function FormFieldsStep({
   onRemoveInternalForm: (fieldId: string, index: number) => void;
   token?: string;
   currentUser?: { userName: string; email: string };
+  submitting?: boolean;
 }) {
   const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
   const fields: any[] = typeof template.fields === "string"
@@ -977,10 +979,14 @@ function FormFieldsStep({
             <ArrowLeft className="w-4 h-4 mr-1" /> Back
           </Button>
         ) : <span />}
-        <Button type="submit" size="lg" className="cursor-pointer">
-          {isLastSection
-            ? <>Next: Add Signatories <ChevronRight className="w-4 h-4 ml-1" /></>
-            : <>Next: {sections[sectionIdx + 1]?.title || 'Next Section'} <ChevronRight className="w-4 h-4 ml-1" /></>}
+        <Button type="submit" size="lg" disabled={submitting} className="cursor-pointer">
+          {submitting ? (
+            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Please wait...</>
+          ) : isLastSection ? (
+            <>Next: Add Signatories <ChevronRight className="w-4 h-4 ml-1" /></>
+          ) : (
+            <>Next: {sections[sectionIdx + 1]?.title || 'Next Section'} <ChevronRight className="w-4 h-4 ml-1" /></>
+          )}
         </Button>
       </CardFooter>
     </form>
@@ -1552,6 +1558,57 @@ export default function FormFillerClient({
     );
   };
 
+  const handleStep1Next = async () => {
+    const autoSigs = typeof template.automatedSignatories === "string" ? JSON.parse(template.automatedSignatories) : template.automatedSignatories;
+    if (!autoSigs || !Array.isArray(autoSigs) || autoSigs.length === 0) {
+      setStep(2);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const resolvedSigs: SignatoryInput[] = [
+        { position: 1, userName: currentUser.userName, email: currentUser.email }
+      ];
+      let hasError = false;
+
+      for (const sig of autoSigs) {
+        const res = await fetch(`/api/v1/workflow/resolve-assignee?branch=${encodeURIComponent(sig.branch)}&role=${encodeURIComponent(sig.role)}`, {
+          headers: { Authorization: `Bearer ${currentUser.token}` }
+        });
+        const data = await res.json();
+        
+        if (data.success && data.data && data.data.length > 0) {
+          const user = data.data[0];
+          resolvedSigs.push({
+            position: resolvedSigs.length + 1,
+            userName: user.user_name ?? "",
+            email: user.finca_email ?? "",
+          });
+        } else {
+          hasError = true;
+          break;
+        }
+      }
+
+      setSubmitting(false);
+
+      if (!hasError && resolvedSigs.length === autoSigs.length + 1) {
+        setSignatories(resolvedSigs);
+        if (template.automatedSigningType) {
+          setSigningType(template.automatedSigningType as SigningType);
+        }
+        setStep(3); // Skip step 2
+      } else {
+        setStep(2);
+      }
+    } catch (err) {
+      console.error("Failed to resolve automated signatories", err);
+      setSubmitting(false);
+      setStep(2);
+    }
+  };
+
   const handleSubmit = async () => {
     setSubmitting(true);
     setError("");
@@ -1654,7 +1711,7 @@ export default function FormFillerClient({
             formData={formData}
             internalFormsData={internalFormsData}
             onChange={handleFieldChange}
-            onNext={() => setStep(2)}
+            onNext={handleStep1Next}
             onFillInternalForm={(fieldId, templateId, index) => setActiveInternalFormTarget({ fieldId, templateId, index })}
             onRemoveInternalForm={(fieldId, index) => setInternalFormsData(prev => {
               const arr = prev[fieldId] ? [...prev[fieldId]] : [];
@@ -1663,6 +1720,7 @@ export default function FormFillerClient({
             })}
             token={currentUser.token}
             currentUser={currentUser}
+            submitting={submitting}
           />
         )}
 

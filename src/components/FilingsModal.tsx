@@ -24,6 +24,7 @@ type FilingItem = {
   updatedAt: string;
   template: { name: string; formOwner: string | null } | null;
   submittedBy: { user_name: string; finca_email: string; branch: string } | null;
+  formResponses?: any;
 };
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
@@ -133,7 +134,14 @@ export function FilingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
   // Group filings by form template name
   const groupedFolders = items.reduce((acc: Record<string, FilingItem[]>, item) => {
-    const folderName = item.template?.name || item.formName || "Other Forms";
+    let branchValue = null;
+    if (item.formResponses) {
+      const branchKey = Object.keys(item.formResponses).find(k => k.toLowerCase() === 'branch');
+      if (branchKey && typeof item.formResponses[branchKey] === 'string') {
+        branchValue = item.formResponses[branchKey];
+      }
+    }
+    const folderName = branchValue || item.template?.name || item.formName || "Other Forms";
     if (!acc[folderName]) acc[folderName] = [];
     acc[folderName].push(item);
     return acc;

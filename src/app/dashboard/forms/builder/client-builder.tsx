@@ -12,92 +12,6 @@ import Link from "next/link";
 import { apiClient } from "@/lib/apiClient";
 import { RichTextEditor } from "@/components/RichTextEditor";
 
-// ─── Account Form Presets ────────────────────────────────────────────────────
-const ACCOUNT_FORM_PRESETS: Record<string, { name: string; description: string; fields: any[] }> = {
-  deposit: {
-    name: "New Deposit Account",
-    description: "Individual deposit account opening form with KYC, identification, and mandate capture.",
-    fields: [
-      // ── Step 1 – Personal Information ──
-      { id: "p_hdr",  label: "Personal Information",       type: "section_header", required: false, description: "", sectionSubtitle: "Please provide your personal details below" },
-      { id: "p_bvn",  label: "BVN",                        type: "text",           required: true,  description: "Enter your 11-digit Bank Verification Number" },
-      { id: "p_atyp", label: "Account Type",               type: "text",           required: true,  description: "e.g. Savings, Current" },
-      { id: "p_ttl",  label: "Title",                      type: "text",           required: true,  description: "e.g. Mr, Mrs, Dr" },
-      { id: "p_sur",  label: "Surname",                    type: "text",           required: true,  description: "" },
-      { id: "p_fn",   label: "First Name",                 type: "text",           required: true,  description: "" },
-      { id: "p_mn",   label: "Middle Name",                type: "text",           required: false, description: "" },
-      { id: "p_dob",  label: "Date of Birth",              type: "date",           required: true,  description: "Applicant must be at least 18 years old" },
-      { id: "p_gen",  label: "Gender",                     type: "text",           required: true,  description: "" },
-      { id: "p_mar",  label: "Marital Status",             type: "text",           required: true,  description: "" },
-      { id: "p_mmn",  label: "Mother's Maiden Name",       type: "text",           required: true,  description: "" },
-      { id: "p_nat",  label: "Nationality",                type: "text",           required: true,  description: "" },
-      { id: "p_soo",  label: "State of Origin",            type: "text",           required: true,  description: "" },
-      { id: "p_lga",  label: "Local Government Area",      type: "text",           required: true,  description: "" },
-      { id: "p_edu",  label: "Educational Qualification",  type: "text",           required: true,  description: "" },
-      { id: "p_usc",  label: "US Citizen or Resident?",   type: "text",           required: true,  description: "Yes or No" },
-
-      // ── Step 2 – Residential Address & Contact ──
-      { id: "r_hdr",  label: "Residential Address & Contact", type: "section_header", required: false, description: "", sectionSubtitle: "Provide your current residential address and contact details" },
-      { id: "r_adr",  label: "Residential Address",       type: "textarea",        required: true,  description: "Your full home address" },
-      { id: "r_lmk",  label: "Nearest Landmark",          type: "text",           required: false, description: "Optional nearby landmark" },
-      { id: "r_cty",  label: "City",                      type: "text",           required: true,  description: "" },
-      { id: "r_phn",  label: "Phone Number",              type: "text",           required: true,  description: "Nigerian phone number (e.g. 08012345678)" },
-      { id: "r_eml",  label: "Email Address",             type: "text",           required: true,  description: "" },
-      { id: "r_sta",  label: "State",                     type: "text",           required: true,  description: "State of residence" },
-      { id: "r_lga",  label: "LGA",                       type: "text",           required: true,  description: "Local Government Area of residence" },
-      { id: "r_pty",  label: "Property Type",             type: "text",           required: true,  description: "e.g. Rented, Owned" },
-      { id: "r_inc",  label: "Monthly Income",            type: "text",           required: true,  description: "Select your monthly income range" },
-
-      // ── Step 3 – Employment Status ──
-      { id: "e_hdr",  label: "Employment Status",          type: "section_header", required: false, description: "", sectionSubtitle: "Provide details about your occupation and employer" },
-      { id: "e_occ",  label: "Occupation",                type: "text",           required: true,  description: "" },
-      { id: "e_enm",  label: "Employer Name",             type: "text",           required: false, description: "" },
-      { id: "e_ead",  label: "Employer Address",          type: "textarea",        required: false, description: "" },
-      { id: "e_btp",  label: "Business / Employment Type",type: "text",           required: true,  description: "e.g. Self-employed, Government, Private" },
-      { id: "e_fep",  label: "Financially Exposed Person?",type: "text",           required: true,  description: "Yes or No" },
-      { id: "e_pep",  label: "Politically Exposed Person?",type: "text",           required: true,  description: "Yes or No" },
-
-      // ── Step 4 – Identification ──
-      { id: "id_hdr", label: "Identification",            type: "section_header", required: false, description: "", sectionSubtitle: "Provide a valid government-issued ID" },
-      { id: "id_typ", label: "ID Type",                   type: "text",           required: true,  description: "e.g. National ID Card (NIN), Passport, Driver's Licence" },
-      { id: "id_num", label: "ID Number",                 type: "text",           required: true,  description: "" },
-      { id: "id_img", label: "ID Image",                  type: "file",           required: true,  description: "Upload a clear photo of the ID document" },
-
-      // ── Step 5 – Spouse Details (conditional for married) ──
-      { id: "sp_hdr", label: "Spouse Details",            type: "section_header", required: false, description: "", sectionSubtitle: "Complete if marital status is Married" },
-      { id: "sp_ttl", label: "Spouse Title",              type: "text",           required: false, description: "" },
-      { id: "sp_sur", label: "Spouse Surname",            type: "text",           required: false, description: "" },
-      { id: "sp_fn",  label: "Spouse First Name",         type: "text",           required: false, description: "" },
-      { id: "sp_mn",  label: "Spouse Middle Name",        type: "text",           required: false, description: "" },
-      { id: "sp_mdn", label: "Spouse Maiden Name",        type: "text",           required: false, description: "" },
-      { id: "sp_gen", label: "Spouse Gender",             type: "text",           required: false, description: "" },
-      { id: "sp_nat", label: "Spouse Nationality",        type: "text",           required: false, description: "" },
-      { id: "sp_sta", label: "Spouse State",              type: "text",           required: false, description: "" },
-      { id: "sp_lga", label: "Spouse LGA",                type: "text",           required: false, description: "" },
-      { id: "sp_eml", label: "Spouse Email Address",      type: "text",           required: false, description: "" },
-      { id: "sp_tel", label: "Spouse Telephone",          type: "text",           required: false, description: "Nigerian phone number" },
-      { id: "sp_adr", label: "Spouse Address",            type: "textarea",        required: false, description: "" },
-
-      // ── Step 6 – Next of Kin ──
-      { id: "nk_hdr", label: "Next of Kin",               type: "section_header", required: false, description: "", sectionSubtitle: "Provide emergency contact / next of kin details" },
-      { id: "nk_nm",  label: "NOK Full Name",             type: "text",           required: true,  description: "" },
-      { id: "nk_rel", label: "NOK Relationship",          type: "text",           required: true,  description: "e.g. Sibling, Parent, Spouse" },
-      { id: "nk_adr", label: "NOK Address",               type: "textarea",        required: true,  description: "" },
-      { id: "nk_tel", label: "NOK Telephone",             type: "text",           required: true,  description: "Nigerian phone number" },
-
-      // ── Step 7 – Additional Details ──
-      { id: "ad_hdr", label: "Additional Details",        type: "section_header", required: false, description: "", sectionSubtitle: "Select any additional banking services you require" },
-      { id: "ad_svc", label: "Other Services Required",   type: "text",           required: true,  description: "e.g. Internet Banking, Mobile Banking, Debit Card, etc." },
-      { id: "ad_src", label: "How did you hear about us?",type: "text",           required: true,  description: "e.g. Referral, Social Media, Walk-in, etc." },
-
-      // ── Step 8 – Account Opening Mandate ──
-      { id: "mn_hdr", label: "Account Opening Mandate",   type: "section_header", required: false, description: "", sectionSubtitle: "Passport photograph, customer signature, and account officer signature" },
-      { id: "mn_pic", label: "Customer Picture",          type: "file",           required: true,  description: "Clear passport-style photograph of the customer" },
-      { id: "mn_csg", label: "Customer Signature",        type: "file",           required: true,  description: "Customer's drawn signature" },
-      { id: "mn_osg", label: "Account Officer Signature", type: "file",           required: true,  description: "Account officer's drawn signature" },
-    ],
-  },
-};
 // ────────────────────────────────────────────────────────────────────────────
 
 type Field = {
@@ -154,10 +68,14 @@ export default function FormBuilderClient({
   const [name, setName] = useState(initialTemplate?.name || "");
   const [description, setDescription] = useState(initialTemplate?.description || "");
   const [isInternal, setIsInternal] = useState(initialTemplate?.isInternal || false);
-  const [mobileEnabled, setMobileEnabled] = useState(initialTemplate?.mobileEnabled || false);
   const [accountServicesEnabled, setAccountServicesEnabled] = useState(initialTemplate?.accountServicesEnabled || false);
   const [formOwner, setFormOwner] = useState(initialTemplate?.formOwner || "");
   const [formTreater, setFormTreater] = useState(initialTemplate?.formTreater || "");
+  const [formTreaterRole, setFormTreaterRole] = useState(initialTemplate?.formTreaterRole || "");
+  const [automatedSignatories, setAutomatedSignatories] = useState<{branch: string, role: string, signingType: string}[]>(
+    typeof initialTemplate?.automatedSignatories === "string" ? JSON.parse(initialTemplate.automatedSignatories) : (initialTemplate?.automatedSignatories || [])
+  );
+  const [automatedSigningType, setAutomatedSigningType] = useState(initialTemplate?.automatedSigningType || "sequential");
   const [generatesExcel, setGeneratesExcel] = useState(initialTemplate?.generatesExcel || false);
   const [pdfTemplateId, setPdfTemplateId] = useState(initialTemplate?.pdfTemplateId || "");
   // Derive initial pdfType from the stored pdfGeneratorType field ("document" | "html" | "")
@@ -176,7 +94,6 @@ export default function FormBuilderClient({
   const [reusableLists, setReusableLists] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [presetApplied, setPresetApplied] = useState("");
 
   // Fetch all form templates (for prerequisite dropdown)
   useEffect(() => {
@@ -338,12 +255,15 @@ export default function FormBuilderClient({
         fields,
         formOwner || undefined,
         formTreater || undefined,
+        formTreaterRole || undefined,
         pdfTemplateId || undefined,
-        mobileEnabled,
+        false, // mobileEnabled removed
         accountServicesEnabled,
         isInternal,
         needsContract,
         contractTemplateId || undefined,
+        automatedSignatories,
+        automatedSigningType,
         generatesExcel,
         pdfType || "none"
       );
@@ -354,12 +274,15 @@ export default function FormBuilderClient({
         fields,
         formOwner || undefined,
         formTreater || undefined,
+        formTreaterRole || undefined,
         pdfTemplateId || undefined,
-        mobileEnabled,
+        false, // mobileEnabled removed
         accountServicesEnabled,
         isInternal,
         needsContract,
         contractTemplateId || undefined,
+        automatedSignatories,
+        automatedSigningType,
         generatesExcel,
         pdfType || "none"
       );
@@ -374,68 +297,12 @@ export default function FormBuilderClient({
     }
   };
 
-  const applyPreset = (key: string) => {
-    const preset = ACCOUNT_FORM_PRESETS[key];
-    if (!preset) return;
-    setName(preset.name);
-    setDescription(preset.description);
-    setAccountServicesEnabled(true);
-    setFields(preset.fields.map((f) => ({ ...f, mappedPdfField: f.mappedPdfField ?? "" })));
-    setPresetApplied(key);
-  };
-
   return (
-    <div className="space-y-6 max-w-4xl mx-auto pb-10">
-      <div className="mb-4">
-        <Link href="/dashboard/forms" className="inline-flex items-center text-sm text-gray-500 hover:text-primary transition-colors cursor-pointer">
-          <ArrowLeft className="w-4 h-4 mr-1" /> Back to forms
-        </Link>
-      </div>
+    <div className="space-y-4 max-w-5xl mx-auto">
+      <Link href="/dashboard/forms" className="inline-flex items-center text-sm text-gray-500 hover:text-primary transition-colors">
+        <ArrowLeft className="w-4 h-4 mr-1" /> Back to forms
+      </Link>
 
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight">{initialTemplate ? "Edit Form Template" : "Form Builder"}</h2>
-        <p className="text-gray-500">{initialTemplate ? "Update an existing form template." : "Create a new form template for the organisation."}</p>
-      </div>
-
-      {/* ── Account Form Presets (only shown for new forms) ── */}
-      {!initialTemplate && (
-        <div className="rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-white p-5 shadow-sm">
-          <div className="flex items-start gap-3 mb-4">
-            <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-indigo-100 flex items-center justify-center">
-              <Wand2 className="w-5 h-5 text-indigo-600" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-indigo-900">Account Services Presets</h3>
-              <p className="text-xs text-indigo-700 mt-0.5">Start from a pre-built template that matches the FINCALite account forms — all fields are pre-configured for you.</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            {Object.entries(ACCOUNT_FORM_PRESETS).map(([key, preset]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => applyPreset(key)}
-                className={`flex flex-col items-start gap-1 px-4 py-3 rounded-lg border text-left transition-all cursor-pointer ${
-                  presetApplied === key
-                    ? "border-indigo-500 bg-indigo-600 text-white shadow-md"
-                    : "border-indigo-200 bg-white text-indigo-900 hover:border-indigo-400 hover:bg-indigo-50"
-                }`}
-              >
-                <span className="text-sm font-semibold">{preset.name}</span>
-                <span className={`text-xs ${presetApplied === key ? "text-indigo-100" : "text-indigo-600"}`}>
-                  {preset.fields.filter(f => f.type !== "section_header").length} fields across {preset.fields.filter(f => f.type === "section_header").length} sections
-                </span>
-              </button>
-            ))}
-          </div>
-          {presetApplied && (
-            <p className="mt-3 text-xs text-indigo-700 flex items-center gap-1.5">
-              <CheckCircle className="w-3.5 h-3.5 text-indigo-500" />
-              Preset applied — review and customise the fields below, then publish.
-            </p>
-          )}
-        </div>
-      )}
 
       <Card className="border-t-4 border-t-primary shadow-lg">
         <form onSubmit={handleSubmit}>
@@ -495,23 +362,6 @@ export default function FormBuilderClient({
                     </div>
                   </div>
                 </div>
-
-                {/* Mobile App toggle */}
-                <div className="flex items-center gap-2 bg-emerald-50 p-4 rounded-lg border border-emerald-100">
-                  <input
-                    type="checkbox"
-                    id="mobile-enabled"
-                    checked={mobileEnabled}
-                    onChange={(e) => setMobileEnabled(e.target.checked)}
-                    className="h-5 w-5 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-600 cursor-pointer flex-shrink-0"
-                  />
-                  <div className="flex flex-col">
-                    <Label htmlFor="mobile-enabled" className="text-sm cursor-pointer font-bold text-emerald-900">
-                      Enable for Mobile App
-                    </Label>
-                    <span className="text-xs text-emerald-700">Form will be accessible in the FINCALite mobile application.</span>
-                  </div>
-                </div>
               </div>
 
               {/* Form Owner */}
@@ -548,6 +398,25 @@ export default function FormBuilderClient({
                   <option value="">— None (No Treater Required) —</option>
                   {branches.map((b) => (
                     <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Form Treater Role */}
+              <div className="space-y-1">
+                <Label htmlFor="form-treater-role">
+                  Form Treater Role
+                  <span className="text-xs text-gray-400 ml-1">(role that processes this form)</span>
+                </Label>
+                <select
+                  id="form-treater-role"
+                  value={formTreaterRole}
+                  onChange={(e) => setFormTreaterRole(e.target.value)}
+                  className={SELECT_CLASS}
+                >
+                  <option value="">— Any Role —</option>
+                  {roles.map((r: any) => (
+                    <option key={r.id || r} value={r.name || r}>{r.name || r}</option>
                   ))}
                 </select>
               </div>
@@ -697,6 +566,84 @@ export default function FormBuilderClient({
                     {availableTemplates.filter(t => t.type === "html").length === 0 && (
                       <p className="text-xs text-amber-600 mt-1">No HTML templates found. <a href="/dashboard/templates/new" className="underline">Create one first.</a></p>
                     )}
+                  </div>
+                )}
+              </div>
+
+              {/* Automated Signatories Configuration */}
+              <div className="md:col-span-2 space-y-4 bg-gray-50 border border-gray-100 rounded-lg p-5 mt-2">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <Label className="font-semibold text-gray-800">Automated Signatories</Label>
+                    <p className="text-xs text-gray-500">Define signatories that will be automatically assigned when this form is submitted.</p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setAutomatedSignatories([...automatedSignatories, { branch: "", role: "", signingType: "sequential" }])}
+                    className="flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" /> Add Signatory
+                  </Button>
+                </div>
+
+                {automatedSignatories.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between mb-2 pb-2 border-b">
+                      <Label className="text-sm font-semibold text-gray-700">Signing Order Strategy</Label>
+                      <select
+                        value={automatedSigningType}
+                        onChange={(e) => setAutomatedSigningType(e.target.value)}
+                        className="h-8 rounded-md border border-neutral-300 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary shadow-sm"
+                      >
+                        <option value="sequential">Sequential (One by one)</option>
+                        <option value="parallel">Parallel (All at once)</option>
+                      </select>
+                    </div>
+
+                    {automatedSignatories.map((sig, index) => (
+                      <div key={index} className="flex items-center gap-3 bg-white p-3 rounded-lg border shadow-sm">
+                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 shrink-0">
+                          {automatedSigningType === "sequential" ? index + 1 : "-"}
+                        </div>
+                        <div className="flex-1 grid grid-cols-2 gap-3">
+                          <select
+                            value={sig.branch}
+                            onChange={(e) => {
+                              const updated = [...automatedSignatories];
+                              updated[index].branch = e.target.value;
+                              setAutomatedSignatories(updated);
+                            }}
+                            className={SELECT_CLASS}
+                          >
+                            <option value="">— Select branch —</option>
+                            {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                          </select>
+                          <select
+                            value={sig.role}
+                            onChange={(e) => {
+                              const updated = [...automatedSignatories];
+                              updated[index].role = e.target.value;
+                              setAutomatedSignatories(updated);
+                            }}
+                            className={SELECT_CLASS}
+                          >
+                            <option value="">— Select role —</option>
+                            {roles.map((r: any) => <option key={r.id || r} value={r.name || r}>{r.name || r}</option>)}
+                          </select>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setAutomatedSignatories(automatedSignatories.filter((_, i) => i !== index))}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
