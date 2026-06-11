@@ -682,6 +682,42 @@ function FormFieldsStep({
                   const isLockedPrereq = !!((field as any).isPrerequisite && (field as any).defaultPrereqBranch && (field as any).defaultPrereqRole && formData[field.id]);
                   const isReadOnly = hasReferenceValue || isLockedPrereq;
                   
+                  if (field.type === "signable_document") {
+                    return (
+                      <div className="border-2 border-dashed border-primary/50 rounded-lg p-6 bg-primary/5 hover:bg-primary/10 transition-colors max-w-xl">
+                        <Input
+                          id={field.id}
+                          type="file"
+                          required={field.required && (!formData[field.id] || formData[field.id].length === 0)}
+                          accept="application/pdf"
+                          multiple={false}
+                          className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30"
+                          onChange={async (e) => {
+                            const newFiles = Array.from(e.target.files ?? []);
+                            if (newFiles.length === 0) return;
+                            onChange(field.id, [newFiles[0]]);
+                            e.target.value = "";
+                          }}
+                        />
+                        <p className="text-xs text-primary/70 mt-2">
+                          Upload the PDF document that will be used for signing. Only one PDF is allowed.
+                        </p>
+                        {formData[field.id] && formData[field.id].length > 0 && (
+                          <ul className="mt-4 space-y-2">
+                            {(formData[field.id] as File[]).map((f, i) => (
+                              <li key={i} className="text-sm text-primary flex items-center justify-between bg-white px-3 py-2 rounded-md border border-primary/20 shadow-sm">
+                                <span className="truncate font-semibold">{f.name}</span>
+                                <button type="button" onClick={() => {
+                                  onChange(field.id, null);
+                                }} className="text-red-400 hover:text-red-600 font-bold p-1">&times;</button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    );
+                  }
+                  
                   if (field.type === "textarea") {
                     return (
                       <textarea
@@ -1285,7 +1321,7 @@ function ReviewStep({
                     <tr key={f.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                       <td className="px-4 py-3 font-medium text-gray-700">{f.label}</td>
                       <td className="px-4 py-3 text-gray-600">
-                        {f.type === "file" && formData[f.id] ? (
+                        {(f.type === "file" || (f as any).type === "signable_document") && formData[f.id] ? (
                           <div className="flex flex-col gap-1">
                             {(formData[f.id] as File[]).map((file, idx) => (
                               <span key={idx} className="text-sm font-medium text-gray-800">{file.name}</span>
@@ -1617,7 +1653,7 @@ export default function FormFillerClient({
 
     fields.forEach((f) => {
       if ((f as any).type === 'section_header' || (f as any).type === 'instructions') return;
-      if (f.type === "file") {
+      if (f.type === "file" || (f as any).type === "signable_document") {
         if (formData[f.id]) {
           fileFields[f.label] = formData[f.id] as File[];
         }
@@ -1899,6 +1935,7 @@ function PrefillModal({
       const data = await res.json();
       if (data.success && data.data?.formResponses) {
         onPrefill(data.data.formResponses);
+        onClose();
       }
     } catch {
       // silently fail — user can try again

@@ -17,11 +17,12 @@ import { useSmartFetch } from "@/hooks/useSmartFetch";
 import { FormReferenceLink, isFormReferenceField } from "@/components/FormReferenceLink";
 import { RegeneratePdfButton } from "../forms/submission/[id]/regenerate-button";
 import { JournalModal } from "@/components/JournalModal";
+import { PdfSigningCanvas } from "../components/PdfSigningCanvas";
 
 import {
   Clock, CheckCircle2, XCircle, ChevronRight, X,
   GitBranch, Layers, User, FileText, AlertTriangle,
-  Pen, Bell, Loader2, RefreshCw, Link2, Eye, EyeOff, BookOpen
+  Pen, Bell, Loader2, RefreshCw, Link2, Eye, EyeOff, BookOpen, ChevronDown
 } from "lucide-react";
 
 
@@ -60,6 +61,7 @@ type QueueItem = {
   }[];
   isPrerequisiteTask?: boolean;
   type?: string;
+  template?: any;
   contractRequestId?: string;
   prerequisiteContext?: {
     mainSubmissionReference: string;
@@ -180,6 +182,19 @@ function DetailPanel({
   const [signatureToken, setSignatureToken] = useState("");
   const [showToken, setShowToken] = useState(false);
 
+  // PdfSigningCanvas state
+  const [showCanvas, setShowCanvas] = useState(false);
+  const [canvasAnnotations, setCanvasAnnotations] = useState<any[]>([]);
+  const [mySignatureImage, setMySignatureImage] = useState<string | null>(null);
+
+  const fields = typeof (item.template as any)?.fields === "string" 
+    ? JSON.parse((item.template as any).fields) 
+    : (item.template as any)?.fields;
+  const signableField = fields?.find((f: any) => f.type === "signable_document");
+  const signableDoc = signableField ? item.documents?.find(d => d.fieldName === signableField.label) : null;
+  const hasSignableDoc = !!signableDoc;
+  const pdfUrl = signableDoc ? `${BASE_URL}/api/v1/file?docId=${signableDoc.id}` : "";
+
   const responses = item.formResponses || {};
 
   // ── Handlers ────────────────────────────────────────────────────────────────
@@ -193,9 +208,10 @@ function DetailPanel({
         return;
       }
 
-      let payload: { signatureToken?: string } = {};
+      let payload: { signatureToken?: string; annotations?: any[] } = {};
       if (signatureToken.length < 8) { setError("Token must be at least 8 characters."); return; }
       payload.signatureToken = signatureToken;
+      if (canvasAnnotations.length > 0) payload.annotations = canvasAnnotations;
 
       const res = await signSubmission(item.id, payload);
       if (res.success) { onSigned(item.id); onClose(); }
@@ -457,7 +473,7 @@ function DetailPanel({
 
                   {/* Signed Contract & Prerequisite Documents */}
                   {[...signedContractDocs, ...prerequisiteDocs].map((doc) => {
-                    const fileUrl = `/api/v1/file?docId=${doc.id}`;
+                    const fileUrl = `/api/v1/file?docId=${doc.id}&t=${Date.now()}`;
                     let fileName = doc.originalName || "Document.pdf";
                     let subtitle = "Document";
 
@@ -641,7 +657,12 @@ function DetailPanel({
                     setError("You need to have saved your signature before you start approving.");
                     return;
                   }
-                  setShowSignModal(true);
+                  if (hasSignableDoc) {
+                    setMySignatureImage(res.signatureData);
+                    setShowCanvas(true);
+                  } else {
+                    setShowSignModal(true);
+                  }
                 }}
                 disabled={isPendingSig || isPendingDec || item.status === "Blocked - Awaiting Prerequisites"}
               >
@@ -919,6 +940,46 @@ function DetailPanel({
                 {isPendingSig ? "Signing…" : "Confirm Signature"}
               </Button>
             </div>
+          </div>
+        )}
+
+        {/* ── PDF Signing Canvas Modal ── */}
+        {showCanvas && hasSignableDoc && (
+          <div className="fixed inset-0 z-[60] bg-white flex flex-col">
+            <PdfSigningCanvas
+              pdfUrl={`${pdfUrl}&t=${Date.now()}`}
+              token={token}
+              signatureImage={mySignatureImage}
+              isSubmitting={isPendingSig}
+              error={error}
+              onConfirm={(anns, tokenInput) => {
+                setError("");
+                if (tokenInput.length < 8) {
+                  setError("Token must be at least 8 characters.");
+                  return;
+                }
+                startSignTransition(async () => {
+                  let payload: { signatureToken?: string; annotations?: any[] } = {};
+                  payload.signatureToken = tokenInput;
+                  if (anns.length > 0) {
+                    payload.annotations = anns.map(a => ({
+                      ...a,
+                      value: a.type === "signature" ? mySignatureImage : a.text
+                    }));
+                  }
+
+                  const res = await signSubmission(item.id, payload);
+                  if (res.success) { 
+                    onSigned(item.id); 
+                    setShowCanvas(false);
+                    onClose(); 
+                  } else { 
+                    setError(res.error ?? "Failed to sign."); 
+                  }
+                });
+              }}
+              onCancel={() => setShowCanvas(false)}
+            />
           </div>
         )}
       </div>

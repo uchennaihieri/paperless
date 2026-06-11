@@ -15,7 +15,11 @@ export function AttachmentLink({ file }: { file: any }) {
     }
 
     try {
-      const res = await fetch(`${BASE_URL}${file.url}`, {
+      const urlWithCacheBuster = file.url.includes("?") 
+        ? `${file.url}&t=${Date.now()}`
+        : `${file.url}?t=${Date.now()}`;
+        
+      const res = await fetch(`${BASE_URL}${urlWithCacheBuster}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to fetch file");

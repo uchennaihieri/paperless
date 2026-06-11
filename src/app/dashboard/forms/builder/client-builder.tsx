@@ -740,6 +740,12 @@ export default function FormBuilderClient({
                            <optgroup label="Layout & Content">
                              <option value="section_header">📌 Section Header</option>
                              <option value="instructions">📄 Instructions / Contract</option>
+                             <option 
+                               value="signable_document"
+                               disabled={fields.filter(f => f.type === 'signable_document' && f.id !== field.id).length > 0}
+                             >
+                               ✍️ Signable Document (Replaces Form PDF)
+                             </option>
                            </optgroup>
                            <optgroup label="Integrations">
                              <option value="extended_service">🔗 Data from Extended Services</option>
