@@ -4,6 +4,7 @@
 
 import { auth, signOut } from "@/auth";
 import { redirect } from "next/navigation";
+import { getErrorMessage } from "./errorMessages";
 
 const BASE_URL =
   process.env.BACKEND_API_URL ||
@@ -26,7 +27,7 @@ function isAuthError(status: number, errorData: any): boolean {
 /** Custom error that preserves the backend error code (e.g. "PASSWORD_CHANGED"). */
 export class ApiError extends Error {
   constructor(message: string, public readonly code?: string) {
-    super(message);
+    super(getErrorMessage(code || message));
     this.name = "ApiError";
   }
 }

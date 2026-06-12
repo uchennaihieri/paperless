@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { signIn } from "next-auth/react";
+import { getErrorMessage } from "@/lib/errorMessages";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -121,12 +123,13 @@ function LoginPage() {
       const res = await signIn("credentials", {
         redirect: false,
         email,
+        employeeId,
         otp,
         ...(isResetFlow && newPassword ? { newPassword } : {}),
       });
 
       if (res?.error) {
-        setErrorMsg(res.error);
+        setErrorMsg(getErrorMessage(res.code || res.error));
         return;
       }
 
@@ -259,10 +262,13 @@ function LoginPage() {
                   </div>
                 </div>
               </CardContent>
-              <CardFooter>
+              <CardFooter className="flex flex-col gap-3">
                 <Button type="submit" className="w-full cursor-pointer" disabled={isLoading}>
                   {isLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing…</> : "Continue"}
                 </Button>
+                <Link href="/reset-password" className="text-sm text-primary hover:underline self-center">
+                  Forgot Password?
+                </Link>
               </CardFooter>
             </form>
           )}

@@ -1,4 +1,4 @@
-import NextAuth, { DefaultSession } from "next-auth"
+import NextAuth, { DefaultSession, CredentialsSignin } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { apiClient } from "@/lib/apiClient"
 
@@ -20,24 +20,28 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
       name: "OTP",
       credentials: {
         email: { label: "Email", type: "email" },
+        employeeId: { label: "Employee ID", type: "text" },
         otp: { label: "OTP", type: "text" },
         newPassword: { label: "New Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.otp) return null;
+        if ((!credentials?.email && !credentials?.employeeId) || !credentials?.otp) return null;
 
-        const email = credentials.email as string;
+        const email = (credentials.email as string) || undefined;
+        const employeeId = (credentials.employeeId as string) || undefined;
         const otp = credentials.otp as string;
         const newPassword = (credentials.newPassword as string) || undefined;
 
         try {
           const result = await apiClient("/auth/verify-otp", {
             method: "POST",
-            body: JSON.stringify({ email, otp, newPassword }),
+            body: JSON.stringify({ email, employeeId, otp, newPassword }),
           });
 
           if (!result || !result.success) {
-            throw new Error(result.error || "Invalid OTP or account inactive");
+            const error = new CredentialsSignin();
+            error.code = result?.code || result?.error || "AUTH_FAILED";
+            throw error;
           }
 
           // Express backend returns: { success, token, mustResetPassword, user: { id, name, email, roles, ... } }
@@ -53,7 +57,10 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
             isLegacyAccount: result.isLegacyAccount ?? false,
           };
         } catch (err: any) {
-           throw new Error(err.message || "Failed to authenticate");
+           if (err instanceof CredentialsSignin) throw err;
+           const error = new CredentialsSignin();
+           error.code = err.code || err.message || "AUTH_FAILED";
+           throw error;
         }
       }
     })
