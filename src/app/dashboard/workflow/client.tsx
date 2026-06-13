@@ -194,6 +194,9 @@ function DetailPanel({
   const signableDoc = signableField ? item.documents?.find(d => d.fieldName === signableField.label) : null;
   const hasSignableDoc = !!signableDoc;
   const pdfUrl = signableDoc ? `${BASE_URL}/api/v1/file?docId=${signableDoc.id}` : "";
+  
+  // Cache the timestamp to prevent the PDF from reloading on every re-render
+  const [cacheBuster] = useState(() => Date.now());
 
   const responses = item.formResponses || {};
 
@@ -947,24 +950,28 @@ function DetailPanel({
         {showCanvas && hasSignableDoc && (
           <div className="fixed inset-0 z-[60] bg-white flex flex-col">
             <PdfSigningCanvas
-              pdfUrl={`${pdfUrl}&t=${Date.now()}`}
+              pdfUrl={`${pdfUrl}&t=${cacheBuster}`}
               token={token}
               signatureImage={mySignatureImage}
               isSubmitting={isPendingSig}
               error={error}
-              onConfirm={(anns, tokenInput) => {
+              onConfirm={(anns) => {
                 setError("");
-                if (tokenInput.length < 8) {
-                  setError("Token must be at least 8 characters.");
-                  return;
-                }
                 startSignTransition(async () => {
-                  let payload: { signatureToken?: string; annotations?: any[] } = {};
-                  payload.signatureToken = tokenInput;
+                  let payload: { signatureData?: string; annotations?: any[] } = {};
+                  
+                  const firstSig = anns.find(a => a.type === "signature" && a.customSignatureData);
+                  if (!firstSig) {
+                    setError("You must place at least one signature.");
+                    return;
+                  }
+                  
+                  payload.signatureData = firstSig.customSignatureData;
+                  
                   if (anns.length > 0) {
                     payload.annotations = anns.map(a => ({
                       ...a,
-                      value: a.type === "signature" ? mySignatureImage : a.text
+                      value: a.type === "signature" ? a.customSignatureData : a.text
                     }));
                   }
 

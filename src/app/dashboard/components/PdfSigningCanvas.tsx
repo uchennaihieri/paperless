@@ -7,6 +7,7 @@ import { X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, CheckCircle2, Loader2, T
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import { Input } from "@/components/ui/input";
+import { SignatureSelectionModal } from "./SignatureSelectionModal";
 
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
@@ -20,6 +21,8 @@ export interface AnnotationObj {
   height: number;
   text?: string;
   fontSize?: number;
+  customSignatureData?: string;
+  isLocked?: boolean;
 }
 
 export function PdfSigningCanvas({
@@ -33,10 +36,10 @@ export function PdfSigningCanvas({
 }: {
   pdfUrl: string;
   token: string;
-  signatureImage: string | null;
+  signatureImage?: string | null; // Kept for backwards compatibility if needed, but not used globally anymore
   isSubmitting?: boolean;
   error?: string;
-  onConfirm: (annotations: any[], tokenInput: string) => void;
+  onConfirm: (annotations: any[], tokenInput?: string) => void;
   onCancel: () => void;
 }) {
   const [numPages, setNumPages] = useState<number | null>(null);
@@ -45,12 +48,80 @@ export function PdfSigningCanvas({
   const [annotations, setAnnotations] = useState<AnnotationObj[]>([]);
   const [pageDimensions, setPageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [popupMenu, setPopupMenu] = useState<{ x: number; y: number; page: number } | null>(null);
-  const [signatureToken, setSignatureToken] = useState("");
   
-  const pdfFileOptions = React.useMemo(() => ({
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [pendingCoords, setPendingCoords] = useState<{ x: number; y: number; page: number } | null>(null);
+
+  const [dragState, setDragState] = useState<{ id: string; startX: number; startY: number; initialAnnX: number; initialAnnY: number } | null>(null);
+  const [resizeState, setResizeState] = useState<{ id: string; startX: number; startY: number; initialWidth: number; initialHeight: number; initialFontSize?: number } | null>(null);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (dragState) {
+        const deltaX = (e.clientX - dragState.startX) / scale;
+        const deltaY = (e.clientY - dragState.startY) / scale;
+        setAnnotations((prev) =>
+          prev.map((ann) => {
+            if (ann.id !== dragState.id) return ann;
+            const newX = Math.max(0, Math.min((pageDimensions?.width || 1000) - ann.width, dragState.initialAnnX + deltaX));
+            const newY = Math.max(0, Math.min((pageDimensions?.height || 1000) - ann.height, dragState.initialAnnY + deltaY));
+            return { ...ann, x: newX, y: newY };
+          })
+        );
+      } else if (resizeState) {
+        const deltaX = (e.clientX - resizeState.startX) / scale;
+        const deltaY = (e.clientY - resizeState.startY) / scale;
+        setAnnotations((prev) =>
+          prev.map((ann) => {
+            if (ann.id !== resizeState.id) return ann;
+            if (ann.type === "signature") {
+              const newWidth = Math.max(20, resizeState.initialWidth + deltaX);
+              const ratio = newWidth / resizeState.initialWidth;
+              const newHeight = resizeState.initialHeight * ratio;
+              return { ...ann, width: newWidth, height: newHeight };
+            } else {
+              const newWidth = Math.max(50, resizeState.initialWidth + deltaX);
+              const newHeight = Math.max(20, resizeState.initialHeight + deltaY);
+              const heightRatio = newHeight / resizeState.initialHeight;
+              const newFontSize = (resizeState.initialFontSize || 14) * heightRatio;
+              return { ...ann, width: newWidth, height: newHeight, fontSize: newFontSize };
+            }
+          })
+        );
+      }
+    };
+
+    const handleMouseUp = () => {
+      setDragState(null);
+      setResizeState(null);
+    };
+
+    if (dragState || resizeState) {
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [dragState, resizeState, scale, pageDimensions]);
+  
+  const [pdfFileOptions, setPdfFileOptions] = useState({
     url: pdfUrl,
     httpHeaders: { Authorization: `Bearer ${token}` }
-  }), [pdfUrl, token]);
+  });
+
+  useEffect(() => {
+    setPdfFileOptions((prev) => {
+      if (prev.url === pdfUrl && prev.httpHeaders.Authorization === `Bearer ${token}`) {
+        return prev; // Absolute reference stability
+      }
+      return {
+        url: pdfUrl,
+        httpHeaders: { Authorization: `Bearer ${token}` }
+      };
+    });
+  }, [pdfUrl, token]);
 
   const pageRef = useRef<HTMLDivElement>(null);
 
@@ -72,24 +143,43 @@ export function PdfSigningCanvas({
     const rect = e.currentTarget.getBoundingClientRect();
     const x = (e.clientX - rect.left) / scale;
     const y = (e.clientY - rect.top) / scale;
+
+    if (popupMenu && popupMenu.page === pageNumber) {
+      // If clicking near the same position (within 20 points), close the menu
+      const dist = Math.sqrt(Math.pow(popupMenu.x - x, 2) + Math.pow(popupMenu.y - y, 2));
+      if (dist < 20) {
+        setPopupMenu(null);
+        return;
+      }
+    }
+    
     setPopupMenu({ x, y, page: pageNumber });
   };
 
   const handleAddSignature = () => {
-    if (!popupMenu || !signatureImage) return;
+    if (!popupMenu) return;
+    setPendingCoords(popupMenu);
+    setPopupMenu(null);
+    setIsModalOpen(true);
+  };
+
+  const handleSignatureSuccess = (base64Str: string) => {
+    if (!pendingCoords) return;
     setAnnotations((prev) => [
       ...prev,
       {
         id: Math.random().toString(36).slice(2),
         type: "signature",
-        page: popupMenu.page,
-        x: popupMenu.x,
-        y: popupMenu.y,
-        width: 150, // default logical width
+        page: pendingCoords.page,
+        x: pendingCoords.x,
+        y: pendingCoords.y,
+        width: 150,
         height: 50,
+        customSignatureData: base64Str,
       },
     ]);
-    setPopupMenu(null);
+    setIsModalOpen(false);
+    setPendingCoords(null);
   };
 
   const handleAddText = () => {
@@ -151,20 +241,13 @@ export function PdfSigningCanvas({
 
         <div className="flex items-center gap-3">
           {error && <span className="text-sm font-semibold text-red-600">{error}</span>}
-          <Input 
-            type="password" 
-            placeholder="Signature Token" 
-            className="w-36 h-9 text-sm text-center tracking-widest font-mono border-gray-300" 
-            value={signatureToken}
-            onChange={(e) => setSignatureToken(e.target.value)}
-          />
           <Button variant="ghost" onClick={onCancel} disabled={isSubmitting}>
             Cancel
           </Button>
           <Button 
             className="bg-[#b50938] hover:bg-[#9a0730] text-white" 
-            onClick={() => onConfirm(annotations, signatureToken)}
-            disabled={isSubmitting || signatureToken.length < 8}
+            onClick={() => onConfirm(annotations)}
+            disabled={isSubmitting || annotations.length === 0}
           >
             {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Signing...</> : <><CheckCircle2 className="w-4 h-4 mr-2" /> Sign & Submit</>}
           </Button>
@@ -199,7 +282,7 @@ export function PdfSigningCanvas({
                     top: popupMenu.y * scale,
                   }}
                 >
-                  <Button variant="ghost" size="sm" className="justify-start font-medium cursor-pointer" onClick={handleAddSignature} disabled={!signatureImage}>
+                  <Button variant="ghost" size="sm" className="justify-start font-medium cursor-pointer" onClick={handleAddSignature}>
                     <Pen className="w-4 h-4 mr-2 text-blue-500" /> Signature
                   </Button>
                   <Button variant="ghost" size="sm" className="justify-start font-medium cursor-pointer" onClick={handleAddText}>
@@ -214,34 +297,75 @@ export function PdfSigningCanvas({
                 .map((ann) => (
                   <div
                     key={ann.id}
-                    className="annotation-layer absolute border border-transparent hover:border-blue-400 group"
+                    className={`annotation-layer absolute border ${dragState?.id === ann.id ? "border-blue-500" : "border-transparent hover:border-blue-400"} group`}
                     style={{
                       left: ann.x * scale,
                       top: ann.y * scale,
                       width: ann.width * scale,
                       height: ann.height * scale,
+                      cursor: dragState?.id === ann.id ? "grabbing" : "grab",
+                    }}
+                    onMouseDown={(e) => {
+                      if ((e.target as HTMLElement).tagName.toLowerCase() === 'input') return;
+                      e.stopPropagation();
+                      setDragState({
+                        id: ann.id,
+                        startX: e.clientX,
+                        startY: e.clientY,
+                        initialAnnX: ann.x,
+                        initialAnnY: ann.y,
+                      });
                     }}
                   >
                     {/* Delete Button */}
                     <button
                       className="absolute -top-3 -right-3 bg-red-500 text-white rounded-full p-0.5 hidden group-hover:flex items-center justify-center z-40 cursor-pointer shadow-md"
+                      onMouseDown={(e) => e.stopPropagation()}
                       onClick={(e) => { e.stopPropagation(); handleRemoveAnnotation(ann.id); }}
                     >
                       <X className="w-3 h-3" />
                     </button>
 
-                    {ann.type === "signature" && signatureImage ? (
+                    {/* Resize Handle */}
+                    <div
+                      className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-blue-500 rounded-sm hidden group-hover:block z-40 cursor-se-resize shadow-sm"
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        setResizeState({
+                          id: ann.id,
+                          startX: e.clientX,
+                          startY: e.clientY,
+                          initialWidth: ann.width,
+                          initialHeight: ann.height,
+                          initialFontSize: ann.fontSize || 14,
+                        });
+                      }}
+                    />
+
+                    {ann.type === "signature" && ann.customSignatureData ? (
                       <img
-                        src={signatureImage}
+                        src={ann.customSignatureData}
                         alt="Signature"
                         className="w-full h-full object-contain pointer-events-none"
                       />
+                    ) : ann.isLocked ? (
+                      <div
+                        className="w-full h-full bg-blue-50/20 text-black px-1 flex items-center overflow-hidden whitespace-nowrap cursor-grab select-none pointer-events-none"
+                        style={{ fontSize: (ann.fontSize || 14) * scale }}
+                      >
+                        {ann.text}
+                      </div>
                     ) : (
                       <Input
                         autoFocus
                         value={ann.text}
                         onChange={(e) => handleTextChange(ann.id, e.target.value)}
-                        className="w-full h-full border-none bg-blue-50/50 focus-visible:ring-1 focus-visible:ring-blue-400 text-black px-1"
+                        onBlur={() => {
+                          if (ann.text?.trim()) {
+                            setAnnotations(prev => prev.map(a => a.id === ann.id ? { ...a, isLocked: true } : a));
+                          }
+                        }}
+                        className="w-full h-full border-none bg-blue-50/50 focus-visible:ring-1 focus-visible:ring-blue-400 text-black px-1 cursor-text"
                         style={{ fontSize: (ann.fontSize || 14) * scale }}
                         onMouseDown={(e) => e.stopPropagation()} 
                       />
@@ -252,6 +376,16 @@ export function PdfSigningCanvas({
           </Document>
         </div>
       </div>
+
+      <SignatureSelectionModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setPendingCoords(null);
+        }}
+        onSuccess={handleSignatureSuccess}
+        token={token}
+      />
     </div>
   );
 }
