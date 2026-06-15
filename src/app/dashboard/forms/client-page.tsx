@@ -9,10 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Search, FilePlus, ChevronRight, ListCollapse, PlusCircle,
-  Edit2, Trash2, AlertTriangle, Pencil, MessageCircle, ChevronDown, ChevronUp
+  Edit2, Trash2, AlertTriangle, Pencil, MessageCircle, ChevronDown, ChevronUp, Send, X
 } from "lucide-react";
 import Link from "next/link";
-import { deleteFormTemplate, deleteSubmission } from "@/app/actions/form";
+import { deleteFormTemplate, deleteSubmission, deleteFormRequestBatch } from "@/app/actions/form";
 import { getMySignature } from "@/app/actions/security";
 import EditSubmissionModal from "./edit-submission-modal";
 
@@ -25,6 +25,8 @@ function statusVariant(status: string) {
     case "In-review":                return "secondary";
     case "Rejected":                 return "destructive";
     case "Awaiting Final Approval":  return "outline";
+    case "Pending":
+    case "Partially Completed":      return "pending";
     default:                         return "default";
   }
 }
@@ -36,10 +38,14 @@ const EDITABLE_STATUSES = ["Submitted", "Rejected"];
 export default function FormsClientPage({
   templates,
   submissions,
+  batches = [],
+  pendingRequests = [],
   isAdmin,
 }: {
   templates: any[];
   submissions: any[];
+  batches?: any[];
+  pendingRequests?: any[];
   isAdmin: boolean;
 }) {
   const router = useRouter();
@@ -59,6 +65,11 @@ export default function FormsClientPage({
   const [submissionToDelete, setSubmissionToDelete] = useState<any>(null);
   const [isDeletingSubmission, startDeleteSubmission] = useTransition();
   const [deleteSubError, setDeleteSubError] = useState("");
+
+  // ── Request delete modal ──
+  const [requestToDelete, setRequestToDelete] = useState<any>(null);
+  const [isDeletingRequest, startDeleteRequest] = useTransition();
+  const [deleteReqError, setDeleteReqError] = useState("");
 
   // ── Submission edit modal ──
   const [submissionToEdit, setSubmissionToEdit]     = useState<any>(null);
@@ -103,6 +114,15 @@ export default function FormsClientPage({
     return true;
   });
 
+  const activeBatches = batches.filter((b: any) => {
+    if (statusFilter) {
+      if (b.status !== statusFilter) return false;
+    } else {
+      if (b.status === "Completed") return false;
+    }
+    return true;
+  });
+
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleDeleteTemplate = async () => {
@@ -138,6 +158,20 @@ export default function FormsClientPage({
         router.refresh();
       } else {
         setDeleteSubError(res.error || "Failed to delete submission.");
+      }
+    });
+  };
+
+  const handleDeleteRequest = () => {
+    if (!requestToDelete) return;
+    setDeleteReqError("");
+    startDeleteRequest(async () => {
+      const res = await deleteFormRequestBatch(requestToDelete.id);
+      if (res.success) {
+        setRequestToDelete(null);
+        router.refresh();
+      } else {
+        setDeleteReqError(res.error || "Failed to delete request.");
       }
     });
   };
@@ -289,89 +323,166 @@ export default function FormsClientPage({
       {/* ── My Submissions tab ── */}
       {activeTab === "submitted" && (
         <div className="grid gap-3">
-          {activeSubmissions.length === 0 ? (
-            <div className="py-16 text-center text-gray-400">
-              You haven&apos;t submitted any active forms yet.
-            </div>
-          ) : (
-            activeSubmissions.map((s: any) => {
-              const canEditOrDelete =
-                (currentUserId === null || s.submittedById === currentUserId) &&
-                EDITABLE_STATUSES.includes(s.status);
+          {(() => {
+            const unified = [
+              ...pendingRequests.map((req: any) => ({ type: 'pending', data: req, date: new Date(req.createdAt).getTime() })),
+              ...activeBatches.map((batch: any) => ({ type: 'batch', data: batch, date: new Date(batch.createdAt).getTime() })),
+              ...activeSubmissions.map((s: any) => ({ type: 'submission', data: s, date: new Date(s.createdAt).getTime() }))
+            ];
+            unified.sort((a, b) => b.date - a.date);
 
+            if (unified.length === 0) {
               return (
-                <Card
-                  key={s.id}
-                  className="hover:shadow-sm transition-shadow"
-                >
-                  <CardContent className="p-4 flex items-center justify-between gap-3">
-                    {/* Left — click to view */}
-                    <div
-                      className="flex items-center gap-3 flex-1 cursor-pointer min-w-0"
-                      onClick={() => router.push(`/dashboard/forms/submission/${s.id}`)}
-                    >
-                      <div className="bg-gray-100 p-2 rounded-md shrink-0">
-                        <ListCollapse className="w-5 h-5 text-gray-500" />
+                <div className="py-16 text-center text-gray-400">
+                  You haven&apos;t submitted any active forms yet.
+                </div>
+              );
+            }
+
+            return unified.map((item, index) => {
+              if (item.type === 'pending') {
+                const req = item.data;
+                return (
+                  <Card key={`pending-${req.id}-${index}`} className="hover:shadow-sm transition-shadow border-l-4 border-l-orange-400 bg-orange-50/30">
+                    <CardContent className="p-4 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 flex-1 cursor-pointer min-w-0" onClick={() => router.push(`/dashboard/forms/${req.batch?.template?.id}?requestToken=${req.token}`)}>
+                        <div className="bg-orange-100 p-2 rounded-md shrink-0">
+                          <AlertTriangle className="w-5 h-5 text-orange-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-medium text-gray-900 truncate">
+                            {req.batch?.template?.name || "Form"}
+                          </h4>
+                          <p className="text-xs text-gray-500">
+                            Requested by {req.batch?.requestedBy} on {new Date(req.createdAt).toLocaleDateString()}
+                          </p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <h4 className="font-medium text-gray-900 truncate">
-                          {s.reference || s.id.slice(-8).toUpperCase()} — {s.formName}
-                        </h4>
-                        <p className="text-xs text-gray-400">
-                          Submitted {new Date(s.createdAt).toLocaleDateString()} ·{" "}
-                          {s.signatories?.length ?? 0} signator{s.signatories?.length === 1 ? "y" : "ies"}
-                        </p>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant="destructive" className="bg-orange-500 hover:bg-orange-600 text-white">Action Required</Badge>
+                        <ChevronRight 
+                          className="w-4 h-4 text-gray-300 cursor-pointer" 
+                          onClick={() => router.push(`/dashboard/forms/${req.batch?.template?.id}?requestToken=${req.token}`)}
+                        />
                       </div>
-                    </div>
+                    </CardContent>
+                  </Card>
+                );
+              }
 
-                    {/* Right — status + actions */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge variant={statusVariant(s.status) as any}>{s.status}</Badge>
+              if (item.type === 'batch') {
+                const batch = item.data;
+                const total = batch.requests?.length || 0;
+                const completed = batch.requests?.filter((r: any) => r.status === "Completed").length || 0;
+                return (
+                  <Card key={`batch-${batch.id}-${index}`} className="hover:shadow-sm transition-shadow">
+                    <CardContent className="p-4 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 flex-1 cursor-pointer min-w-0" onClick={() => router.push(`/dashboard/forms/request/${batch.id}`)}>
+                        <div className="bg-blue-100 p-2 rounded-md shrink-0">
+                          <Send className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-medium text-gray-900 truncate">
+                            Request — {batch.template?.name || "Form"}
+                          </h4>
+                          <p className="text-xs text-gray-500">
+                            Requested {new Date(batch.createdAt).toLocaleDateString()} · {completed} of {total} completed
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant={batch.status === "Completed" ? "success" : "pending"}>{batch.status}</Badge>
+                        <ChevronRight 
+                          className="w-4 h-4 text-gray-300 cursor-pointer" 
+                          onClick={() => router.push(`/dashboard/forms/request/${batch.id}`)}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              }
 
-                      {canEditOrDelete && (
-                        <>
-                          <button
-                            id={`edit-submission-${s.id}`}
-                            onClick={() => setSubmissionToEdit(s)}
-                            title="Edit & Resubmit"
-                            className="p-1.5 rounded-md text-gray-400 hover:text-primary hover:bg-primary/5 transition-colors"
-                          >
-                            <Pencil className="w-4 h-4" />
-                          </button>
-                          <button
-                            id={`delete-submission-${s.id}`}
-                            onClick={() => { setDeleteSubError(""); setSubmissionToDelete(s); }}
-                            title="Delete Submission"
-                            className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </>
-                      )}
+              if (item.type === 'submission') {
+                const s = item.data;
+                const canEditOrDelete =
+                  (currentUserId === null || s.submittedById === currentUserId) &&
+                  EDITABLE_STATUSES.includes(s.status);
 
-                      {/* Rejection reason icon — only when Rejected and has reason */}
-                      {s.status === "Rejected" &&
-                        s.signatories?.some((sig: any) => sig.status === "Declined" && sig.declineReason) && (
-                          <button
-                            id={`view-reason-${s.id}`}
-                            onClick={() => setViewingReason(s)}
-                            title="View rejection reason"
-                            className="p-1.5 rounded-md text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
-                          >
-                            <MessageCircle className="w-4 h-4" />
-                          </button>
+                return (
+                  <Card
+                    key={`sub-${s.id}-${index}`}
+                    className="hover:shadow-sm transition-shadow"
+                  >
+                    <CardContent className="p-4 flex items-center justify-between gap-3">
+                      {/* Left — click to view */}
+                      <div
+                        className="flex items-center gap-3 flex-1 cursor-pointer min-w-0"
+                        onClick={() => router.push(`/dashboard/forms/submission/${s.id}`)}
+                      >
+                        <div className="bg-gray-100 p-2 rounded-md shrink-0">
+                          <ListCollapse className="w-5 h-5 text-gray-500" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-medium text-gray-900 truncate">
+                            {s.reference || s.id.slice(-8).toUpperCase()} — {s.formName}
+                          </h4>
+                          <p className="text-xs text-gray-400">
+                            Submitted {new Date(s.createdAt).toLocaleDateString()} ·{" "}
+                            {s.signatories?.length ?? 0} signator{s.signatories?.length === 1 ? "y" : "ies"}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Right — status + actions */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant={statusVariant(s.status) as any}>{s.status}</Badge>
+
+                        {canEditOrDelete && (
+                          <>
+                            <button
+                              id={`edit-submission-${s.id}`}
+                              onClick={() => setSubmissionToEdit(s)}
+                              title="Edit & Resubmit"
+                              className="p-1.5 rounded-md text-gray-400 hover:text-primary hover:bg-primary/5 transition-colors"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              id={`delete-submission-${s.id}`}
+                              onClick={() => { setDeleteSubError(""); setSubmissionToDelete(s); }}
+                              title="Delete Submission"
+                              className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
                         )}
 
-                      <ChevronRight
-                        className="w-4 h-4 text-gray-300 cursor-pointer"
-                        onClick={() => router.push(`/dashboard/forms/submission/${s.id}`)}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })
-          )}
+                        {/* Rejection reason icon — only when Rejected and has reason */}
+                        {s.status === "Rejected" &&
+                          s.signatories?.some((sig: any) => sig.status === "Declined" && sig.declineReason) && (
+                            <button
+                              id={`view-reason-${s.id}`}
+                              onClick={() => setViewingReason(s)}
+                              title="View rejection reason"
+                              className="p-1.5 rounded-md text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                            </button>
+                          )}
+
+                        <ChevronRight
+                          className="w-4 h-4 text-gray-300 cursor-pointer"
+                          onClick={() => router.push(`/dashboard/forms/submission/${s.id}`)}
+                        />
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              }
+              return null;
+            });
+          })()}
         </div>
       )}
 

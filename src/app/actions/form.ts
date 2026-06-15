@@ -163,3 +163,21 @@ export async function softDeleteSubmission(id: string, reason: string) {
   }
 }
 
+export async function getMyRequestBatches() {
+  const result = await apiClient("/form-requests/my", { method: "GET" }).catch(e => ({ data: [] }));
+  return result.data || [];
+}
+
+export async function deleteFormRequestBatch(id: string) {
+  try {
+    const result = await apiClient(`/form-requests/${id}`, { method: "DELETE" });
+    revalidatePath("/dashboard/forms");
+    return { success: true, data: result };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to delete request" };
+  }
+}
+export async function getMyPendingRequests() {
+  const result = await apiClient("/form-requests/pending-for-me", { method: "GET" }).catch(e => ({ data: [] }));
+  return result.data || [];
+}

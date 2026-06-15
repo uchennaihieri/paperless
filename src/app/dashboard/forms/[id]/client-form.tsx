@@ -12,6 +12,7 @@ import { searchUsers, SignatoryInput, SigningType } from "@/app/actions/form";
 import { X, Search, Check, ChevronRight, GitBranch, Layers, Send, UserPlus, ArrowLeft, KeyRound, Loader2, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import { numberToWords } from "@/lib/toWords";
+import { SignatureSelectionModal } from "@/app/dashboard/components/SignatureSelectionModal";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1426,13 +1427,17 @@ export default function FormFillerClient({
   currentUser, 
   draftId, 
   initialFormData, 
-  prerequisiteInfo 
+  prerequisiteInfo,
+  prefilledData,
+  requestToken
 }: { 
   template: any, 
   currentUser: { userName: string; email: string; token?: string }, 
   draftId?: string, 
   initialFormData?: Record<string, any>,
-  prerequisiteInfo?: any
+  prerequisiteInfo?: any,
+  prefilledData?: Record<string, any>,
+  requestToken?: string | null
 }) {
   const router = useRouter();
 
@@ -1455,8 +1460,9 @@ export default function FormFillerClient({
 
   const [step, setStep] = useState(() => savedState.current?.step || 1);
   const [formData, setFormData] = useState<Record<string, any>>(() => {
-    // initialFormData (from drafts) takes priority, then saved state, then empty
+    // initialFormData (from drafts) takes priority, then prefilledData (from request token), then saved state, then empty
     if (initialFormData && Object.keys(initialFormData).length > 0) return initialFormData;
+    if (prefilledData && Object.keys(prefilledData).length > 0) return prefilledData;
     return savedState.current?.formData || {};
   });
   const [internalFormsData, setInternalFormsData] = useState<Record<string, any[]>>(() => savedState.current?.internalFormsData || {});
@@ -1470,10 +1476,9 @@ export default function FormFillerClient({
   );
   const [signingType, setSigningType] = useState<SigningType>(() => savedState.current?.signingType || "sequential");
   const [submitting, setSubmitting] = useState(false);
-  const [signatureToken, setSignatureToken] = useState("");
-  const [showToken, setShowToken] = useState(false);
-  const [showTokenModal, setShowTokenModal] = useState(false);
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
   const [showPrefillModal, setShowPrefillModal] = useState(false);
+  const [showTargetedRequestModal, setShowTargetedRequestModal] = useState(false);
   const [error, setError] = useState("");
 
   const fields: Field[] = typeof template.fields === "string"
@@ -1645,7 +1650,8 @@ export default function FormFillerClient({
     }
   };
 
-  const handleSubmit = async () => {
+  const submitToBackend = async (base64Signature: string) => {
+    setIsSignatureModalOpen(false);
     setSubmitting(true);
     setError("");
     const textOnlyResponses: Record<string, any> = {};
@@ -1672,8 +1678,9 @@ export default function FormFillerClient({
       formResponses: textOnlyResponses,
       signatories,
       signingType,
-      initiatorToken: signatureToken || undefined,
+      initiatorSignature: base64Signature,
       draftId,
+      requestToken: requestToken || undefined,
     }));
 
     for (const [fieldName, files] of Object.entries(fileFields)) {
@@ -1698,7 +1705,6 @@ export default function FormFillerClient({
       }
 
       setSubmitting(false);
-      setShowTokenModal(false);
 
       if (res?.success) {
         clearSavedState();
@@ -1709,8 +1715,7 @@ export default function FormFillerClient({
       }
     } catch (e: any) {
       setSubmitting(false);
-      setShowTokenModal(false);
-      setError(e?.message ?? "Submission failed. Please check your token and try again.");
+      setError(e?.message ?? "Submission failed. Please try again.");
     }
   };
 
@@ -1721,9 +1726,14 @@ export default function FormFillerClient({
           <ArrowLeft className="w-4 h-4 mr-1" /> Back to forms
         </Link>
         {step === 1 && (
-          <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => setShowPrefillModal(true)}>
-            <Layers className="w-4 h-4 mr-1" /> Prefill from previous
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="cursor-pointer border-blue-200 text-blue-700 hover:bg-blue-50" onClick={() => setShowTargetedRequestModal(true)}>
+              <Send className="w-4 h-4 mr-1" /> Request Form Fill
+            </Button>
+            <Button variant="outline" size="sm" className="cursor-pointer" onClick={() => setShowPrefillModal(true)}>
+              <Layers className="w-4 h-4 mr-1" /> Prefill from previous
+            </Button>
+          </div>
         )}
       </div>
 
@@ -1779,7 +1789,7 @@ export default function FormFillerClient({
             signatories={signatories}
             signingType={signingType}
             onBack={() => setStep(2)}
-            onSubmit={() => setShowTokenModal(true)}
+            onSubmit={() => setIsSignatureModalOpen(true)}
             submitting={submitting}
             prerequisiteInfo={prerequisiteInfo}
             draftId={draftId}
@@ -1788,49 +1798,24 @@ export default function FormFillerClient({
         )}
       </Card>
 
-      {/* Token Verification Modal for Instant First-Signature */}
-      {showTokenModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-6 text-center space-y-4">
-              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-primary/10 mb-2">
-                <KeyRound className="h-6 w-6 text-primary" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">Sign & Submit</h3>
-              <p className="text-sm text-gray-500">
-                You are listed as the first signatory. Enter your secure token to securely apply your signature to this submission simultaneously.
-              </p>
-              <div className="relative">
-                <Input
-                  type={showToken ? "text" : "password"}
-                  placeholder="Token (e.g. 1a2b3c4d)"
-                  value={signatureToken}
-                  onChange={(e) => setSignatureToken(e.target.value)}
-                  minLength={8}
-                  maxLength={32}
-                  className="text-center tracking-widest font-mono text-lg py-6 pr-12"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowToken(!showToken)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
-                >
-                  {showToken ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-              <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
-                <Button variant="ghost" onClick={() => setShowTokenModal(false)}>Cancel</Button>
-                <Button
-                  disabled={signatureToken.length < 8 || submitting}
-                  onClick={handleSubmit}
-                  className="w-full sm:w-auto"
-                >
-                  {submitting ? "Signing..." : "Verify & Submit"}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* Signature Modal */}
+      <SignatureSelectionModal
+        isOpen={isSignatureModalOpen}
+        onClose={() => setIsSignatureModalOpen(false)}
+        onSuccess={submitToBackend}
+        token={currentUser.token}
+        allowToken={true}
+      />
+
+      {/* Targeted Request Modal */}
+      {showTargetedRequestModal && (
+        <TargetedRequestModal
+          templateId={template.id}
+          templateName={template.name}
+          token={currentUser.token}
+          formData={formData}
+          onClose={() => setShowTargetedRequestModal(false)}
+        />
       )}
 
       {/* Prefill Modal */}
@@ -1993,6 +1978,191 @@ function PrefillModal({
                 <><Layers className="w-4 h-4 mr-1" /> Prefill</>
               )}
             </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Targeted Request Modal ───────────────────────────────────────────────────
+
+function TargetedRequestModal({
+  templateId,
+  templateName,
+  token,
+  formData,
+  onClose
+}: {
+  templateId: string;
+  templateName: string;
+  token?: string;
+  formData: Record<string, any>;
+  onClose: () => void;
+}) {
+  const [emailsText, setEmailsText] = useState("");
+  const [customMessage, setCustomMessage] = useState(`Hello,\n\nPlease kindly fill out the attached form "${templateName}" at your earliest convenience.\n\nThank you.`);
+  const [file, setFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [alertMsg, setAlertMsg] = useState<{type: "error"|"success", msg: string} | null>(null);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [parsedEmails, setParsedEmails] = useState<string[]>([]);
+  const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
+
+  const handleNextStep = async () => {
+    let targetEmails: string[] = [];
+    
+    if (file) {
+      const text = await file.text();
+      const rows = text.split("\n");
+      rows.forEach(r => {
+        const cells = r.split(",");
+        cells.forEach(c => {
+          const email = c.trim();
+          if (email.includes("@")) targetEmails.push(email);
+        });
+      });
+    }
+
+    if (emailsText.trim()) {
+      const parts = emailsText.split(/[\s,;]+/);
+      parts.forEach(p => {
+        const email = p.trim();
+        if (email.includes("@") && !targetEmails.includes(email)) {
+          targetEmails.push(email);
+        }
+      });
+    }
+
+    if (targetEmails.length === 0) {
+      setAlertMsg({ type: "error", msg: "Please enter at least one valid email address." });
+      return;
+    }
+    
+    setAlertMsg(null);
+    setParsedEmails(targetEmails);
+    setStep(2);
+  };
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+
+      const res = await fetch(`${BASE_URL}/api/v1/form-requests`, {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}` 
+        },
+        body: JSON.stringify({
+          templateId,
+          emails: parsedEmails,
+          message: customMessage,
+          prefilledData: formData
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setAlertMsg({ type: "success", msg: `Successfully requested form fill from ${parsedEmails.length} recipients!` });
+        setTimeout(() => onClose(), 2000);
+      } else {
+        setAlertMsg({ type: "error", msg: data.error || "Failed to create request." });
+      }
+    } catch (e) {
+      setAlertMsg({ type: "error", msg: "Error processing request." });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg animate-in fade-in zoom-in-95 duration-200">
+        <div className="p-6 space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Request Form Fill</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Send a targeted request to users to fill this form.</p>
+            </div>
+            <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {alertMsg && (
+              <div className={`p-3 rounded-md text-sm border ${alertMsg.type === 'error' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                {alertMsg.msg}
+              </div>
+            )}
+            
+            {step === 2 && (
+              <div className="space-y-1">
+                <Label className="text-sm font-semibold">Notification Message (Optional)</Label>
+                <textarea
+                  className="w-full text-sm p-3 border rounded-md min-h-[140px] outline-none focus:ring-2 focus:ring-primary/50"
+                  placeholder="Hi, please fill out this form by Friday."
+                  value={customMessage}
+                  onChange={e => setCustomMessage(e.target.value)}
+                />
+                <p className="text-[10px] text-gray-400 font-medium">Sending to {parsedEmails.length} recipient{parsedEmails.length !== 1 && 's'}.</p>
+              </div>
+            )}
+
+            {step === 1 && (
+              <>
+                <div className="space-y-1">
+                  <Label className="text-sm font-semibold">Enter Email Addresses</Label>
+                  <textarea
+                    className="w-full text-sm p-3 border rounded-md min-h-[80px] outline-none focus:ring-2 focus:ring-primary/50"
+                    placeholder="john@example.com, jane@example.com"
+                    value={emailsText}
+                    onChange={e => setEmailsText(e.target.value)}
+                  />
+                  <p className="text-[10px] text-gray-400">Separate emails by comma, semicolon, or new line.</p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="h-px flex-1 bg-gray-200" />
+                  <span className="text-xs font-semibold text-gray-400">OR</span>
+                  <div className="h-px flex-1 bg-gray-200" />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-sm font-semibold">Upload CSV File</Label>
+                  <Input
+                    type="file"
+                    accept=".csv"
+                    onChange={e => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        setFile(e.target.files[0]);
+                      }
+                    }}
+                  />
+                  <p className="text-[10px] text-gray-400">Upload a CSV file containing email addresses.</p>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
+            {step === 1 ? (
+              <>
+                <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                <Button onClick={handleNextStep}>
+                  Next Step <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" onClick={() => setStep(1)} disabled={submitting}>Back</Button>
+                <Button onClick={handleSubmit} disabled={submitting}>
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                  Send Requests
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>

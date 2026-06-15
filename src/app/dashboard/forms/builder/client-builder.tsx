@@ -11,6 +11,7 @@ import { ArrowLeft, ArrowUp, ArrowDown, Plus, Trash2, Save, CheckCircle, XCircle
 import Link from "next/link";
 import { apiClient } from "@/lib/apiClient";
 import { RichTextEditor } from "@/components/RichTextEditor";
+import { Copy } from "lucide-react";
 
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -72,6 +73,8 @@ export default function FormBuilderClient({
   const [formOwner, setFormOwner] = useState(initialTemplate?.formOwner || "");
   const [formTreater, setFormTreater] = useState(initialTemplate?.formTreater || "");
   const [formTreaterRole, setFormTreaterRole] = useState(initialTemplate?.formTreaterRole || "");
+  const [isPublic, setIsPublic] = useState(initialTemplate?.isPublic || false);
+  const [publicSlug, setPublicSlug] = useState(initialTemplate?.publicSlug || "");
   const [automatedSignatories, setAutomatedSignatories] = useState<{branch: string, role: string, signingType: string}[]>(
     typeof initialTemplate?.automatedSignatories === "string" ? JSON.parse(initialTemplate.automatedSignatories) : (initialTemplate?.automatedSignatories || [])
   );
@@ -297,6 +300,37 @@ export default function FormBuilderClient({
     }
   };
 
+  const handleTogglePublic = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const nextVal = e.target.checked;
+    setIsPublic(nextVal);
+    if (!initialTemplate?.id) {
+      // Allow them to toggle state, but we don't save until the form is created.
+      // Wait, we actually can't generate a slug without an ID easily, or we can just tell them to save first.
+      alert("Please save the form template first before enabling the public link.");
+      setIsPublic(false);
+      return;
+    }
+    
+    try {
+      // You may need to adapt your session token logic or use apiClient if available
+      const res = await fetch(`/api/v1/forms/${initialTemplate.id}/toggle-public`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isPublic: nextVal })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setPublicSlug(data.data.publicSlug || "");
+      } else {
+        alert("Failed to toggle public link.");
+        setIsPublic(!nextVal);
+      }
+    } catch(err) {
+      alert("Failed to toggle public link.");
+      setIsPublic(!nextVal);
+    }
+  };
+
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
       <Link href="/dashboard/forms" className="inline-flex items-center text-sm text-gray-500 hover:text-primary transition-colors">
@@ -362,6 +396,46 @@ export default function FormBuilderClient({
                     </div>
                   </div>
                 </div>
+
+                {/* Public Link Toggle */}
+                {initialTemplate?.id && (
+                  <div className="flex flex-col gap-2 bg-green-50 p-4 rounded-lg border border-green-100">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="public-form"
+                        checked={isPublic}
+                        onChange={handleTogglePublic}
+                        className="h-5 w-5 rounded border-green-300 text-green-600 focus:ring-green-600 cursor-pointer flex-shrink-0"
+                      />
+                      <div className="flex flex-col">
+                        <Label htmlFor="public-form" className="text-sm cursor-pointer font-bold text-green-900">
+                          Enable Public Link
+                        </Label>
+                        <span className="text-xs text-green-700">Generate a unique link that external users can fill out without logging in.</span>
+                      </div>
+                    </div>
+                    {isPublic && publicSlug && (
+                      <div className="mt-2 pl-7 flex items-center gap-2">
+                        <div className="bg-white border border-green-200 px-3 py-1.5 rounded-md text-sm font-mono text-green-800 flex-1">
+                          {`${process.env.NEXT_PUBLIC_FRONTEND_URL || typeof window !== 'undefined' ? window.location.origin : ''}/${publicSlug}`}
+                        </div>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="icon" 
+                          className="shrink-0 text-green-600 border-green-200 hover:bg-green-100 cursor-pointer"
+                          onClick={() => {
+                            navigator.clipboard.writeText(`${window.location.origin}/${publicSlug}`);
+                            alert("Copied to clipboard!");
+                          }}
+                        >
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Form Owner */}

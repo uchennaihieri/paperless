@@ -6,14 +6,14 @@ import { useRouter } from "next/navigation";
 import {
   X, Search, ChevronLeft, ChevronRight, Loader2,
   FileText, Clock, CheckCircle2, XCircle, PenTool, ShieldCheck, AlertTriangle,
-  ExternalLink, Link2, Users,
+  ExternalLink, Link2, Users, Send,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type MyRole = "submitted" | "signed" | "declined" | "treated" | "approved" | "shared" | "branch_treated";
+type MyRole = "submitted" | "signed" | "declined" | "treated" | "approved" | "shared" | "branch_treated" | "requested";
 
 type HistoryItem = {
   id: string;
@@ -43,6 +43,7 @@ const STATUS_OPTIONS = [
 
 const ROLE_OPTIONS: { value: MyRole; label: string; icon: React.ReactNode }[] = [
   { value: "submitted", label: "I Submitted",      icon: <FileText className="w-3 h-3" /> },
+  { value: "requested", label: "I Requested",      icon: <Send className="w-3 h-3" /> },
   { value: "signed",    label: "I Signed",         icon: <PenTool className="w-3 h-3" /> },
   { value: "declined",  label: "I Declined",       icon: <XCircle className="w-3 h-3" /> },
   { value: "treated",   label: "I Treated",        icon: <CheckCircle2 className="w-3 h-3" /> },
@@ -65,6 +66,7 @@ function statusVariant(status: string) {
 
 const ROLE_COLORS: Record<MyRole, string> = {
   submitted: "bg-blue-100 text-blue-700",
+  requested: "bg-indigo-100 text-indigo-700",
   signed:    "bg-green-100 text-green-700",
   declined:  "bg-red-100 text-red-600",
   treated:   "bg-purple-100 text-purple-700",

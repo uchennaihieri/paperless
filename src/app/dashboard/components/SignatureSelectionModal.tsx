@@ -10,16 +10,18 @@ interface SignatureSelectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (base64Signature: string) => void;
-  token: string;
+  token?: string;
+  allowToken?: boolean;
 }
 
 export function SignatureSelectionModal({
   isOpen,
   onClose,
   onSuccess,
-  token
+  token,
+  allowToken = true
 }: SignatureSelectionModalProps) {
-  const [activeTab, setActiveTab] = useState<"token" | "draw" | "upload">("token");
+  const [activeTab, setActiveTab] = useState<"token" | "draw" | "upload">(allowToken ? "token" : "draw");
   const [signatureToken, setSignatureToken] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -119,12 +121,14 @@ export function SignatureSelectionModal({
 
           {/* Custom Tabs */}
           <div className="flex border-b border-gray-200 mb-4">
-            <button
-              className={`flex-1 py-2 text-sm font-medium flex items-center justify-center gap-2 border-b-2 ${activeTab === "token" ? "border-primary text-primary" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`}
-              onClick={() => { setActiveTab("token"); setError(""); }}
-            >
-              <KeyRound className="w-4 h-4" /> Token
-            </button>
+            {allowToken && (
+              <button
+                className={`flex-1 py-2 text-sm font-medium flex items-center justify-center gap-2 border-b-2 ${activeTab === "token" ? "border-primary text-primary" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`}
+                onClick={() => { setActiveTab("token"); setError(""); }}
+              >
+                <KeyRound className="w-4 h-4" /> Token
+              </button>
+            )}
             <button
               className={`flex-1 py-2 text-sm font-medium flex items-center justify-center gap-2 border-b-2 ${activeTab === "draw" ? "border-primary text-primary" : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"}`}
               onClick={() => { setActiveTab("draw"); setError(""); }}
@@ -140,7 +144,7 @@ export function SignatureSelectionModal({
           </div>
 
           <div className="pt-2">
-            {activeTab === "token" && (
+            {allowToken && activeTab === "token" && (
               <form onSubmit={handleTokenSubmit} className="space-y-4">
                 <p className="text-sm text-gray-500">
                   Enter your 8-character security token to use your saved profile signature.
