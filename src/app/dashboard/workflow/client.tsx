@@ -374,9 +374,21 @@ function DetailPanel({
               <h3 className="text-xs font-semibold text-primary uppercase tracking-widest flex items-center gap-1">
                 <FileText className="w-3 h-3" /> Form Responses
               </h3>
-              {(item.status === "Completed" || item.status === "Processing") && (
-                <RegeneratePdfButton submissionId={item.id} />
-              )}
+              <div className="flex items-center gap-2">
+                {(item.status === "Completed" || item.status === "Processing") && (
+                  <RegeneratePdfButton submissionId={item.id} />
+                )}
+                {item.formName.startsWith("Master Roster:") && (
+                  <Button 
+                    onClick={() => openFile(`${BASE_URL}/api/v1/workflow/${item.id}/preview-pdf`, `${item.formName}.pdf`, token)}
+                    variant="outline"
+                    size="sm"
+                    className="cursor-pointer border-blue-200 text-blue-700 hover:bg-blue-50"
+                  >
+                    <Eye className="w-4 h-4 mr-2" /> Preview Attendance PDF
+                  </Button>
+                )}
+              </div>
             </div>
             <div className="rounded-xl border border-gray-200 overflow-x-auto">
               <table className="w-full text-sm min-w-[350px]">
@@ -388,7 +400,7 @@ function DetailPanel({
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {Object.entries(responses)
-                    .filter(([q]) => q !== "CompletedFormPDF")
+                    .filter(([q]) => q !== "CompletedFormPDF" && q !== "Participants")
                     .map(([q, a], i) => {
                     const isAttachmentArray = Array.isArray(a) && a.every(v => v && v.isAttachment);
                     const isRef = isFormReferenceField(q);
@@ -635,14 +647,16 @@ function DetailPanel({
             </div>
           ) : (
             <div className="flex gap-2 sm:gap-3 flex-wrap">
-              <Button
-                variant="outline"
-                className="flex-1 min-w-[120px] text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 cursor-pointer"
-                onClick={() => { setDisapproveReason(""); setShowDisapproveModal(true); }}
-                disabled={isPendingDec || isPendingSig}
-              >
-                <XCircle className="w-4 h-4 mr-1 sm:mr-2" /> Disapprove
-              </Button>
+              {!item.formName.startsWith("Master Roster:") && (
+                <Button
+                  variant="outline"
+                  className="flex-1 min-w-[120px] text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 cursor-pointer"
+                  onClick={() => { setDisapproveReason(""); setShowDisapproveModal(true); }}
+                  disabled={isPendingDec || isPendingSig}
+                >
+                  <XCircle className="w-4 h-4 mr-1 sm:mr-2" /> Disapprove
+                </Button>
+              )}
               <Button
                 variant="outline"
                 className="flex-1 min-w-[120px] text-amber-600 border-amber-200 hover:bg-amber-50 hover:text-amber-700 cursor-pointer"

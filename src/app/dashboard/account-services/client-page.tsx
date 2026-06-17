@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Plus, PenTool, Fingerprint, CreditCard, BarChart2, ShieldCheck } from "lucide-react";
+import { Calendar, PenTool, Fingerprint, CreditCard, BarChart2, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
@@ -83,14 +83,14 @@ export default function AccountServicesClientPage({ pendingContractsCount = 0 }:
         <h3 className="text-lg font-semibold text-gray-800 mb-4">Other Actions</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Link
-            href="/dashboard/forms?tab=account_services"
-            className="flex flex-col p-6 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-primary/30 transition-all cursor-pointer group"
+            href="/dashboard/account-services/events"
+            className="flex flex-col p-6 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-amber-500/30 transition-all cursor-pointer group"
           >
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
-              <Plus className="w-6 h-6 text-primary" />
+            <div className="w-12 h-12 rounded-xl bg-amber-100 flex items-center justify-center mb-4 group-hover:bg-amber-200 transition-colors">
+              <Calendar className="w-6 h-6 text-amber-600" />
             </div>
-            <div className="text-lg font-semibold text-gray-900 mb-1">New Application</div>
-            <div className="text-sm text-gray-500">Start a new form submission</div>
+            <div className="text-lg font-semibold text-gray-900 mb-1">Events</div>
+            <div className="text-sm text-gray-500">Manage training events and generate attendance rosters</div>
           </Link>
 
           <Link

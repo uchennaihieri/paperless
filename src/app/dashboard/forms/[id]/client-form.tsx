@@ -19,7 +19,7 @@ import { SignatureSelectionModal } from "@/app/dashboard/components/SignatureSel
 type Field = {
   id: string;
   label: string;
-  type: "text" | "number" | "date" | "textarea" | "file" | "conditional" | "extended_service";
+  type: "text" | "number" | "date" | "textarea" | "file" | "conditional" | "extended_service" | "event_selector";
   required: boolean;
   description?: string;
   maxLength?: number;
@@ -299,6 +299,8 @@ function FormFieldsStep({
   token,
   currentUser,
   submitting,
+  dynamicOptions,
+  setDynamicOptions,
 }: {
   template: any;
   formData: Record<string, any>;
@@ -310,10 +312,12 @@ function FormFieldsStep({
   token?: string;
   currentUser?: { userName: string; email: string };
   submitting?: boolean;
+  dynamicOptions: Record<string, { label: string; value: string }[]>;
+  setDynamicOptions: React.Dispatch<React.SetStateAction<Record<string, { label: string; value: string }[]>>>;
 }) {
   const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
-  const fields: any[] = typeof template.fields === "string"
-    ? JSON.parse(template.fields)
+  const fields: any[] = typeof template.fields === "string" 
+    ? JSON.parse(template.fields) 
     : template.fields ?? [];
 
   // ── Section navigation ────────────────────────────────────────────────────
@@ -483,7 +487,6 @@ function FormFieldsStep({
   }, [formData, fields]);
 
   // Dynamic Options Fetching
-  const [dynamicOptions, setDynamicOptions] = useState<Record<string, { label: string, value: string }[]>>({});
 
   useEffect(() => {
     const fetchOptions = async () => {
@@ -538,10 +541,28 @@ function FormFieldsStep({
             console.error("Failed to fetch extended options for", field.id, e);
             newOptions[field.id] = [];
           }
+        } else if (field.type === "event_selector") {
+          try {
+            const res = await fetch(`${BASE_URL}/api/v1/events/all`, {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            const data = await res.json();
+            if (data.success && data.events) {
+              newOptions[field.id] = data.events.map((e: any) => ({
+                label: `${e.name} (${e.reference})`,
+                value: e.id
+              }));
+            } else {
+              newOptions[field.id] = [];
+            }
+          } catch (e) {
+            console.error("Failed to fetch event options for", field.id, e);
+            newOptions[field.id] = [];
+          }
         }
       }
 
-      setDynamicOptions(prev => ({ ...prev, ...newOptions }));
+      setDynamicOptions((prev: Record<string, { label: string; value: string }[]>) => ({ ...prev, ...newOptions }));
     };
 
     fetchOptions();
@@ -956,6 +977,18 @@ function FormFieldsStep({
                       </div>
                     );
                   }
+                  if ((field as any).type === "event_selector") {
+                    return (
+                      <SearchableSelect
+                        id={field.id}
+                        options={dynamicOptions[field.id] || []}
+                        value={formData[field.id] ?? ""}
+                        onChange={(val) => onChange(field.id, val)}
+                        required={field.required}
+                        disabled={isReadOnly}
+                      />
+                    );
+                  }
                   if (field.type === "select") {
                     return (
                       <select
@@ -968,7 +1001,7 @@ function FormFieldsStep({
                           }`}
                       >
                         <option value="">— Select an option —</option>
-                        {(dynamicOptions[field.id] || []).map(opt => (
+                        {(dynamicOptions[field.id] || []).map((opt: { label: string; value: string }) => (
                           <option key={opt.value} value={opt.value}>{opt.label}</option>
                         ))}
                       </select>
@@ -1252,6 +1285,7 @@ function ReviewStep({
   prerequisiteInfo,
   draftId,
   token,
+  dynamicOptions,
 }: {
   template: any;
   formData: Record<string, any>;
@@ -1263,6 +1297,7 @@ function ReviewStep({
   prerequisiteInfo?: any;
   draftId?: string;
   token?: string;
+  dynamicOptions: Record<string, { label: string; value: string }[]>;
 }) {
   const [showDeclineModal, setShowDeclineModal] = useState(false);
   const [declineReason, setDeclineReason] = useState("");
@@ -1322,15 +1357,29 @@ function ReviewStep({
                     <tr key={f.id} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                       <td className="px-4 py-3 font-medium text-gray-700">{f.label}</td>
                       <td className="px-4 py-3 text-gray-600">
-                        {(f.type === "file" || (f as any).type === "signable_document") && formData[f.id] ? (
-                          <div className="flex flex-col gap-1">
-                            {(formData[f.id] as File[]).map((file, idx) => (
-                              <span key={idx} className="text-sm font-medium text-gray-800">{file.name}</span>
-                            ))}
-                          </div>
-                        ) : (
-                          formData[f.id] || <span className="italic text-gray-300">—</span>
-                        )}
+                        {(() => {
+                          const val = formData[f.id];
+                          if (!val) return <span className="italic text-gray-300">—</span>;
+
+                          if ((f as any).type === "file" || (f as any).type === "signable_document") {
+                            return (
+                              <div className="flex flex-col gap-1">
+                                {(val as File[]).map((file, idx) => (
+                                  <span key={idx} className="text-sm font-medium text-gray-800">{file.name}</span>
+                                ))}
+                              </div>
+                            );
+                          }
+
+                          // If the field has dynamic options (like event_selector, select), resolve to label
+                          if (dynamicOptions[f.id] && Array.isArray(dynamicOptions[f.id])) {
+                            const matchedOpt = dynamicOptions[f.id].find(opt => String(opt.value) === String(val));
+                            if (matchedOpt) return matchedOpt.label;
+                          }
+
+                          // Fallback to stringifying the value
+                          return typeof val === "object" ? JSON.stringify(val) : String(val);
+                        })()}
                       </td>
                     </tr>
                   ))}
@@ -1467,6 +1516,12 @@ export default function FormFillerClient({
   });
   const [internalFormsData, setInternalFormsData] = useState<Record<string, any[]>>(() => savedState.current?.internalFormsData || {});
   const [activeInternalFormTarget, setActiveInternalFormTarget] = useState<{ fieldId: string, templateId: string, index?: number } | null>(null);
+
+  const formFields: any[] = typeof template.fields === "string" 
+    ? JSON.parse(template.fields) 
+    : template.fields ?? [];
+  const hasSignableDocument = formFields.some(f => f.type === "signable_document" || (f as any).type === "signable_document");
+
   const [signatories, setSignatories] = useState<SignatoryInput[]>(() =>
     savedState.current?.signatories || [{
       position: 1,
@@ -1478,8 +1533,13 @@ export default function FormFillerClient({
   const [submitting, setSubmitting] = useState(false);
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
   const [showPrefillModal, setShowPrefillModal] = useState(false);
+  const [showTokenModal, setShowTokenModal] = useState(false);
+  const [signatureToken, setSignatureToken] = useState("");
+  const [showToken, setShowToken] = useState(false);
+
   const [showTargetedRequestModal, setShowTargetedRequestModal] = useState(false);
   const [error, setError] = useState("");
+  const [dynamicOptions, setDynamicOptions] = useState<Record<string, { label: string, value: string }[]>>({});
 
   const fields: Field[] = typeof template.fields === "string"
     ? JSON.parse(template.fields)
@@ -1600,6 +1660,7 @@ export default function FormFillerClient({
   };
 
   const handleStep1Next = async () => {
+    // ── Check for automated signatories from template config ──────────────────
     const autoSigs = typeof template.automatedSignatories === "string" ? JSON.parse(template.automatedSignatories) : template.automatedSignatories;
     if (!autoSigs || !Array.isArray(autoSigs) || autoSigs.length === 0) {
       setStep(2);
@@ -1678,7 +1739,8 @@ export default function FormFillerClient({
       formResponses: textOnlyResponses,
       signatories,
       signingType,
-      initiatorSignature: base64Signature,
+      initiatorSignature: base64Signature || undefined,
+      initiatorToken: signatureToken || undefined,
       draftId,
       requestToken: requestToken || undefined,
     }));
@@ -1705,6 +1767,7 @@ export default function FormFillerClient({
       }
 
       setSubmitting(false);
+      setShowTokenModal(false);
 
       if (res?.success) {
         clearSavedState();
@@ -1715,7 +1778,16 @@ export default function FormFillerClient({
       }
     } catch (e: any) {
       setSubmitting(false);
-      setError(e?.message ?? "Submission failed. Please try again.");
+      setShowTokenModal(false);
+      setError(e?.message ?? "Submission failed. Please check your token and try again.");
+    }
+  };
+
+  const handleReviewSubmit = () => {
+    if (hasSignableDocument) {
+      setIsSignatureModalOpen(true);
+    } else {
+      setShowTokenModal(true);
     }
   };
 
@@ -1767,6 +1839,8 @@ export default function FormFillerClient({
             token={currentUser.token}
             currentUser={currentUser}
             submitting={submitting}
+            dynamicOptions={dynamicOptions}
+            setDynamicOptions={setDynamicOptions}
           />
         )}
 
@@ -1789,23 +1863,71 @@ export default function FormFillerClient({
             signatories={signatories}
             signingType={signingType}
             onBack={() => setStep(2)}
-            onSubmit={() => setIsSignatureModalOpen(true)}
+            onSubmit={handleReviewSubmit}
             submitting={submitting}
             prerequisiteInfo={prerequisiteInfo}
             draftId={draftId}
             token={currentUser.token}
+            dynamicOptions={dynamicOptions}
           />
         )}
       </Card>
 
-      {/* Signature Modal */}
-      <SignatureSelectionModal
-        isOpen={isSignatureModalOpen}
-        onClose={() => setIsSignatureModalOpen(false)}
-        onSuccess={submitToBackend}
-        token={currentUser.token}
-        allowToken={true}
-      />
+      {/* Signature Modal for Signable Documents */}
+      {hasSignableDocument && (
+        <SignatureSelectionModal
+          isOpen={isSignatureModalOpen}
+          onClose={() => setIsSignatureModalOpen(false)}
+          onSuccess={submitToBackend}
+          token={currentUser.token}
+          allowToken={true}
+        />
+      )}
+
+      {/* Token Verification Modal for Standard Forms */}
+      {showTokenModal && !hasSignableDocument && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 text-center space-y-4">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-primary/10 mb-2">
+                <KeyRound className="h-6 w-6 text-primary" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900">Sign & Submit</h3>
+              <p className="text-sm text-gray-500">
+                You are listed as the first signatory. Enter your secure token to securely apply your signature to this submission.
+              </p>
+              <div className="relative">
+                <Input
+                  type={showToken ? "text" : "password"}
+                  placeholder="Token (e.g. 1a2b3c4d)"
+                  value={signatureToken}
+                  onChange={(e) => setSignatureToken(e.target.value)}
+                  minLength={8}
+                  maxLength={32}
+                  className="text-center tracking-widest font-mono text-lg py-6 pr-12"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowToken(!showToken)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                >
+                  {showToken ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
+                <Button variant="ghost" onClick={() => setShowTokenModal(false)}>Cancel</Button>
+                <Button
+                  disabled={signatureToken.length < 8 || submitting}
+                  onClick={() => submitToBackend("")}
+                  className="w-full sm:w-auto"
+                >
+                  {submitting ? "Signing..." : "Verify & Submit"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Targeted Request Modal */}
       {showTargetedRequestModal && (

@@ -823,6 +823,7 @@ export default function FormBuilderClient({
                            </optgroup>
                            <optgroup label="Integrations">
                              <option value="extended_service">🔗 Data from Extended Services</option>
+                             <option value="event_selector">📅 Event Selector (Training/Attendance)</option>
                            </optgroup>
                         </select>
                       </div>

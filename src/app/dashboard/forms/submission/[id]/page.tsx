@@ -78,15 +78,28 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
   const orderedResponses: { label: string; key: string; value: any; isPrerequisite?: boolean; targetFormTemplateId?: string }[] = [];
   const processedKeys = new Set<string>();
 
-  templateFields.forEach((field: any) => {
+  for (const field of templateFields) {
     // Check both id and label
     const valById = responses[field.id];
     const valByLabel = responses[field.label];
     
     if (valById !== undefined || valByLabel !== undefined) {
       const key = valById !== undefined ? field.id : field.label;
-      const value = valById !== undefined ? valById : valByLabel;
+      let value = valById !== undefined ? valById : valByLabel;
       
+      // Attempt to resolve event_selector ID to a readable name for display
+      if (field.type === "event_selector" && typeof value === "string" && !value.includes("(")) {
+        try {
+          const { apiClient } = await import("@/lib/apiClient");
+          const res = await apiClient(`/events/${value}`);
+          if (res && res.event) {
+            value = `${res.event.name} (${res.event.reference})`;
+          }
+        } catch (e) {
+          console.error("Failed to resolve event name for display:", e);
+        }
+      }
+
       orderedResponses.push({
         label: field.label || key,
         key,
@@ -97,10 +110,10 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
       if (field.id) processedKeys.add(field.id);
       if (field.label) processedKeys.add(field.label);
     }
-  });
+  }
 
   Object.entries(responses).forEach(([q, a]) => {
-    if (q !== "CompletedFormPDF" && !processedKeys.has(q)) {
+    if (q !== "CompletedFormPDF" && q !== "Participants" && !processedKeys.has(q)) {
       const fallbackLabel = q.charAt(0).toUpperCase() + q.slice(1).replace(/([A-Z])/g, " $1");
       orderedResponses.push({ label: fallbackLabel, key: q, value: a });
     }

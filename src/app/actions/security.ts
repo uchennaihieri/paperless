@@ -11,6 +11,7 @@ export async function saveSecuritySignature(token: string, signatureBlob: string
     });
     return result;
   } catch (err: any) {
+    if (err?.message === "NEXT_REDIRECT" || err?.digest?.startsWith("NEXT_REDIRECT")) throw err;
     return { success: false, error: err.message || "Failed to save security token and signature." };
   }
 }
@@ -24,6 +25,7 @@ export async function verifySignatureToken(token: string) {
     });
     return result;
   } catch (err: any) {
+    if (err?.message === "NEXT_REDIRECT" || err?.digest?.startsWith("NEXT_REDIRECT")) throw err;
     return { success: false, error: err.message || "Invalid signature token." };
   }
 }
@@ -34,6 +36,7 @@ export async function getMySignature() {
     const result = await apiClient("/security/my-signature", { method: "GET" });
     return result;
   } catch (err: any) {
+    if (err?.message === "NEXT_REDIRECT" || err?.digest?.startsWith("NEXT_REDIRECT")) throw err;
     return { success: false, error: err.message || "Failed to retrieve signature." };
   }
 }
@@ -67,6 +70,7 @@ export async function getNotificationPreferences() {
     
     return result;
   } catch (err: any) {
+    if (err?.message === "NEXT_REDIRECT" || err?.digest?.startsWith("NEXT_REDIRECT")) throw err;
     // Catch ANY error (not just 404) and fallback to defaults so the UI never breaks
     console.warn("Notification Preferences API Failed - Falling back to defaults:", err?.message);
     return { success: true, preferences: DEFAULT_PREFERENCES };
@@ -82,6 +86,7 @@ export async function saveNotificationPreferences(preferences: any) {
     });
     return result;
   } catch (err: any) {
+    if (err?.message === "NEXT_REDIRECT" || err?.digest?.startsWith("NEXT_REDIRECT")) throw err;
     return { success: false, error: err.message || "Failed to save notification preferences." };
   }
 }
