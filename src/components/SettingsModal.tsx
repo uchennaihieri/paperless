@@ -2,14 +2,16 @@
 
 import { useState, useRef, useTransition, useEffect, useCallback } from "react";
 import SignatureCanvas from "react-signature-canvas";
-import { X, PenTool, Save, Eraser, CheckCircle2, Upload, ImageIcon, AlertCircle, Bell, Mail, MessageSquare } from "lucide-react";
+import { X, PenTool, Save, Eraser, CheckCircle2, Upload, ImageIcon, AlertCircle, Bell, Mail, MessageSquare, UserPlus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { saveSecuritySignature, getMySignature, getNotificationPreferences, saveNotificationPreferences } from "@/app/actions/security";
+import SwapDelegateModal from "./SwapDelegateModal";
+import { useSession } from "next-auth/react";
 
-type SettingsTab = "signature" | "notifications";
+type SettingsTab = "signature" | "notifications" | "delegation";
 type ActiveTab = "view" | "draw" | "upload";
 
 function fileToBase64(file: File): Promise<string> {
@@ -64,8 +66,11 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
   const [uploadedBlob, setUploadedBlob] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [showDelegateModal, setShowDelegateModal] = useState(false);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sigPad = useRef<any>(null);
+  const { data: session } = useSession();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -274,6 +279,16 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
             >
               <Bell className="w-4 h-4 shrink-0" />
               <span>Notifications</span>
+            </button>
+            <button
+              onClick={() => setSettingsTab("delegation")}
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all shrink-0 md:w-full text-left cursor-pointer ${settingsTab === "delegation"
+                  ? "bg-primary text-white shadow-md shadow-primary/20"
+                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                }`}
+            >
+              <UserPlus className="w-4 h-4 shrink-0" />
+              <span>Delegation</span>
             </button>
           </div>
 
@@ -576,6 +591,31 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                     <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                     <p>Failed to load notification settings. Please contact your administrator.</p>
                   </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB: DELEGATION */}
+            {settingsTab === "delegation" && (
+              <div className="flex flex-col flex-1 space-y-6">
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Work Delegation</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Manage who can process your forms when you are unavailable.</p>
+                </div>
+                <div className="bg-gray-50 border border-gray-100 rounded-xl p-5 flex flex-col items-center justify-center py-12 text-center flex-1">
+                   <UserPlus className="w-12 h-12 text-primary/20 mb-4" />
+                   <h4 className="text-sm font-semibold text-gray-800 mb-2">Delegation Settings</h4>
+                   <p className="text-xs text-gray-500 mb-6 max-w-sm">Assign a trusted coworker to handle your incoming tasks and workflows while you are on leave or out of office.</p>
+                   <Button onClick={() => setShowDelegateModal(true)}>Manage Delegation</Button>
+                </div>
+            
+                {showDelegateModal && (
+                   <SwapDelegateModal 
+                      open={showDelegateModal} 
+                      onOpenChange={setShowDelegateModal} 
+                      originalUserId={(session?.user as any)?.id}
+                      originalUserName={session?.user?.name || ""}
+                   />
                 )}
               </div>
             )}

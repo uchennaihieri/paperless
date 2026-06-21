@@ -22,7 +22,7 @@ import { PdfSigningCanvas } from "../components/PdfSigningCanvas";
 import {
   Clock, CheckCircle2, XCircle, ChevronRight, X,
   GitBranch, Layers, User, FileText, AlertTriangle,
-  Pen, Bell, Loader2, RefreshCw, Link2, Eye, EyeOff, BookOpen, ChevronDown
+  Pen, Bell, Loader2, RefreshCw, Link2, Eye, EyeOff, BookOpen, ChevronDown, PenTool, AlertCircle, Send, Users
 } from "lucide-react";
 
 
@@ -60,6 +60,7 @@ type QueueItem = {
     status: string;
   }[];
   isPrerequisiteTask?: boolean;
+  isDelegationRequest?: boolean;
   type?: string;
   template?: any;
   contractRequestId?: string;
@@ -184,14 +185,15 @@ function DetailPanel({
 
   // PdfSigningCanvas state
   const [showCanvas, setShowCanvas] = useState(false);
+  const [showPdfWaitModal, setShowPdfWaitModal] = useState(false);
   const [canvasAnnotations, setCanvasAnnotations] = useState<any[]>([]);
   const [mySignatureImage, setMySignatureImage] = useState<string | null>(null);
 
   const fields = typeof (item.template as any)?.fields === "string" 
     ? JSON.parse((item.template as any).fields) 
     : (item.template as any)?.fields;
-  const signableField = fields?.find((f: any) => f.type === "signable_document");
-  const signableDoc = signableField ? item.documents?.find(d => d.fieldName === signableField.label) : null;
+  const signableField = fields?.find((f: any) => f.type === "signable_document" || f.type === "generated_contract");
+  const signableDoc = signableField ? item.documents?.find(d => d.fieldName === signableField.label && (d as any).type !== "html") : null;
   const hasSignableDoc = !!signableDoc;
   const pdfUrl = signableDoc ? `${BASE_URL}/api/v1/file?docId=${signableDoc.id}` : "";
   
@@ -253,6 +255,48 @@ function DetailPanel({
     }
   };
 
+  const handleApproveDelegation = async () => {
+    setError("");
+    startApproveTransition(async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/api/v1/delegations/${item.id}/approve`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+          onSigned(item.id);
+          onClose();
+        } else {
+          setError(data.error || "Failed to approve delegation.");
+        }
+      } catch (err: any) {
+        setError(err.message);
+      }
+    });
+  };
+
+  const handleDeclineDelegation = async () => {
+    setError("");
+    startDeclineTransition(async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/api/v1/delegations/${item.id}/decline`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+          onDeclined(item.id);
+          onClose();
+        } else {
+          setError(data.error || "Failed to decline delegation.");
+        }
+      } catch (err: any) {
+        setError(err.message);
+      }
+    });
+  };
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
@@ -299,13 +343,28 @@ function DetailPanel({
             <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl text-sm">
               <User className="w-4 h-4 text-gray-400 shrink-0" />
               <div>
-                <span className="text-gray-500">Submitted by </span>
+                <span className="text-gray-500">
+                  {item.isDelegationRequest ? "Requested by " : "Submitted by "}
+                </span>
                 <span className="font-medium text-gray-900">{item.submittedBy.user_name}</span>
                 <span className="text-gray-400"> · {item.submittedBy.branch}</span>
               </div>
             </div>
           )}
 
+          {item.isDelegationRequest && (
+            <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 mt-4">
+              <h3 className="text-sm font-semibold text-purple-900 mb-2">Delegation Request Details</h3>
+              <p className="text-sm text-purple-700">
+                <strong>{item.submittedBy?.user_name}</strong> has requested to delegate their workflow forms to you. 
+                If you approve, any forms sent to them will also appear in your queue until the delegation is reverted.
+              </p>
+            </div>
+          )}
+
+          {!item.isDelegationRequest && (
+            <>
+              {/* Blocked banner */}
           {/* Blocked banner */}
           {item.status === "Blocked - Awaiting Prerequisites" && (
             <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
@@ -611,6 +670,8 @@ function DetailPanel({
               ))}
             </div>
           </div>
+          </>
+          )}
 
           {error && (
             <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2">
@@ -621,7 +682,25 @@ function DetailPanel({
 
         {/* Footer actions */}
         <div className="p-6 border-t border-gray-100 bg-gray-50 shrink-0">
-          {item.status === "Awaiting Final Approval" ? (
+          {item.isDelegationRequest ? (
+            <div className="flex gap-2 sm:gap-3 flex-wrap">
+              <Button
+                variant="outline"
+                className="flex-1 min-w-[120px] text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 cursor-pointer"
+                disabled={isPendingApp || isPendingDec}
+                onClick={handleDeclineDelegation}
+              >
+                {isPendingDec ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Declining...</> : <><XCircle className="w-4 h-4 mr-1 sm:mr-2" /> Decline</>}
+              </Button>
+              <Button
+                className="flex-1 min-w-[120px] cursor-pointer bg-purple-600 hover:bg-purple-700 text-white"
+                disabled={isPendingApp || isPendingDec}
+                onClick={handleApproveDelegation}
+              >
+                {isPendingApp ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Approving...</> : <><CheckCircle2 className="w-4 h-4 mr-1 sm:mr-2" /> Approve</>}
+              </Button>
+            </div>
+          ) : item.status === "Awaiting Final Approval" ? (
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
                 <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -669,6 +748,10 @@ function DetailPanel({
                 className="flex-1 cursor-pointer"
                 onClick={async () => {
                   setError("");
+                  if (signableField && !signableDoc) {
+                    setShowPdfWaitModal(true);
+                    return;
+                  }
                   const res = await getMySignature();
                   if (!res.success || !res.signatureData) {
                     setError("You need to have saved your signature before you start approving.");
@@ -916,6 +999,37 @@ function DetailPanel({
           </div>
         )}
 
+        {/* ── PDF Wait Modal ── */}
+        {showPdfWaitModal && (
+          <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center p-6">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+              <div className="p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-full bg-amber-100">
+                    <AlertTriangle className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900">PDF Generating</h3>
+                  </div>
+                </div>
+
+                <p className="text-sm text-gray-600">
+                  Please try again later. The system is still generating the PDF document for this submission.
+                </p>
+
+                <div className="flex gap-3 pt-2">
+                  <Button
+                    className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
+                    onClick={() => setShowPdfWaitModal(false)}
+                  >
+                    Understood
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ── Sign Modal ── */}
         {showSignModal && (
           <div className="absolute inset-0 bg-white z-50 flex flex-col p-6 overflow-y-auto">
@@ -1015,6 +1129,7 @@ function DetailPanel({
 export default function WorkflowClient({ initialQueue }: { initialQueue: QueueItem[] }) {
   const [queue, setQueue] = useState<QueueItem[]>(initialQueue);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
 
   // Always derive selected item from live queue so the panel reflects updates
   const selected = selectedId ? queue.find((q) => q.id === selectedId) ?? null : null;
@@ -1080,10 +1195,14 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
           {queue.map((item) => (
             <Card
               key={item.id}
-              className={`hover:shadow-md transition-all cursor-pointer group border-l-4 ${item.isPrerequisiteTask ? "border-l-indigo-400" : "border-l-amber-400"}`}
+              className={`hover:shadow-md transition-all cursor-pointer group border-l-4 ${
+                item.isDelegationRequest ? "border-l-purple-400" :
+                item.isPrerequisiteTask ? "border-l-indigo-400" : 
+                "border-l-amber-400"
+              }`}
               onClick={() => {
                 if (item.type === "CONTRACT") {
-                  window.location.href = `/dashboard/contracts?contractId=${item.contractRequestId}`;
+                  setSelectedContractId(item.contractRequestId || null);
                 } else if (item.isPrerequisiteTask) {
                   window.location.href = `/dashboard/forms/draft/${item.id}`;
                 } else {
@@ -1093,13 +1212,22 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
             >
               <CardContent className="p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex gap-3 sm:gap-4 items-start md:items-center min-w-0 w-full md:w-auto">
-                  <div className={`${item.isPrerequisiteTask ? "bg-indigo-100 text-indigo-600" : "bg-amber-100 text-amber-600"} p-2 sm:p-2.5 rounded-xl shrink-0 mt-1 md:mt-0 hidden sm:block`}>
-                    <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <div className={`${
+                    item.isDelegationRequest ? "bg-purple-100 text-purple-600" :
+                    item.isPrerequisiteTask ? "bg-indigo-100 text-indigo-600" : 
+                    "bg-amber-100 text-amber-600"
+                  } p-2 sm:p-2.5 rounded-xl shrink-0 mt-1 md:mt-0 hidden sm:block`}>
+                    {item.isDelegationRequest ? <Users className="w-4 h-4 sm:w-5 sm:h-5" /> : <Clock className="w-4 h-4 sm:w-5 sm:h-5" />}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start sm:items-center gap-2 flex-col sm:flex-row">
                       <h3 className="font-semibold text-sm sm:text-base text-gray-900 truncate w-full sm:w-auto">{item.formName}</h3>
-                      {item.isPrerequisiteTask ? (
+                      {item.isDelegationRequest ? (
+                        <span className="text-[10px] sm:text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1 w-fit bg-purple-100 text-purple-700">
+                          <Users className="w-2.5 h-2.5 shrink-0" />
+                          Delegation Request
+                        </span>
+                      ) : item.isPrerequisiteTask ? (
                         <span className="text-[10px] sm:text-xs font-medium px-2 py-0.5 rounded-full flex items-center gap-1 w-fit bg-indigo-100 text-indigo-700">
                           <Layers className="w-2.5 h-2.5 shrink-0" />
                           Prerequisite Task
@@ -1147,6 +1275,258 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
           onSigned={removeFromQueue}
           onDeclined={removeFromQueue}
         />
+      )}
+
+      {selectedContractId && (
+        <ContractPanel
+          contractId={selectedContractId}
+          onClose={() => setSelectedContractId(null)}
+          onSigned={async () => {
+            setSelectedContractId(null);
+            await forceRefresh();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ─── Contract Panel (inline signing) ──────────────────────────────────────────
+
+function ContractPanel({
+  contractId,
+  onClose,
+  onSigned,
+}: {
+  contractId: string;
+  onClose: () => void;
+  onSigned: () => void;
+}) {
+  const { data: session } = useSession();
+  const token = (session?.user as any)?.backendToken ?? "";
+  const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
+
+  const [previewHtml, setPreviewHtml] = useState("");
+  const [loadingPreview, setLoadingPreview] = useState(true);
+  const [isAgreed, setIsAgreed] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  // Token modal
+  const [tokenModalOpen, setTokenModalOpen] = useState(false);
+  const [tokenInput, setTokenInput] = useState("");
+
+  // External signer modal
+  const [showExternalModal, setShowExternalModal] = useState(false);
+  const [externalName, setExternalName] = useState("");
+  const [externalEmail, setExternalEmail] = useState("");
+  const [sendingExternal, setSendingExternal] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadingPreview(true);
+    setError("");
+    fetch(`${BASE_URL}/api/v1/contracts/${contractId}/preview`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (cancelled) return;
+        if (data.success && data.html) {
+          setPreviewHtml(data.html);
+        } else {
+          setError(data.error || "Failed to load contract preview");
+        }
+      })
+      .catch(() => !cancelled && setError("Network error while loading contract preview"))
+      .finally(() => !cancelled && setLoadingPreview(false));
+    return () => { cancelled = true; };
+  }, [contractId, token, BASE_URL]);
+
+  const handleFinishSigning = async () => {
+    if (!isAgreed) { setError("You must agree to the terms to finish signing."); return; }
+    if (!tokenInput || tokenInput.length < 8) { setError("Please enter a valid token (min 8 chars)."); return; }
+    setTokenModalOpen(false);
+    setError("");
+    setSuccess("");
+    setLoading(true);
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/contracts/${contractId}/sign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ token: tokenInput }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccess("Contract signed successfully!");
+        setTimeout(() => onSigned(), 2000);
+      } else {
+        setError(data.error || "Failed to sign contract");
+      }
+    } catch { setError("Network error occurred"); }
+    finally { setLoading(false); }
+  };
+
+  const handleSendExternal = async () => {
+    if (!externalName || !externalEmail) { setError("Name and Email are required."); return; }
+    setError("");
+    setSuccess("");
+    setSendingExternal(true);
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/contracts/${contractId}/send-external`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ externalSignerName: externalName, externalSignerEmail: externalEmail }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSuccess("Contract sent to external signer successfully!");
+        setTimeout(() => onSigned(), 2000);
+      } else {
+        setError(data.error || "Failed to send contract");
+      }
+    } catch { setError("Network error occurred"); }
+    finally { setSendingExternal(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-gray-100 animate-in fade-in zoom-in-95 duration-200">
+      {/* Header */}
+      <div className="flex items-center justify-between p-4 bg-white border-b border-gray-200 shadow-sm shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center">
+            <PenTool className="w-5 h-5 text-purple-600" />
+          </div>
+          <div>
+            <h3 className="font-bold text-gray-900 text-lg">Sign Contract</h3>
+            <p className="text-sm text-gray-500">Review the contract and sign or send to an external party.</p>
+          </div>
+        </div>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2 rounded-full hover:bg-gray-100 transition-colors">
+          <X className="w-6 h-6" />
+        </button>
+      </div>
+
+      {/* Banners */}
+      {error && (
+        <div className="m-4 p-3 rounded-lg bg-red-50 text-red-600 text-sm flex items-center gap-2 border border-red-100 shrink-0">
+          <AlertCircle className="w-4 h-4 shrink-0" /><p>{error}</p>
+        </div>
+      )}
+      {success && (
+        <div className="m-4 p-3 rounded-lg bg-green-50 text-green-700 text-sm flex items-center gap-2 border border-green-100 shrink-0">
+          <CheckCircle2 className="w-4 h-4 shrink-0" /><p>{success}</p>
+        </div>
+      )}
+
+      {/* Content */}
+      <div className="flex-1 overflow-auto flex justify-center p-4">
+        <div className="w-full max-w-4xl bg-white shadow-xl rounded-xl overflow-hidden flex flex-col">
+          {loadingPreview ? (
+            <div className="flex-1 flex flex-col items-center justify-center p-12">
+              <span className="w-10 h-10 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mb-4"></span>
+              <p className="text-gray-500">Generating contract preview...</p>
+            </div>
+          ) : (
+            <iframe srcDoc={previewHtml} className="w-full flex-1 border-0" title="Contract Preview" />
+          )}
+
+          {!loadingPreview && previewHtml && (
+            <div className="p-4 border-t border-gray-200 bg-gray-50 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-3">
+                <input type="checkbox" id="agree-wf" className="w-4 h-4 text-purple-600" checked={isAgreed} onChange={(e) => setIsAgreed(e.target.checked)} />
+                <label htmlFor="agree-wf" className="text-sm text-gray-700">I have read and agree to the terms.</label>
+              </div>
+              <button
+                disabled={loading || !isAgreed}
+                onClick={() => setTokenModalOpen(true)}
+                className={`px-6 py-2.5 rounded-lg font-bold flex items-center gap-2 transition-colors ${loading || !isAgreed ? "bg-gray-200 text-gray-400 cursor-not-allowed" : "bg-purple-600 text-white hover:bg-purple-700"}`}
+              >
+                {loading ? "Signing..." : "Sign with Token"} <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {!loadingPreview && previewHtml && (
+            <div className="p-4 border-t border-gray-200 bg-white flex justify-end shrink-0">
+              <button
+                onClick={() => setShowExternalModal(true)}
+                className="px-4 py-2 border border-purple-200 text-purple-600 rounded-lg hover:bg-purple-50 transition-colors font-medium text-sm flex items-center gap-2"
+              >
+                <Send className="w-4 h-4" /> Send to External Signer
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Token Modal */}
+      {tokenModalOpen && (
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95">
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <h3 className="font-bold text-gray-900">Sign Contract</h3>
+              <button onClick={() => { setTokenModalOpen(false); setTokenInput(""); }} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600 text-center">Please enter your signature token to authorize this signature.</p>
+              <input
+                autoFocus
+                type="password"
+                minLength={8}
+                maxLength={32}
+                value={tokenInput}
+                onChange={(e) => { setTokenInput(e.target.value); setError(""); }}
+                placeholder="Token..."
+                className="w-full text-center tracking-widest font-mono text-lg h-12 border border-gray-300 rounded-lg focus:ring-purple-500 focus:border-purple-500"
+              />
+              {error && (
+                <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">
+                  <AlertCircle className="w-4 h-4 shrink-0" /> {error}
+                </div>
+              )}
+            </div>
+            <div className="p-5 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+              <button onClick={() => { setTokenModalOpen(false); setTokenInput(""); }} className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50" disabled={loading}>Cancel</button>
+              <button onClick={handleFinishSigning} disabled={loading || tokenInput.length < 8} className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center">
+                {loading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> : "Sign"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* External Signer Modal */}
+      {showExternalModal && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+            <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <h3 className="font-bold text-gray-900">Send to External Signer</h3>
+              <button onClick={() => setShowExternalModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-500">The external signer will receive an email with a secure link to review and sign the contract.</p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Signer Name</label>
+                <input type="text" value={externalName} onChange={(e) => setExternalName(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-purple-500 focus:border-purple-500" placeholder="John Doe" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Signer Email</label>
+                <input type="email" value={externalEmail} onChange={(e) => setExternalEmail(e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-purple-500 focus:border-purple-500" placeholder="john@example.com" />
+              </div>
+            </div>
+            <div className="p-5 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+              <button onClick={() => setShowExternalModal(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-100">Cancel</button>
+              <button onClick={handleSendExternal} disabled={sendingExternal || !externalName || !externalEmail} className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 flex items-center">
+                {sendingExternal ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></span> : null}
+                Send Email
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

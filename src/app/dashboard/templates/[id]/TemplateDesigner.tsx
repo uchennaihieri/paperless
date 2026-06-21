@@ -32,15 +32,7 @@ interface HtmlField {
   localId: string;
   name: string;          // Handlebars variable name e.g. "formName"
   type: string;          // "text" | "block"
-  mappingPath: string | null;
-  /** true once synced to DB */
-  saved: boolean;
-}
-
-interface DictEntry {
-  category: string;
-  path: string;
-  label: string;
+  saved?: boolean;
 }
 
 // ─── DraggableFieldBox (Document mode) ───────────────────────────────────────
@@ -81,32 +73,7 @@ const DraggableFieldBox = ({
   );
 };
 
-// ─── MappingSelect ────────────────────────────────────────────────────────────
 
-function MappingSelect({ value, dict, onChange }: {
-  value: string | null;
-  dict: DictEntry[];
-  onChange: (v: string | null) => void;
-}) {
-  const categories = Array.from(new Set(dict.map((d) => d.category)));
-  return (
-    <select
-      value={value ?? ""}
-      onChange={(e) => onChange(e.target.value || null)}
-      className="w-full border border-gray-300 rounded-lg py-2 px-3 text-sm bg-white text-gray-800 focus:ring-1 focus:border-transparent transition-shadow"
-      style={{ outline: "none" }}
-    >
-      <option value="">— Not mapped (Form Builder) —</option>
-      {categories.map((cat) => (
-        <optgroup key={cat} label={cat}>
-          {dict.filter((d) => d.category === cat).map((d) => (
-            <option key={d.path} value={d.path}>{d.label}</option>
-          ))}
-        </optgroup>
-      ))}
-    </select>
-  );
-}
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -125,11 +92,11 @@ export default function TemplateDesigner({
 
   // ── HTML mode state ──────────────────────────────────────────────────────────
   const [htmlFields, setHtmlFields] = useState<HtmlField[]>([]);
-  const [dict, setDict] = useState<DictEntry[]>([]);
-  const [dictLoading, setDictLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncDone, setSyncDone] = useState(false);
-  const [dictOpen, setDictOpen] = useState(false);
+  const [extracting, setExtracting] = useState(false);
+  const [showExtractModal, setShowExtractModal] = useState(false);
+  const [extractResult, setExtractResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Load existing DB fields + data dictionary when in HTML mode
   useEffect(() => {
@@ -140,18 +107,9 @@ export default function TemplateDesigner({
       localId: f.id,
       name: f.name,
       type: f.type ?? "text",
-      mappingPath: f.mappingPath ?? null,
       saved: true,
     }));
     setHtmlFields(existing);
-
-    // Fetch data dictionary
-    setDictLoading(true);
-    fetch(`/api/v1/templates/data-dictionary?templateId=${templateId}`)
-      .then((r) => r.json())
-      .then((j) => { if (j.success) setDict(j.data); })
-      .catch(console.error)
-      .finally(() => setDictLoading(false));
   }, [isHtml, initialData.fields]);
 
   // ── HTML field helpers ───────────────────────────────────────────────────────
@@ -159,7 +117,7 @@ export default function TemplateDesigner({
     setSyncDone(false);
     setHtmlFields((prev) => [
       ...prev,
-      { localId: `new_${Date.now()}`, name: "", type: "text", mappingPath: null, saved: false },
+      { localId: `new_${Date.now()}`, name: "", type: "text", saved: false },
     ]);
   };
 
@@ -173,6 +131,31 @@ export default function TemplateDesigner({
     setHtmlFields((prev) => prev.filter((f) => f.localId !== localId));
   };
 
+  const confirmAutoExtractHtml = async () => {
+    setExtracting(true);
+    setExtractResult(null);
+    try {
+      const res = await fetch(`/api/v1/templates/${templateId}/extract-fields`, { method: "POST" });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "Extraction failed");
+      
+      const newFields = json.data.map((f: any) => ({
+        localId: `ext_${Math.random().toString(36).substring(7)}`,
+        name: f.name,
+        type: f.type,
+        saved: false
+      }));
+      
+      setHtmlFields(newFields);
+      setSyncDone(false);
+      setExtractResult({ success: true, message: `Successfully extracted ${newFields.length} fields! Click "Save All" when you're ready to save.` });
+    } catch (e: any) {
+      setExtractResult({ success: false, message: e.message || "Failed to auto-extract fields" });
+    } finally {
+      setExtracting(false);
+    }
+  };
+
   const saveAllHtml = async () => {
     const invalid = htmlFields.filter((f) => !f.name.trim());
     if (invalid.length) { alert("All fields need a variable name."); return; }
@@ -182,7 +165,6 @@ export default function TemplateDesigner({
       const payload = htmlFields.map((f) => ({
         name: f.name.trim(),
         type: f.type,
-        mappingPath: f.mappingPath,
       }));
       const res = await fetch(`/api/v1/templates/${templateId}/sync-fields`, {
         method: "POST",
@@ -265,7 +247,6 @@ export default function TemplateDesigner({
 
   // ─── HTML Template Designer UI ───────────────────────────────────────────────
   if (isHtml) {
-    const unmapped = htmlFields.filter((f) => !f.mappingPath).length;
 
     return (
       <div className="fixed inset-0 z-[100] bg-white flex flex-col">
@@ -287,6 +268,16 @@ export default function TemplateDesigner({
             </span>
           </div>
           <div className="flex items-center gap-2">
+            {/* Auto Extract Fields */}
+            <button
+              onClick={() => { setShowExtractModal(true); setExtractResult(null); }}
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-semibold rounded-md border border-blue-200 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Auto Extract
+            </button>
             {/* Test PDF button */}
             <button
               onClick={async () => {
@@ -330,12 +321,7 @@ export default function TemplateDesigner({
                 <span className="text-gray-500">Fields:</span>
                 <span className="font-bold text-gray-800">{htmlFields.length}</span>
               </div>
-              {unmapped > 0 && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 rounded-lg border border-amber-200 text-sm">
-                  <span className="text-amber-600">{unmapped} unmapped</span>
-                  <span className="text-gray-400 text-xs">— will use Form Builder</span>
-                </div>
-              )}
+
               {syncDone && (
                 <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 rounded-lg border border-green-200 text-sm text-green-700">
                   <CheckCircle className="w-3.5 h-3.5" /> All saved
@@ -354,20 +340,13 @@ export default function TemplateDesigner({
               )}
 
               {htmlFields.map((f, idx) => {
-                const dictEntry = dict.find((d) => d.path === f.mappingPath);
-                const isMapped = !!f.mappingPath && f.mappingPath !== "FormInput";
-                const isFormInput = f.mappingPath === "FormInput";
                 return (
                   <div
                     key={f.localId}
                     className={`flex items-start gap-3 p-4 rounded-xl border bg-white shadow-sm transition-colors ${
                       f.saved
-                        ? isMapped
-                          ? "border-green-200"
-                          : isFormInput
-                          ? "border-blue-200"
-                          : "border-amber-200"
-                        : "border-gray-200"
+                        ? "border-green-200"
+                        : "border-amber-200"
                     }`}
                   >
                     {/* Row number */}
@@ -418,19 +397,7 @@ export default function TemplateDesigner({
                       </div>
                     </div>
 
-                    {/* Data reference */}
-                    <div className="w-72 shrink-0 space-y-1.5">
-                      <label className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold block">
-                        Data Reference
-                      </label>
-                      <MappingSelect value={f.mappingPath} dict={dict} onChange={(v) => updateHtmlField(f.localId, { mappingPath: v })} />
-                      {dictEntry && (
-                        <p className="text-[10px] text-gray-500 pl-0.5">→ {dictEntry.label}</p>
-                      )}
-                      {!f.mappingPath && (
-                        <p className="text-[10px] text-amber-600 pl-0.5">Pair in Form Builder</p>
-                      )}
-                    </div>
+
 
                     {/* Status & delete */}
                     <div className="shrink-0 pt-5 flex items-center gap-1.5">
@@ -463,56 +430,61 @@ export default function TemplateDesigner({
             </button>
           </div>
 
-          {/* Right sidebar — Data Dictionary reference */}
-          <div className="w-72 shrink-0 border-l border-gray-200 bg-white flex flex-col">
-            <button
-              onClick={() => setDictOpen((v) => !v)}
-              className="flex items-center justify-between px-4 py-3.5 border-b border-gray-200 hover:bg-gray-50 transition-colors"
-            >
-              <span className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                Data Dictionary
-              </span>
-              {dictOpen ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-            </button>
-
-            {dictLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <div className="w-5 h-5 border-2 border-gray-200 rounded-full animate-spin" style={{ borderTopColor: "#b50938" }} />
-              </div>
-            ) : (
-              <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
-                {Array.from(new Set(dict.map((d) => d.category))).map((cat) => (
-                  <div key={cat}>
-                    <p className="text-[9px] uppercase tracking-widest text-gray-400 font-bold mb-1.5 px-1">
-                      {cat}
-                    </p>
-                    <div className="space-y-0.5">
-                      {dict.filter((d) => d.category === cat).map((d) => (
-                        <div
-                          key={d.path}
-                          className="flex flex-col gap-0.5 px-2 py-1.5 rounded-md hover:bg-gray-50 cursor-pointer group transition-colors"
-                          onClick={() => {
-                            const last = htmlFields[htmlFields.length - 1];
-                            if (last && !last.saved && !last.mappingPath) {
-                              updateHtmlField(last.localId, { mappingPath: d.path });
-                            }
-                          }}
-                          title="Click to apply to last unmapped field"
-                        >
-                          <code className="font-mono text-[11px] leading-tight transition-colors" style={{ color: "#b50938" }}>
-                            {d.path}
-                          </code>
-                          <span className="text-[10px] text-gray-500">{d.label}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
         </div>
+
+        {/* Auto Extract Modal */}
+        {showExtractModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-sm overflow-hidden p-6 text-center">
+              {!extractResult ? (
+                <>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">Auto Extract Fields</h3>
+                  <p className="text-sm text-gray-500 mb-6">
+                    This will scan your HTML source file and replace all the fields currently listed below. Are you sure you want to proceed?
+                  </p>
+                  <div className="flex justify-center gap-3">
+                    <button
+                      onClick={() => setShowExtractModal(false)}
+                      disabled={extracting}
+                      className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={confirmAutoExtractHtml}
+                      disabled={extracting}
+                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {extracting ? "Extracting..." : "Yes, Extract"}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className={`mx-auto flex items-center justify-center h-12 w-12 rounded-full mb-4 ${extractResult.success ? "bg-green-100" : "bg-red-100"}`}>
+                    {extractResult.success ? (
+                      <CheckCircle className="h-6 w-6 text-green-600" />
+                    ) : (
+                      <X className="h-6 w-6 text-red-600" />
+                    )}
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900 mb-2">
+                    {extractResult.success ? "Extraction Complete" : "Extraction Failed"}
+                  </h3>
+                  <p className={`text-sm mb-6 ${extractResult.success ? "text-gray-600" : "text-red-600"}`}>
+                    {extractResult.message}
+                  </p>
+                  <button
+                    onClick={() => setShowExtractModal(false)}
+                    className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                  >
+                    Close
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     );
   }

@@ -571,6 +571,7 @@ function FormFieldsStep({
   const handleSectionNext = () => {
     const missing = (section?.fields ?? []).filter((f: any) => {
       if (f.type === 'instructions') return false;
+      if (f.isHidden) return false;
       if (!f.required) return false;
 
       // For file fields linked to an internal form, an uploaded file AND/OR
@@ -632,7 +633,7 @@ function FormFieldsStep({
       <CardContent className="space-y-8 pt-8">
         {(() => {
           let questionNum = 0;
-          return (section?.fields ?? fields).map((field: any) => {
+          return (section?.fields ?? fields).filter((f: any) => !f.isHidden).map((field: any) => {
             // Layout-only fields have no input
             if ((field as any).type === 'section_header') {
               return (
@@ -649,6 +650,10 @@ function FormFieldsStep({
                   </div>
                 </div>
               );
+            }
+            
+            if ((field as any).type === 'generated_contract') {
+              return null; // Suppress the display entirely
             }
 
             if ((field as any).type === 'instructions') {
@@ -1520,7 +1525,11 @@ export default function FormFillerClient({
   const formFields: any[] = typeof template.fields === "string" 
     ? JSON.parse(template.fields) 
     : template.fields ?? [];
-  const hasSignableDocument = formFields.some(f => f.type === "signable_document" || (f as any).type === "signable_document");
+  const hasSignableDocument = formFields.some(f => f.type === "signable_document" || (f as any).type === "signable_document" || f.type === "generated_contract" || (f as any).type === "generated_contract");
+  const initiatorNeedsToSign = formFields.some(f => 
+    (f.type === "signable_document" || (f as any).type === "signable_document" || f.type === "generated_contract" || (f as any).type === "generated_contract") 
+    && f.initiatorNeedsToSign
+  );
 
   const [signatories, setSignatories] = useState<SignatoryInput[]>(() =>
     savedState.current?.signatories || [{
@@ -1719,7 +1728,7 @@ export default function FormFillerClient({
     const fileFields: Record<string, File[]> = {};
 
     fields.forEach((f) => {
-      if ((f as any).type === 'section_header' || (f as any).type === 'instructions') return;
+      if ((f as any).type === 'section_header' || (f as any).type === 'instructions' || (f as any).type === 'generated_contract') return;
       if (f.type === "file" || (f as any).type === "signable_document") {
         if (formData[f.id]) {
           fileFields[f.label] = formData[f.id] as File[];
@@ -1784,7 +1793,7 @@ export default function FormFillerClient({
   };
 
   const handleReviewSubmit = () => {
-    if (hasSignableDocument) {
+    if (hasSignableDocument && !initiatorNeedsToSign) {
       setIsSignatureModalOpen(true);
     } else {
       setShowTokenModal(true);
@@ -1885,7 +1894,7 @@ export default function FormFillerClient({
       )}
 
       {/* Token Verification Modal for Standard Forms */}
-      {showTokenModal && !hasSignableDocument && (
+      {showTokenModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="p-6 text-center space-y-4">

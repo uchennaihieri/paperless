@@ -1,14 +1,15 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { Plus, FileText, Trash2, Edit, Code2 } from "lucide-react";
+import { Plus, FileText, Code2 } from "lucide-react";
 import { apiClient } from "@/lib/apiClient";
-import { redirect } from "next/navigation";
+import TemplateActions from "./TemplateActions";
 
 interface Template {
   id: string;
   name: string;
   type: "document" | "html";
   sharepointPath: string;
+  availableFor?: string[];
   createdAt: string;
 }
 
@@ -94,32 +95,7 @@ export default async function TemplatesPage() {
                     {new Date(tpl.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end items-center gap-2">
-                       <Link 
-                         href={`/dashboard/templates/${tpl.id}`}
-                         className="p-2 text-gray-500 hover:text-primary bg-gray-50 rounded-md hover:bg-primary/10 transition-colors"
-                         title="Edit Field Map"
-                       >
-                         <Edit className="h-4 w-4" />
-                       </Link>
-                       <form action={async () => {
-                          "use server";
-                          try {
-                            await apiClient(`/templates/${tpl.id}`, { method: 'DELETE' });
-                          } catch (e) {
-                            console.error(e);
-                          }
-                          redirect("/dashboard/templates");
-                       }}>
-                         <button
-                           type="submit"
-                           className="p-2 text-gray-500 hover:text-red-600 bg-gray-50 rounded-md hover:bg-red-50 transition-colors"
-                           title="Delete Template"
-                         >
-                           <Trash2 className="h-4 w-4" />
-                         </button>
-                       </form>
-                    </div>
+                    <TemplateActions template={tpl} />
                   </td>
                 </tr>
               ))

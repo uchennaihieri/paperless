@@ -9,10 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Search, FilePlus, ChevronRight, ListCollapse, PlusCircle,
-  Edit2, Trash2, AlertTriangle, Pencil, MessageCircle, ChevronDown, ChevronUp, Send, X
+  Edit2, Trash2, AlertTriangle, Pencil, MessageCircle, ChevronDown, ChevronUp, Send, X, MoreVertical, Copy
 } from "lucide-react";
 import Link from "next/link";
-import { deleteFormTemplate, deleteSubmission, deleteFormRequestBatch } from "@/app/actions/form";
+import { deleteFormTemplate, deleteSubmission, deleteFormRequestBatch, copyFormTemplate } from "@/app/actions/form";
 import { getMySignature } from "@/app/actions/security";
 import EditSubmissionModal from "./edit-submission-modal";
 
@@ -61,6 +61,10 @@ export default function FormsClientPage({
   const [templateToDelete, setTemplateToDelete] = useState<any>(null);
   const [isDeletingTemplate, setIsDeletingTemplate] = useState(false);
 
+  // ── Template copy state ──
+  const [isCopyingTemplate, setIsCopyingTemplate] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
   // ── Submission delete modal ──
   const [submissionToDelete, setSubmissionToDelete] = useState<any>(null);
   const [isDeletingSubmission, startDeleteSubmission] = useTransition();
@@ -89,7 +93,8 @@ export default function FormsClientPage({
   };
 
   const allFilteredForms = templates.filter((f: any) =>
-    f.name.toLowerCase().includes(searchQuery.toLowerCase())
+    f.name.toLowerCase().includes(searchQuery.toLowerCase()) && 
+    f.formOwner !== "System"
   );
   
   const backOfficeForms = allFilteredForms.filter((f: any) => !f.accountServicesEnabled);
@@ -135,6 +140,18 @@ export default function FormsClientPage({
       router.refresh();
     } else {
       alert(res.error || "Failed to delete form.");
+    }
+  };
+
+  const handleCopyTemplate = async (formId: string) => {
+    setIsCopyingTemplate(true);
+    setOpenMenuId(null);
+    const res = await copyFormTemplate(formId);
+    setIsCopyingTemplate(false);
+    if (res.success) {
+      router.refresh();
+    } else {
+      alert(res.error || "Failed to copy form.");
     }
   };
 
@@ -261,9 +278,9 @@ export default function FormsClientPage({
               sortedOwners.map((owner) => {
                 const isClosed = closedAccordions[owner];
                 return (
-                  <div key={owner} className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+                  <div key={owner} className="bg-white border border-gray-100 rounded-xl shadow-sm">
                     <button
-                      className="w-full flex items-center justify-between p-4 bg-gray-50/50 hover:bg-gray-100 transition-colors cursor-pointer"
+                      className={`w-full flex items-center justify-between p-4 bg-gray-50/50 hover:bg-gray-100 transition-colors cursor-pointer ${isClosed ? 'rounded-xl' : 'rounded-t-xl'}`}
                       onClick={() => toggleAccordion(owner)}
                     >
                       <div className="flex items-center gap-3">
@@ -274,31 +291,51 @@ export default function FormsClientPage({
                     </button>
                     
                     {!isClosed && (
-                      <div className="p-5 border-t border-gray-100 bg-white">
+                      <div className="p-5 border-t border-gray-100 bg-white rounded-b-xl">
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                           {groupedForms[owner].map((form: any) => (
                             <Card
                               key={form.id}
-                              className={`hover:shadow-md transition-all cursor-pointer border-l-4 group relative overflow-hidden ${activeTab === 'account_services' ? 'border-l-indigo-500' : 'border-l-primary'}`}
+                              className={`hover:shadow-md transition-all cursor-pointer border-l-4 group relative ${activeTab === 'account_services' ? 'border-l-indigo-500' : 'border-l-primary'} rounded-xl ${openMenuId === form.id ? 'z-20' : 'z-0'}`}
                               onClick={() => handleFormClick(form.id)}
                             >
                               <CardContent className="p-5">
                                 {isAdmin && (
-                                  <div className="absolute top-3 right-3 flex items-center justify-end gap-1 opacity-0 shrink-0 group-hover:opacity-100 transition-opacity">
+                                <div className={`absolute top-3 right-3 flex items-center justify-end ${openMenuId === form.id ? 'z-20' : 'z-0'}`}>
                                     <button
-                                      onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/forms/builder?id=${form.id}`); }}
-                                      className="p-1.5 bg-gray-50 border border-gray-200 hover:bg-gray-100 rounded-md text-gray-500 hover:text-primary transition-colors cursor-pointer shadow-sm"
-                                      title="Edit Template"
+                                      onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === form.id ? null : form.id); }}
+                                      className="p-1.5 hover:bg-gray-100 rounded-md text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
                                     >
-                                      <Edit2 className="w-3.5 h-3.5" />
+                                      <MoreVertical className="w-4 h-4" />
                                     </button>
-                                    <button
-                                      onClick={(e) => { e.stopPropagation(); setTemplateToDelete(form); }}
-                                      className="p-1.5 bg-red-50 border border-red-100 hover:bg-red-100 rounded-md text-red-500 hover:text-red-600 transition-colors cursor-pointer shadow-sm"
-                                      title="Delete Template"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
+                                    
+                                    {openMenuId === form.id && (
+                                      <>
+                                        <div className="fixed inset-0 z-10 cursor-default" onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); }} />
+                                        <div className="absolute top-8 right-0 bg-white border border-gray-100 shadow-lg rounded-xl overflow-hidden py-1 min-w-[120px] animate-in fade-in slide-in-from-top-2 z-20">
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); router.push(`/dashboard/forms/builder?id=${form.id}`); }}
+                                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary flex items-center gap-2 cursor-pointer relative z-30"
+                                          >
+                                            <Edit2 className="w-3.5 h-3.5" /> Edit
+                                          </button>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleCopyTemplate(form.id); }}
+                                            disabled={isCopyingTemplate}
+                                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary flex items-center gap-2 cursor-pointer relative z-30"
+                                          >
+                                            <Copy className="w-3.5 h-3.5" /> {isCopyingTemplate && openMenuId === form.id ? "..." : "Copy"}
+                                          </button>
+                                          <div className="h-px bg-gray-100 my-1 relative z-30" />
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setTemplateToDelete(form); }}
+                                            className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer relative z-30"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" /> Delete
+                                          </button>
+                                        </div>
+                                      </>
+                                    )}
                                   </div>
                                 )}
                                 <div className={`${activeTab === 'account_services' ? 'bg-indigo-100 text-indigo-600' : 'bg-primary/10 text-primary'} w-9 h-9 rounded-lg flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>

@@ -15,7 +15,7 @@ export default async function EventsPage() {
   }
 
   try {
-    const res = await apiClient("/templates");
+    const res = await apiClient("/templates?availableFor=events");
     if (res?.success && res.data) {
       initialTemplates = res.data;
     }

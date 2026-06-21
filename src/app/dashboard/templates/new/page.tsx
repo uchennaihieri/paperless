@@ -17,6 +17,17 @@ export default function NewTemplatePage() {
   const [name, setName] = useState("");
   const [type, setType] = useState<"document" | "html">("document");
   const [fileName, setFileName] = useState("");
+  const [availableFor, setAvailableFor] = useState<string[]>(["forms"]);
+
+  const AVAILABLE_FOR_OPTIONS = [
+    { value: "forms", label: "Form Summary PDF", desc: "Main PDF attached to forms" },
+    { value: "contracts", label: "Dynamic Contracts", desc: "For generated_contract fields" },
+    { value: "events", label: "Events", desc: "For event master rosters" }
+  ];
+
+  const toggleAvailableFor = (val: string) => {
+    setAvailableFor(prev => prev.includes(val) ? prev.filter(p => p !== val) : [...prev, val]);
+  };
 
   const prefix = type === "html" ? "htmltemplates/" : "templates/";
   const sharepointPath = fileName ? `${prefix}${fileName}` : "";
@@ -34,7 +45,7 @@ export default function NewTemplatePage() {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ name, type, sharepointPath }),
+        body: JSON.stringify({ name, type, sharepointPath, availableFor }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -76,7 +87,7 @@ export default function NewTemplatePage() {
               className="w-full border-gray-300 rounded-lg shadow-sm focus:border-primary focus:ring-primary text-sm p-3 border"
               placeholder="e.g. Petty Cash Form V1"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => setName(e.target.value.toUpperCase())}
             />
           </div>
 
@@ -135,6 +146,33 @@ export default function NewTemplatePage() {
             <p className="text-xs text-gray-500">
               Full SharePoint path will be: <span className="font-mono text-primary">{sharepointPath || `${prefix}(your-filename)`}</span>
             </p>
+          </div>
+
+          {/* Available For */}
+          <div className="space-y-3">
+            <label className="text-sm font-semibold text-gray-700">Available Features</label>
+            <p className="text-xs text-gray-500 mb-2">Select where this template should be available for selection.</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {AVAILABLE_FOR_OPTIONS.map((opt) => (
+                <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${availableFor.includes(opt.value) ? "border-primary bg-primary/5" : "border-gray-200 hover:border-gray-300"}`}>
+                  <div className="flex items-center h-5">
+                    <input
+                      type="checkbox"
+                      className="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary"
+                      checked={availableFor.includes(opt.value)}
+                      onChange={() => toggleAvailableFor(opt.value)}
+                    />
+                  </div>
+                  <div className="flex flex-col">
+                    <span className={`text-sm font-medium ${availableFor.includes(opt.value) ? "text-primary" : "text-gray-700"}`}>{opt.label}</span>
+                    <span className="text-xs text-gray-500 mt-0.5">{opt.desc}</span>
+                  </div>
+                </label>
+              ))}
+            </div>
+            {availableFor.length === 0 && (
+              <p className="text-xs text-red-500">Please select at least one feature.</p>
+            )}
           </div>
 
           <div className="pt-4 border-t border-gray-100 flex justify-end">

@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
-import { Calendar, Plus, X, Pencil, Trash2, FileText, ArrowLeft, Search } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Calendar, Plus, X, Pencil, Trash2, FileText, ArrowLeft, Search, Map as MapIcon } from "lucide-react";
 import Link from "next/link";
 import { createEvent, updateEvent, deleteEvent } from "@/app/actions/events";
+import MappingModal from "../../forms/builder/MappingModal";
 
 export default function EventsClientPage({ initialEvents = [], initialTemplates = [] }: { initialEvents?: any[], initialTemplates?: any[] }) {
   const [events, setEvents] = useState(initialEvents);
@@ -12,7 +13,17 @@ export default function EventsClientPage({ initialEvents = [], initialTemplates 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [pdfTemplateId, setPdfTemplateId] = useState("");
+  const [templateMappings, setTemplateMappings] = useState<Record<string, string>>({});
   const [facilitators, setFacilitators] = useState<{name: string, email: string}[]>([]);
+  
+  const [mappingModal, setMappingModal] = useState<{
+    isOpen: boolean;
+    templateId: string;
+    fields: any[];
+    currentMappings: Record<string, string>;
+    onSave: (m: Record<string, string>) => void;
+  } | null>(null);
+
   const [userQuery, setUserQuery] = useState("");
   const [userResults, setUserResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -70,6 +81,7 @@ export default function EventsClientPage({ initialEvents = [], initialTemplates 
     setStartDate("");
     setEndDate("");
     setPdfTemplateId("");
+    setTemplateMappings({});
     setFacilitators([]);
     setIsEditMode(false);
     setEditingEventId(null);
@@ -85,6 +97,9 @@ export default function EventsClientPage({ initialEvents = [], initialTemplates 
     setStartDate(event.startDate.split("T")[0]);
     setEndDate(event.endDate.split("T")[0]);
     setPdfTemplateId(event.pdfTemplateId || "");
+    setTemplateMappings(
+      typeof event.templateMappings === "string" ? JSON.parse(event.templateMappings) : (event.templateMappings || {})
+    );
     setFacilitators(event.facilitators || []);
     setIsEditMode(true);
     setEditingEventId(event.id);
@@ -118,9 +133,9 @@ export default function EventsClientPage({ initialEvents = [], initialTemplates 
     try {
       let res;
       if (isEditMode && editingEventId) {
-        res = await updateEvent(editingEventId, { name, startDate, endDate, pdfTemplateId, facilitators });
+        res = await updateEvent(editingEventId, { name, startDate, endDate, pdfTemplateId, templateMappings, facilitators });
       } else {
-        res = await createEvent({ name, startDate, endDate, pdfTemplateId, facilitators });
+        res = await createEvent({ name, startDate, endDate, pdfTemplateId, templateMappings, facilitators });
       }
 
       if (res?.success) {
@@ -368,7 +383,35 @@ export default function EventsClientPage({ initialEvents = [], initialTemplates 
                     <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-1">This template will be used to generate the final event document.</p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs text-gray-500">This template will be used to generate the final event document.</p>
+                  {pdfTemplateId && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`/api/v1/templates/${pdfTemplateId}/fields`);
+                          const data = await res.json();
+                          if (data.success) {
+                            setMappingModal({
+                              isOpen: true,
+                              templateId: pdfTemplateId,
+                              fields: data.data || [],
+                              currentMappings: templateMappings || {},
+                              onSave: (newMappings) => setTemplateMappings(newMappings)
+                            });
+                          }
+                        } catch (err) {
+                          console.error("Failed to load fields", err);
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1 bg-white border border-gray-300 shadow-sm rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                      <MapIcon className="w-3.5 h-3.5 text-primary" />
+                      Map Variables ({Object.keys(templateMappings || {}).length})
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="border-t border-gray-200 pt-6">
@@ -531,6 +574,19 @@ export default function EventsClientPage({ initialEvents = [], initialTemplates 
             </div>
           </div>
         </div>
+      )}
+      {/* User Search Dropdown ... (unchanged) */}
+      
+      {mappingModal && (
+        <MappingModal
+          isOpen={mappingModal.isOpen}
+          onClose={() => setMappingModal(null)}
+          pdfTemplateId={mappingModal.templateId}
+          pdfFields={mappingModal.fields}
+          currentMappings={mappingModal.currentMappings}
+          onSave={mappingModal.onSave}
+          formFields={[]} // Events do not have form questions
+        />
       )}
     </div>
   );

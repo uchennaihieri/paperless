@@ -7,7 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createFormTemplate, updateFormTemplate } from "@/app/actions/form";
-import { ArrowLeft, ArrowUp, ArrowDown, Plus, Trash2, Save, CheckCircle, XCircle, Wand2 } from "lucide-react";
+import {
+  Save, Eye, Plus, ArrowLeft, ArrowUp, ArrowDown, Trash2, Edit2, CheckCircle, GripVertical, Settings, Settings2,
+  List, ListOrdered, Link as LinkIcon, FileText, Calendar, Code2, Users, FileSignature, CheckSquare, AlignLeft, XCircle, MoreVertical, X,
+  Map as MapIcon
+} from "lucide-react";
+import MappingModal from "./MappingModal";
 import Link from "next/link";
 import { apiClient } from "@/lib/apiClient";
 import { RichTextEditor } from "@/components/RichTextEditor";
@@ -21,12 +26,16 @@ type Field = {
   type: string;
   required: boolean;
   description: string;
+  isHidden?: boolean;
+  defaultValue?: string;
   mappedPdfField?: string;
   derivedOperator?: string;
   derivedFirstField?: string;
   derivedSecondField?: string;
   isPrerequisite?: boolean;
   targetFormTemplateId?: string;
+  derivedMultiplier?: number;
+  templateMappings?: Record<string, string>;
   prerequisiteOrder?: number;
   defaultPrereqBranch?: string;
   defaultPrereqRole?: string;
@@ -48,6 +57,9 @@ type Field = {
   instructionsContent?: string;
   // extended service
   extendedService?: string;
+  // dynamic contract / signable document
+  contractTemplateId?: string;
+  initiatorNeedsToSign?: boolean;
 };
 
 const SELECT_CLASS = "flex h-10 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all cursor-pointer shadow-sm";
@@ -87,10 +99,25 @@ export default function FormBuilderClient({
     initialTemplate?.pdfGeneratorType === "html" ? "html" : ""
   );
   const [pdfFields, setPdfFields] = useState<any[]>([]);
-  const [needsContract, setNeedsContract] = useState(initialTemplate?.needsContract || false);
-  const [contractTemplateId, setContractTemplateId] = useState(initialTemplate?.contractTemplateId || "");
-  const [filteredTemplates, setFilteredTemplates] = useState<any[]>(availableTemplates);
+  const [filteredTemplates, setFilteredTemplates] = useState<any[]>(() => {
+    const initType = initialTemplate?.pdfGeneratorType === "document" ? "document" :
+                     initialTemplate?.pdfGeneratorType === "html" ? "html" : "";
+    if (initType) {
+      return availableTemplates.filter(t => t.type === initType && (t.availableFor?.includes('forms') || t.id === initialTemplate?.pdfTemplateId));
+    }
+    return availableTemplates;
+  });
+  const [templateMappings, setTemplateMappings] = useState<Record<string, string>>(
+    typeof initialTemplate?.templateMappings === "string" ? JSON.parse(initialTemplate.templateMappings) : (initialTemplate?.templateMappings || {})
+  );
   const [allFormTemplates, setAllFormTemplates] = useState<any[]>([]);
+  const [mappingModal, setMappingModal] = useState<{
+    isOpen: boolean;
+    templateId: string;
+    fields: any[];
+    currentMappings: Record<string, string>;
+    onSave: (m: Record<string, string>) => void;
+  } | null>(null);
   const [fields, setFields] = useState<Field[]>(initialTemplate?.fields || [
     { id: "f1", label: "", type: "text", required: true, description: "", mappedPdfField: "" },
   ]);
@@ -120,19 +147,22 @@ export default function FormBuilderClient({
   // pdfType effect knows not to reset pdfTemplateId in that case.
   const pdfTypeSetProgrammatically = useRef(false);
 
+  // Track whether pdfType has been resolved from an existing template on mount
+  const pdfTypeResolved = useRef(false);
+  const previousPdfType = useRef(pdfType);
+
   // Fetch templates filtered by type whenever pdfType changes (skip on first mount)
   useEffect(() => {
     if (!pdfTypeMounted.current) {
       pdfTypeMounted.current = true;
-      // On first render, if a type is pre-selected from initialTemplate, load its templates
-      if (pdfType) {
-        fetch(`/api/v1/templates?type=${pdfType}`)
-          .then(r => r.json())
-          .then(data => setFilteredTemplates(Array.isArray(data.data) ? data.data : []))
-          .catch(() => setFilteredTemplates([]));
-      }
       return;
     }
+    
+    // Ignore StrictMode double-invocations where pdfType hasn't actually changed
+    if (previousPdfType.current === pdfType) {
+      return;
+    }
+    previousPdfType.current = pdfType;
     // If this change was triggered programmatically (auto-detected from saved template),
     // skip the destructive reset so pdfTemplateId stays intact.
     if (pdfTypeSetProgrammatically.current) {
@@ -143,17 +173,12 @@ export default function FormBuilderClient({
     setPdfTemplateId("");
     setPdfFields([]);
     if (!pdfType) {
-      setFilteredTemplates(availableTemplates);
+      setFilteredTemplates(availableTemplates.filter(t => t.availableFor?.includes('forms') || t.id === initialTemplate?.pdfTemplateId));
       return;
     }
-    fetch(`/api/v1/templates?type=${pdfType}`)
-      .then(r => r.json())
-      .then(data => setFilteredTemplates(Array.isArray(data.data) ? data.data : []))
-      .catch(() => setFilteredTemplates([]));
-  }, [pdfType]);
+    setFilteredTemplates(availableTemplates.filter(t => t.type === pdfType && (t.availableFor?.includes('forms') || t.id === initialTemplate?.pdfTemplateId)));
+  }, [pdfType, availableTemplates, initialTemplate?.pdfTemplateId]);
 
-  // Track whether pdfType has been resolved from an existing template on mount
-  const pdfTypeResolved = useRef(false);
 
   // Fetch template fields when template selection changes.
   // On initial mount with an existing pdfTemplateId, also set pdfType from the
@@ -176,10 +201,7 @@ export default function FormBuilderClient({
           pdfTypeSetProgrammatically.current = true;
           setPdfType(detectedType);
           // Load the filtered list for this type so the template select has options
-          fetch(`/api/v1/templates?type=${detectedType}`)
-            .then(r => r.json())
-            .then(listData => setFilteredTemplates(Array.isArray(listData.data) ? listData.data : []))
-            .catch(() => {});
+          setFilteredTemplates(availableTemplates.filter(t => t.type === detectedType && (t.availableFor?.includes('forms') || t.id === pdfTemplateId)));
         }
       })
       .catch(() => setPdfFields([]));
@@ -263,12 +285,13 @@ export default function FormBuilderClient({
         false, // mobileEnabled removed
         accountServicesEnabled,
         isInternal,
-        needsContract,
-        contractTemplateId || undefined,
+        false, // needsContract removed but API still expects it, let's pass false
+        undefined, // contractTemplateId removed, pass undefined
         automatedSignatories,
         automatedSigningType,
         generatesExcel,
-        pdfType || "none"
+        pdfType || "none",
+        templateMappings
       );
     } else {
       res = await createFormTemplate(
@@ -282,12 +305,13 @@ export default function FormBuilderClient({
         false, // mobileEnabled removed
         accountServicesEnabled,
         isInternal,
-        needsContract,
-        contractTemplateId || undefined,
+        false, // needsContract removed, pass false
+        undefined, // contractTemplateId removed, pass undefined
         automatedSignatories,
         automatedSigningType,
         generatesExcel,
-        pdfType || "none"
+        pdfType || "none",
+        templateMappings
       );
     }
     
@@ -555,94 +579,28 @@ export default function FormBuilderClient({
                 )}
 
                 {pdfTemplateId && pdfFields.length > 0 && (
-                  <div className="pt-3 border-t border-gray-200 space-y-4">
+                  <div className="pt-3 border-t border-gray-200 flex flex-col items-start space-y-3">
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setMappingModal({
+                          isOpen: true,
+                          templateId: pdfTemplateId,
+                          fields: pdfFields,
+                          currentMappings: templateMappings,
+                          onSave: (newMappings) => setTemplateMappings(newMappings)
+                        })}
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 shadow-sm rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <MapIcon className="w-4 h-4 text-primary" />
+                        Map Variables ({Object.keys(templateMappings).length}/{pdfFields.length})
+                      </button>
+                    </div>
 
-                    {/* Auto-populated fields — green info badges, no pairing needed */}
-                    {autoMappedPdfFields.length > 0 && (
-                      <div>
-                        <Label className="text-xs font-semibold text-gray-600 block mb-2">Auto-populated Variables</Label>
-                        <div className="flex flex-wrap gap-2">
-                          {autoMappedPdfFields.map((pf: any) => (
-                            <div key={pf.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
-                              <CheckCircle className="w-3 h-3 text-green-500" />
-                              <code className="font-mono">{`{{${pf.name}}}`}</code>
-                            </div>
-                          ))}
-                        </div>
-                        <p className="text-xs text-green-600 mt-1.5">These are filled automatically — no pairing needed.</p>
-                      </div>
-                    )}
-
-                    {/* Unmapped fields — need Form Builder pairing */}
-                    {unmappedPdfFields.length > 0 ? (
-                      <div>
-                        <Label className="text-xs font-semibold text-gray-600 block mb-2">Required Mappings</Label>
-                        <div className="flex flex-wrap gap-2">
-                          {unmappedPdfFields.map((pf: any) => {
-                            const isPaired = fields.some(f => f.mappedPdfField === pf.name);
-                            return (
-                              <div
-                                key={pf.id}
-                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border shadow-sm transition-colors ${
-                                  isPaired ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
-                                }`}
-                              >
-                                {isPaired ? <CheckCircle className="w-3 h-3 text-green-500" /> : <XCircle className="w-3 h-3 text-red-500" />}
-                                {pf.name}
-                              </div>
-                            );
-                          })}
-                        </div>
-                        {unmappedPdfFields.every((pf: any) => fields.some(f => f.mappedPdfField === pf.name)) ? (
-                          <p className="text-xs text-green-600 font-medium mt-2">All fields paired! 🎉</p>
-                        ) : (
-                          <p className="text-xs text-red-500 mt-2">Pair every red field with a form input below using the &quot;Assign to PDF Template Field&quot; selector.</p>
-                        )}
-                      </div>
-                    ) : (
-                      pdfFields.length > 0 && autoMappedPdfFields.length === pdfFields.length && (
-                        <p className="text-xs text-green-600 font-medium">All template variables are auto-populated. No form pairing needed. 🎉</p>
-                      )
-                    )}
                   </div>
                 )}
               </div>
 
-              {/* Contract Configuration */}
-              <div className="md:col-span-2 space-y-4 bg-gray-50 border border-gray-100 rounded-lg p-5 mt-2">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <Label className="font-semibold text-gray-800">Needs Contract</Label>
-                    <p className="text-xs text-gray-500">Enable this to generate a signing request for the form submitter after internal approval.</p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" className="sr-only peer" checked={needsContract} onChange={(e) => setNeedsContract(e.target.checked)} />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  </label>
-                </div>
-
-                {needsContract && (
-                  <div className="space-y-1 mt-4">
-                    <Label htmlFor="contract-template" className="text-xs font-semibold text-gray-700">
-                      Select Contract Template (HTML PDF)
-                    </Label>
-                    <select
-                      id="contract-template"
-                      value={contractTemplateId}
-                      onChange={(e) => setContractTemplateId(e.target.value)}
-                      className={SELECT_CLASS}
-                    >
-                      <option value="">— Select template —</option>
-                      {availableTemplates.filter(t => t.type === "html").map((tpl: any) => (
-                        <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
-                      ))}
-                    </select>
-                    {availableTemplates.filter(t => t.type === "html").length === 0 && (
-                      <p className="text-xs text-amber-600 mt-1">No HTML templates found. <a href="/dashboard/templates/new" className="underline">Create one first.</a></p>
-                    )}
-                  </div>
-                )}
-              </div>
 
               {/* Automated Signatories Configuration */}
               <div className="md:col-span-2 space-y-4 bg-gray-50 border border-gray-100 rounded-lg p-5 mt-2">
@@ -820,6 +778,12 @@ export default function FormBuilderClient({
                              >
                                ✍️ Signable Document (Replaces Form PDF)
                              </option>
+                             <option 
+                               value="generated_contract"
+                               disabled={fields.filter(f => f.type === 'generated_contract' && f.id !== field.id).length > 0}
+                             >
+                               📜 Dynamic Contract Field
+                             </option>
                            </optgroup>
                            <optgroup label="Integrations">
                              <option value="extended_service">🔗 Data from Extended Services</option>
@@ -847,6 +811,76 @@ export default function FormBuilderClient({
                             <p className="text-xs text-blue-600 mt-1">
                               When filling out the form, users will enter a reference number. The system will look up the reference and attach the generated PDF.
                             </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {(field.type === "signable_document" || field.type === "generated_contract") && (
+                        <div className="md:col-span-2 bg-blue-50/50 p-4 rounded-md border border-blue-100 space-y-4 mt-2">
+                          <h4 className="text-xs font-bold text-blue-800 uppercase tracking-widest border-b border-blue-200 pb-2 mb-3">Document Signing Configuration</h4>
+                          
+                          {field.type === "generated_contract" && (
+                            <div className="space-y-1.5 max-w-sm mb-4">
+                              <Label className="text-xs font-semibold text-blue-800">HTML Contract Template <span className="text-red-500">*</span></Label>
+                              <select
+                                value={field.contractTemplateId || ""}
+                                onChange={(e) => updateField(idx, "contractTemplateId", e.target.value)}
+                                className={SELECT_CLASS}
+                              >
+                                <option value="">— Select HTML Template —</option>
+                                {availableTemplates.filter(t => t.type === "html" && t.availableFor?.includes('contracts')).map((tpl: any) => (
+                                  <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+                                ))}
+                              </select>
+                              {availableTemplates.filter(t => t.type === "html" && t.availableFor?.includes('contracts')).length === 0 && (
+                                <p className="text-xs text-amber-600 mt-1">No HTML contract templates found. <a href="/dashboard/templates/new" className="underline">Create one first.</a></p>
+                              )}
+                              
+                              {field.contractTemplateId && (
+                                <div className="mt-3">
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        const res = await fetch(`/api/v1/templates/${field.contractTemplateId}/fields`);
+                                        const data = await res.json();
+                                        if (data.success) {
+                                          setMappingModal({
+                                            isOpen: true,
+                                            templateId: field.contractTemplateId as string,
+                                            fields: data.data || [],
+                                            currentMappings: field.templateMappings || {},
+                                            onSave: (newMappings) => updateField(idx, "templateMappings", newMappings)
+                                          });
+                                        }
+                                      } catch (err) {
+                                        console.error("Failed to load fields", err);
+                                      }
+                                    }}
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 shadow-sm rounded-md text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+                                  >
+                                    <MapIcon className="w-3.5 h-3.5 text-primary" />
+                                    Map Variables ({Object.keys(field.templateMappings || {}).length})
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id={`initiator-sign-${field.id}`}
+                              checked={field.initiatorNeedsToSign || false}
+                              onChange={(e) => updateField(idx, "initiatorNeedsToSign", e.target.checked)}
+                              className="h-4 w-4 rounded border-blue-300 text-blue-600 focus:ring-blue-600 cursor-pointer"
+                            />
+                            <div className="flex flex-col">
+                              <Label htmlFor={`initiator-sign-${field.id}`} className="text-sm cursor-pointer font-bold text-blue-900">
+                                Require Initiator to visually sign
+                              </Label>
+                              <span className="text-xs text-blue-700">The submitter will find this form in their queue immediately after submitting.</span>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -1050,21 +1084,7 @@ export default function FormBuilderClient({
                         </div>
                       )}
                       
-                      {pdfTemplateId && unmappedPdfFields.length > 0 && (
-                        <div className="md:col-span-2 space-y-1.5 bg-blue-50/50 p-3 rounded-md border border-blue-100">
-                          <Label className="text-xs font-semibold text-blue-800">Assign to PDF Template Field</Label>
-                          <select
-                            value={field.mappedPdfField || ""}
-                            onChange={(e) => updateField(idx, "mappedPdfField", e.target.value)}
-                            className={SELECT_CLASS}
-                          >
-                            <option value="">— Do not map —</option>
-                            {unmappedPdfFields.map((pf: any) => (
-                              <option key={pf.id} value={pf.name}>{pf.name} ({pf.type})</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
+
 
                       {/* Section Header extras */}
                       {field.type === 'section_header' && (
@@ -1282,37 +1302,50 @@ export default function FormBuilderClient({
                       {/* Help text, Required & Prerequisite — only for real input fields */}
                       {field.type !== 'section_header' && field.type !== 'instructions' && (
                         <>
-                          {pdfTemplateId && unmappedPdfFields.length > 0 && (
-                            <div className="md:col-span-2 space-y-1.5 bg-blue-50/50 p-3 rounded-md border border-blue-100">
-                              <Label className="text-xs font-semibold text-blue-800">Assign to PDF Template Field</Label>
-                              <select
-                                value={field.mappedPdfField || ""}
-                                onChange={(e) => updateField(idx, "mappedPdfField", e.target.value)}
-                                className={SELECT_CLASS}
-                              >
-                                <option value="">— Do not map —</option>
-                                {unmappedPdfFields.map((pf: any) => (
-                                  <option key={pf.id} value={pf.name}>{pf.name} ({pf.type})</option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
+
 
                           <div className="md:col-span-2 space-y-1.5">
                             <Label className="text-xs font-semibold text-gray-700">Help Text</Label>
                             <Input className="bg-gray-50/50" placeholder="e.g. Enter your full account number" value={field.description} onChange={(e) => updateField(idx, "description", e.target.value)} />
                           </div>
 
-                          <div className="md:col-span-2 flex items-center gap-2 pt-2">
-                            <input
-                              type="checkbox"
-                              id={`req-${field.id}`}
-                              checked={field.required}
-                              onChange={(e) => updateField(idx, "required", e.target.checked)}
-                              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
-                            />
-                            <Label htmlFor={`req-${field.id}`} className="text-sm cursor-pointer font-medium text-gray-700">Required field</Label>
+                          <div className="md:col-span-2 flex flex-col md:flex-row md:items-center gap-4 pt-2">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id={`req-${field.id}`}
+                                checked={field.required}
+                                onChange={(e) => updateField(idx, "required", e.target.checked)}
+                                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary cursor-pointer"
+                              />
+                              <Label htmlFor={`req-${field.id}`} className="text-sm cursor-pointer font-medium text-gray-700">Required field</Label>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id={`hidden-${field.id}`}
+                                checked={field.isHidden || false}
+                                onChange={(e) => updateField(idx, "isHidden", e.target.checked)}
+                                className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-600 cursor-pointer"
+                              />
+                              <Label htmlFor={`hidden-${field.id}`} className="text-sm cursor-pointer font-medium text-gray-700">Hidden field</Label>
+                            </div>
                           </div>
+
+                          {field.isHidden && (
+                            <div className="md:col-span-2 space-y-1.5 bg-purple-50 p-3 rounded-md border border-purple-100 mt-2">
+                              <Label className="text-xs font-semibold text-purple-800">Static Default Value <span className="text-red-500">*</span></Label>
+                              <Input
+                                className="bg-white border-purple-200"
+                                placeholder="e.g. HR-REQ-001"
+                                value={field.defaultValue || ""}
+                                onChange={(e) => updateField(idx, "defaultValue", e.target.value)}
+                              />
+                              <p className="text-[11px] text-purple-600">This field will be invisible to the user filling the form, but this value will be submitted automatically.</p>
+                            </div>
+                          )}
+
 
                           {/* Prerequisite field toggle */}
                           <div className="md:col-span-2 border-t border-orange-100 pt-3 mt-1">
@@ -1420,6 +1453,19 @@ export default function FormBuilderClient({
           </CardFooter>
         </form>
       </Card>
+
+      {/* Mapping Modal */}
+      {mappingModal && (
+        <MappingModal
+          isOpen={mappingModal.isOpen}
+          onClose={() => setMappingModal(null)}
+          pdfTemplateId={mappingModal.templateId}
+          pdfFields={mappingModal.fields}
+          currentMappings={mappingModal.currentMappings}
+          onSave={mappingModal.onSave}
+          formFields={fields}
+        />
+      )}
     </div>
   );
 }

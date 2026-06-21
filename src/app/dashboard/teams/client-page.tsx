@@ -4,7 +4,8 @@ import { useState, useMemo, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { Search, Plus, Power, Shield, Activity, X, User as UserIcon, Edit2, ChevronDown } from "lucide-react";
 import { updateUserRoleStatus, addUserRole, updateUserInformation, updateUserRowDetails, getUserFormAccess, updateUserFormAccess, getLookupValues, saveLookupValue } from "@/app/actions/team";
-import { FileText, CheckCircle2, KeyRound } from "lucide-react";
+import { FileText, CheckCircle2, KeyRound, UserPlus } from "lucide-react";
+import SwapDelegateModal from "@/components/SwapDelegateModal";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
 
@@ -101,6 +102,7 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
   const [applyToAll, setApplyToAll] = useState(false);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [isEditingUser, setIsEditingUser] = useState(false);
+  const [isSwapDelegateOpen, setIsSwapDelegateOpen] = useState(false);
 
   // Lookup options loaded from DB
   const [roleOptions, setRoleOptions] = useState<string[]>(["Branch Manager", "Teller", "Operations", "Loan Officer", "Customer Service"]);
@@ -463,6 +465,12 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
                     >
                       <FileText className="h-4 w-4" /> Manage Forms
                     </button>
+                    <button
+                      onClick={() => setIsSwapDelegateOpen(true)}
+                      className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-4 py-2 text-primary hover:bg-primary/10 text-sm font-medium rounded-lg transition-colors border border-primary/20 hover:border-primary/40 bg-white"
+                    >
+                      <UserPlus className="h-4 w-4" /> Swap
+                    </button>
                   </div>
                 </div>
               </div>
@@ -707,6 +715,18 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
             </div>
           </div>
         </div>
+      )}
+
+      {activeUser && (
+        <SwapDelegateModal 
+          open={isSwapDelegateOpen} 
+          onOpenChange={setIsSwapDelegateOpen} 
+          originalUserId={activeUser.roles?.[0]?.user_id || 0}
+          originalUserName={activeUser.user_name || ""}
+          onSuccess={() => {
+            showError("Delegation request sent to the selected user.");
+          }}
+        />
       )}
 
       {/* Manage Forms Modal */}

@@ -1,11 +1,11 @@
 "use client";
 
 import React from "react";
-import { Calendar, PenTool, Fingerprint, CreditCard, BarChart2, ShieldCheck } from "lucide-react";
+import { Calendar, Upload, Fingerprint, CreditCard, BarChart2, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-export default function AccountServicesClientPage({ pendingContractsCount = 0 }: { pendingContractsCount?: number }) {
+export default function AccountServicesClientPage() {
   const extendedServices = [
     {
       title: "NIN Verification",
@@ -94,22 +94,18 @@ export default function AccountServicesClientPage({ pendingContractsCount = 0 }:
           </Link>
 
           <Link
-            href="/dashboard/contracts"
-            className="flex flex-col p-6 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-purple-500/30 transition-all cursor-pointer group relative"
+            href="/dashboard/account-services/uploaded-data"
+            className="flex flex-col p-6 bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-teal-500/30 transition-all cursor-pointer group"
           >
-            {pendingContractsCount > 0 && (
-              <div className="absolute top-4 right-4 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded-full shadow-sm">
-                {pendingContractsCount} Pending
-              </div>
-            )}
-            <div className="w-12 h-12 rounded-xl bg-purple-100 flex items-center justify-center mb-4 group-hover:bg-purple-200 transition-colors">
-              <PenTool className="w-6 h-6 text-purple-600" />
+            <div className="w-12 h-12 rounded-xl bg-teal-100 flex items-center justify-center mb-4 group-hover:bg-teal-200 transition-colors">
+              <Upload className="w-6 h-6 text-teal-600" />
             </div>
-            <div className="text-lg font-semibold text-gray-900 mb-1">Sign Contracts</div>
-            <div className="text-sm text-gray-500">Review &amp; sign pending documents</div>
+            <div className="text-lg font-semibold text-gray-900 mb-1">Uploaded Data</div>
+            <div className="text-sm text-gray-500">Upload your own data to use within a flow</div>
           </Link>
         </div>
       </div>
     </div>
   );
 }
+

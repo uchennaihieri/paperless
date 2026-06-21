@@ -6,7 +6,7 @@ import { useSession, signOut } from "next-auth/react";
 import {
   Building2, FileText, CheckSquare, PenTool, LayoutDashboard,
   LogOut, Users, BarChart2, Menu, X, History, Settings, ShieldCheck, Zap, BookOpen,
-  FolderOpen, Smartphone
+  FolderOpen, Smartphone, UserPlus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
@@ -16,6 +16,7 @@ import { AuditTrailModal } from "@/components/AuditTrailModal";
 import { JournalLedgerModal } from "@/components/JournalLedgerModal";
 import { SessionGuard } from "@/components/SessionGuard";
 import { FilingsModal } from "@/components/FilingsModal";
+import SwapDelegateModal from "@/components/SwapDelegateModal";
 
 const navigation = [
   { name: "Workflow", href: "/dashboard/workflow", icon: LayoutDashboard },
@@ -52,6 +53,7 @@ export default function DashboardLayout({
   const [isSettingsOpen, setIsSettingsOpen]     = useState(false);
   const [isAuditOpen, setIsAuditOpen]           = useState(false);
   const [isJournalLedgerOpen, setIsJournalLedgerOpen] = useState(false);
+  const [isSwapDelegateOpen, setIsSwapDelegateOpen] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement>(null);
 
   // Close avatar menu when clicking outside
@@ -236,6 +238,7 @@ export default function DashboardLayout({
                   >
                     <Settings className="w-4 h-4 text-gray-400" /> Settings
                   </button>
+
                   <div className="border-t border-gray-100 mt-1 pt-1">
                     <button
                       onClick={handleSignOut}
@@ -263,6 +266,12 @@ export default function DashboardLayout({
     <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     <AuditTrailModal isOpen={isAuditOpen} onClose={() => setIsAuditOpen(false)} />
     <JournalLedgerModal isOpen={isJournalLedgerOpen} onClose={() => setIsJournalLedgerOpen(false)} />
+    <SwapDelegateModal 
+      open={isSwapDelegateOpen} 
+      onOpenChange={setIsSwapDelegateOpen} 
+      originalUserId={activeRole?.id || session?.user?.id}
+      originalUserName={activeRole?.user_name || session?.user?.name || ""}
+    />
     </>
   );
 }

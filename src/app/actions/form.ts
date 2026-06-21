@@ -17,7 +17,7 @@ export async function getFormTemplates() {
 }
 
 export async function getFormTemplate(id: string) {
-  const result = await apiClient(`/forms/${id}`, { method: "GET" }).catch(e => ({ data: null }));
+  const result = await apiClient(`/forms/${id}`, { method: "GET", next: { revalidate: 0 } }).catch(e => ({ data: null }));
   return result.data || null;
 }
 
@@ -39,26 +39,32 @@ export async function isAdministrator() {
   }
 }
 
-export async function createFormTemplate(name: string, description: string, fields: any[], formOwner?: string, formTreater?: string, formTreaterRole?: string, pdfTemplateId?: string, mobileEnabled: boolean = false, accountServicesEnabled: boolean = false, isInternal: boolean = false, needsContract: boolean = false, contractTemplateId?: string, automatedSignatories: any[] = [], automatedSigningType: string = "sequential", generatesExcel: boolean = false, pdfGeneratorType?: string) {
+export async function createFormTemplate(name: string, description: string, fields: any[], formOwner?: string, formTreater?: string, formTreaterRole?: string, pdfTemplateId?: string, mobileEnabled: boolean = false, accountServicesEnabled: boolean = false, isInternal: boolean = false, needsContract: boolean = false, contractTemplateId?: string, automatedSignatories: any[] = [], automatedSigningType: string = "sequential", generatesExcel: boolean = false, pdfGeneratorType?: string, templateMappings?: Record<string, string>) {
   const result = await apiClient("/forms", {
     method: "POST",
-    body: JSON.stringify({ name, description, fields, formOwner, formTreater, formTreaterRole, pdfTemplateId, mobileEnabled, accountServicesEnabled, isInternal, needsContract, contractTemplateId, automatedSignatories, automatedSigningType, generatesExcel, pdfGeneratorType })
+    body: JSON.stringify({ name, description, fields, formOwner, formTreater, formTreaterRole, pdfTemplateId, mobileEnabled, accountServicesEnabled, isInternal, needsContract, contractTemplateId, automatedSignatories, automatedSigningType, generatesExcel, pdfGeneratorType, templateMappings })
   });
   revalidatePath("/dashboard/forms");
   return result;
 }
 
-export async function updateFormTemplate(id: string, name: string, description: string, fields: any[], formOwner?: string, formTreater?: string, formTreaterRole?: string, pdfTemplateId?: string, mobileEnabled: boolean = false, accountServicesEnabled: boolean = false, isInternal: boolean = false, needsContract: boolean = false, contractTemplateId?: string, automatedSignatories: any[] = [], automatedSigningType: string = "sequential", generatesExcel: boolean = false, pdfGeneratorType?: string) {
+export async function updateFormTemplate(id: string, name: string, description: string, fields: any[], formOwner?: string, formTreater?: string, formTreaterRole?: string, pdfTemplateId?: string, mobileEnabled: boolean = false, accountServicesEnabled: boolean = false, isInternal: boolean = false, needsContract: boolean = false, contractTemplateId?: string, automatedSignatories: any[] = [], automatedSigningType: string = "sequential", generatesExcel: boolean = false, pdfGeneratorType?: string, templateMappings?: Record<string, string>) {
   const result = await apiClient(`/forms/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ name, description, fields, formOwner, formTreater, formTreaterRole, pdfTemplateId, mobileEnabled, accountServicesEnabled, isInternal, needsContract, contractTemplateId, automatedSignatories, automatedSigningType, generatesExcel, pdfGeneratorType })
+    body: JSON.stringify({ name, description, fields, formOwner, formTreater, formTreaterRole, pdfTemplateId, mobileEnabled, accountServicesEnabled, isInternal, needsContract, contractTemplateId, automatedSignatories, automatedSigningType, generatesExcel, pdfGeneratorType, templateMappings })
   });
-  revalidatePath("/dashboard/forms");
+  revalidatePath("/dashboard/forms", "layout");
   return result;
 }
 
 export async function deleteFormTemplate(id: string) {
   const result = await apiClient(`/forms/${id}`, { method: "DELETE" });
+  revalidatePath("/dashboard/forms");
+  return result;
+}
+
+export async function copyFormTemplate(id: string) {
+  const result = await apiClient(`/forms/${id}/copy`, { method: "POST" });
   revalidatePath("/dashboard/forms");
   return result;
 }
