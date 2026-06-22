@@ -788,6 +788,7 @@ export default function FormBuilderClient({
                            <optgroup label="Integrations">
                              <option value="extended_service">🔗 Data from Extended Services</option>
                              <option value="event_selector">📅 Event Selector (Training/Attendance)</option>
+                             <option value="data_reference">🗂️ Data Reference (Uploaded Dataset Reference)</option>
                            </optgroup>
                         </select>
                       </div>

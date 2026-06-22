@@ -382,6 +382,59 @@ function FormFieldsStep({
     }
   }, [referenceData]);
 
+  // Data reference auto-fill logic
+  const dataReferenceField = fields.find(f => f.type === "data_reference" || f.label.toLowerCase() === "data reference");
+  const dataRefValue = dataReferenceField ? formData[dataReferenceField.id] : undefined;
+
+  const [dataReferenceData, setDataReferenceData] = useState<Record<string, any> | null>(null);
+  const [loadingDataReference, setLoadingDataReference] = useState(false);
+
+  useEffect(() => {
+    if (!dataReferenceField || !dataRefValue || typeof dataRefValue !== "string" || dataRefValue.trim().length <= 2) {
+      setDataReferenceData(null);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setLoadingDataReference(true);
+      try {
+        const res = await fetch(`${BASE_URL}/api/v1/datasets/by-reference/${encodeURIComponent(dataRefValue.trim())}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success && data.data) {
+          setDataReferenceData(data.data.rowData);
+        } else {
+          setDataReferenceData(null);
+        }
+      } catch (e) {
+        setDataReferenceData(null);
+      } finally {
+        setLoadingDataReference(false);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [dataRefValue, token, BASE_URL]);
+
+  useEffect(() => {
+    if (dataReferenceData && fields.length > 0) {
+      fields.forEach(field => {
+        if (field.description) {
+          const match = field.description.match(/DataReferenced\s+"([^"]+)"/i);
+          if (match && match[1]) {
+            const sourceLabel = match[1];
+            const sourceValue = dataReferenceData[sourceLabel];
+            if (sourceValue !== undefined && sourceValue !== null && sourceValue !== "") {
+              if (formData[field.id] !== sourceValue) {
+                onChange(field.id, sourceValue);
+              }
+            }
+          }
+        }
+      });
+    }
+  }, [dataReferenceData]);
+
+
   // Extended Service Live Validation
   const [extendedStatus, setExtendedStatus] = useState<Record<string, { loading: boolean; valid: boolean; label?: string }>>({});
 

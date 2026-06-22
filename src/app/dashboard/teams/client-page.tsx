@@ -469,7 +469,7 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
                       onClick={() => setIsSwapDelegateOpen(true)}
                       className="flex-1 sm:flex-none justify-center flex items-center gap-2 px-4 py-2 text-primary hover:bg-primary/10 text-sm font-medium rounded-lg transition-colors border border-primary/20 hover:border-primary/40 bg-white"
                     >
-                      <UserPlus className="h-4 w-4" /> Swap
+                      <UserPlus className="h-4 w-4" /> Delegate
                     </button>
                   </div>
                 </div>
