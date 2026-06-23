@@ -51,8 +51,21 @@ export default function UploadedDataDetailClientPage({ datasetId }: { datasetId:
     Object.values(r.rowData).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // Extract dynamic column headers from the first record's rowData
-  const dynamicHeaders = records.length > 0 ? Object.keys(records[0].rowData) : [];
+  // Extract dynamic column headers from all records to ensure CRM columns are included
+  const dynamicHeaders = React.useMemo(() => {
+    if (records.length === 0) return [];
+    
+    const originalKeys = Object.keys(records[0].rowData || {}).filter(k => 
+      !["CRM Status", "Latest Feedback", "Last Caller", "Last Call Time"].includes(k)
+    );
+    
+    const crmKeys = ["CRM Status", "Last Caller", "Last Call Time", "Latest Feedback"];
+    const keysSet = new Set<string>();
+    records.forEach(r => Object.keys(r.rowData || {}).forEach(k => keysSet.add(k)));
+    
+    const finalCrmKeys = crmKeys.filter(k => keysSet.has(k));
+    return [...originalKeys, ...finalCrmKeys];
+  }, [records]);
 
   return (
     <div className="w-full max-w-7xl mx-auto pb-12 space-y-6">

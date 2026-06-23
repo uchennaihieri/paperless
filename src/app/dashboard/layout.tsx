@@ -6,7 +6,7 @@ import { useSession, signOut } from "next-auth/react";
 import {
   Building2, FileText, CheckSquare, PenTool, LayoutDashboard,
   LogOut, Users, BarChart2, Menu, X, History, Settings, ShieldCheck, Zap, BookOpen,
-  FolderOpen, Smartphone, UserPlus
+  FolderOpen, Smartphone, UserPlus, PhoneCall
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
@@ -17,6 +17,7 @@ import { JournalLedgerModal } from "@/components/JournalLedgerModal";
 import { SessionGuard } from "@/components/SessionGuard";
 import { FilingsModal } from "@/components/FilingsModal";
 import SwapDelegateModal from "@/components/SwapDelegateModal";
+import { CrmModal } from "@/components/CrmModal";
 
 const navigation = [
   { name: "Workflow", href: "/dashboard/workflow", icon: LayoutDashboard },
@@ -54,6 +55,7 @@ export default function DashboardLayout({
   const [isAuditOpen, setIsAuditOpen]           = useState(false);
   const [isJournalLedgerOpen, setIsJournalLedgerOpen] = useState(false);
   const [isSwapDelegateOpen, setIsSwapDelegateOpen] = useState(false);
+  const [isCrmOpen, setIsCrmOpen] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement>(null);
 
   // Close avatar menu when clicking outside
@@ -171,7 +173,7 @@ export default function DashboardLayout({
 
       {/* Main Content */}
       <div className="flex-1 md:ml-64 flex flex-col min-h-screen min-w-0 transition-all duration-300">
-        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8 shrink-0 sticky top-0 z-10">
+        <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-8 shrink-0 sticky top-0 z-40">
           <div className="flex items-center gap-3">
             <button 
               className="md:hidden p-2 -ml-2 text-gray-600 hover:bg-gray-100 rounded-md cursor-pointer"
@@ -233,6 +235,12 @@ export default function DashboardLayout({
                     </button>
                   )}
                   <button
+                    onClick={() => { setIsCrmOpen(true); setIsAvatarMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <PhoneCall className="w-4 h-4 text-gray-400" /> Mini CRM
+                  </button>
+                  <button
                     onClick={() => { setIsSettingsOpen(true); setIsAvatarMenuOpen(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                   >
@@ -272,6 +280,7 @@ export default function DashboardLayout({
       originalUserId={activeRole?.id || session?.user?.id}
       originalUserName={activeRole?.user_name || session?.user?.name || ""}
     />
+    <CrmModal isOpen={isCrmOpen} onClose={() => setIsCrmOpen(false)} />
     </>
   );
 }
