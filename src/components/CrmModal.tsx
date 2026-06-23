@@ -209,17 +209,36 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden relative">
         
         {/* Header */}
-        <div className="h-16 shrink-0 border-b border-gray-100 flex items-center justify-between px-6 bg-white">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary">
+        <div className="h-16 shrink-0 border-b border-gray-100 flex items-center justify-between px-6 bg-white gap-4">
+          <div className="flex items-center gap-3 shrink-0">
+            {view === "grid" && (
+              <button onClick={() => setView("select")} className="mr-2 p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors flex items-center justify-center" title="Back to Lists">
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+            <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary shrink-0">
               <PhoneCall className="w-5 h-5" />
             </div>
-            <div>
+            <div className="hidden sm:block">
               <h2 className="text-lg font-bold text-gray-900">Mini CRM</h2>
               <p className="text-xs text-gray-500">Call Logs & Customer Feedback</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
+          
+          {view === "grid" && (
+            <div className="flex-1 max-w-md mx-auto w-full relative">
+              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="Search any value..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full h-9 pl-9 pr-3 rounded-md border border-gray-300 text-sm focus:ring-2 focus:ring-primary focus:border-primary bg-gray-50"
+              />
+            </div>
+          )}
+
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors shrink-0">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -322,39 +341,25 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
           {/* VIEW B: WORKING GRID */}
           {view === "grid" && (
             <div className="absolute inset-0 flex flex-col h-full animate-in slide-in-from-right-4 duration-300">
-              <div className="h-16 shrink-0 bg-white border-b border-gray-200 px-6 flex items-center justify-between">
-                <button onClick={() => setView("select")} className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900">
-                  <ChevronLeft className="w-4 h-4" /> Back to Lists
-                </button>
-                <div className="relative max-w-sm w-full">
-                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search any value..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full h-9 pl-9 pr-3 rounded-md border border-gray-300 text-sm focus:ring-2 focus:ring-primary focus:border-primary"
-                  />
-                </div>
-              </div>
 
               {loadingRecords ? (
                 <div className="flex-1 flex items-center justify-center"><div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>
               ) : phoneColumnKey === null && records.length > 0 ? (
                 <div className="flex-1 flex flex-col items-center justify-center text-center"><AlertCircle className="w-12 h-12 text-red-500 mb-2" /> <p>No Phone Column Found.</p></div>
               ) : (
-                <div className="flex-1 overflow-auto bg-white p-6">
-                  <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-                    <table className="w-full text-left border-collapse text-sm">
-                      <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200 text-gray-600 font-semibold">
-                          <th className="p-3 w-16 text-center">#</th>
+                <div className="flex-1 bg-white p-6 flex flex-col min-h-0">
+                  <div className="border border-gray-200 rounded-xl overflow-auto shadow-sm flex-1">
+                    <table className="w-full text-left border-collapse text-sm min-w-max">
+                      <thead className="sticky top-0 z-10 shadow-sm">
+                        <tr className="bg-gray-50 text-gray-600 font-semibold">
+                          <th className="p-3 whitespace-nowrap border-b border-gray-200">DAT Reference</th>
                           {allColumns.map(k => (
-                            <th key={k} className="p-3 whitespace-nowrap">
+                            <th key={k} className="p-3 whitespace-nowrap border-b border-gray-200">
                               {k} {k === phoneColumnKey && <span className="ml-1 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded-full uppercase tracking-wider font-bold">Key</span>}
                             </th>
                           ))}
-                          <th className="p-3 text-center sticky right-0 bg-gray-50 shadow-[-4px_0_10px_-4px_rgba(0,0,0,0.1)]">Action</th>
+                          <th className="p-3 w-[120px] min-w-[120px] max-w-[120px] text-center sticky right-[56px] bg-gray-50 z-20 border-b border-gray-200">Status</th>
+                          <th className="p-3 w-[56px] min-w-[56px] max-w-[56px] text-center sticky right-0 bg-gray-50 z-20 border-b border-gray-200 shadow-[-4px_0_10px_-4px_rgba(0,0,0,0.1)]">Profile</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
@@ -365,27 +370,28 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
                           
                           return (
                             <tr key={r.id} className="hover:bg-gray-50/80 transition-colors group">
-                              <td className="p-3 text-center text-gray-400 font-medium">{idx + 1}</td>
+                              <td className="p-3 text-gray-700 font-medium whitespace-nowrap">{r.reference}</td>
                               {allColumns.map(k => (
                                 <td key={k} className="p-3 text-gray-700 whitespace-nowrap truncate max-w-[200px]" title={String(r.rowData[k] || "-")}>
                                   {String(r.rowData[k] || "-")}
                                 </td>
                               ))}
-                              <td className="p-2 text-center sticky right-0 bg-white group-hover:bg-gray-50/80 transition-colors shadow-[-4px_0_10px_-4px_rgba(0,0,0,0.1)]">
-                                <div className="flex items-center justify-center gap-2">
-                                  <button
-                                    onClick={() => openStatusModal(phoneNum, r.id, currentStatus)}
-                                    className={cn("px-3 py-1.5 text-xs font-semibold rounded-md shadow-sm transition-all", statusColor)}
-                                  >
-                                    {currentStatus}
-                                  </button>
-                                  <button
-                                    onClick={() => openProfile(phoneNum)}
-                                    className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-md shadow-sm transition-all"
-                                  >
-                                    Profile
-                                  </button>
-                                </div>
+                              <td className="p-2 w-[120px] min-w-[120px] max-w-[120px] text-center sticky right-[56px] bg-white group-hover:bg-gray-50/80 transition-colors">
+                                <button
+                                  onClick={() => openStatusModal(phoneNum, r.id, currentStatus)}
+                                  className={cn("w-full py-1.5 px-2 text-xs font-semibold rounded-md shadow-sm transition-all", statusColor)}
+                                >
+                                  {currentStatus}
+                                </button>
+                              </td>
+                              <td className="p-2 w-[56px] min-w-[56px] max-w-[56px] text-center sticky right-0 bg-white group-hover:bg-gray-50/80 transition-colors shadow-[-4px_0_10px_-4px_rgba(0,0,0,0.1)]">
+                                <button
+                                  onClick={() => openProfile(phoneNum)}
+                                  className="w-9 h-9 mx-auto flex items-center justify-center bg-gray-100 hover:bg-primary/10 hover:text-primary text-gray-600 rounded-md shadow-sm transition-all"
+                                  title="View Customer Profile"
+                                >
+                                  <User className="w-4 h-4" />
+                                </button>
                               </td>
                             </tr>
                           );
