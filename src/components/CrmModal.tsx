@@ -18,28 +18,29 @@ const STATUS_COLORS: Record<string, string> = {
 
 export function CrmModal({ isOpen, onClose }: CrmModalProps) {
   const { data: session } = useSession();
-  
+
   // Views
   const [view, setView] = useState<"select" | "grid" | "timeline">("select");
   const [landingTab, setLandingTab] = useState<"working-list" | "quick-lookup">("working-list");
-  
+
   // Source Selection
   const [datasets, setDatasets] = useState<any[]>([]);
   const [loadingDatasets, setLoadingDatasets] = useState(false);
   const [selectedDatasetId, setSelectedDatasetId] = useState("");
-  
+
   // Grid
   const [records, setRecords] = useState<any[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [phoneColumnKey, setPhoneColumnKey] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  
+
   // Status Modal
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [activePhone, setActivePhone] = useState("");
   const [activeRecordId, setActiveRecordId] = useState("");
   const [tempStatus, setTempStatus] = useState("Open");
-  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackOption, setFeedbackOption] = useState("");
+  const [feedbackDetails, setFeedbackDetails] = useState("");
   const [submittingStatus, setSubmittingStatus] = useState(false);
 
   // Timeline
@@ -77,16 +78,16 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
     setLoadingRecords(true);
     setView("grid");
     setSearchQuery("");
-    
+
     try {
       const res = await fetch(`/api/v1/datasets/${selectedDatasetId}/records`);
       const json = await res.json();
       if (json.success && json.data.length > 0) {
         setRecords(json.data);
         const firstRowKeys = Object.keys(json.data[0].rowData || {});
-        const phoneKey = firstRowKeys.find(k => 
-          k.toLowerCase().includes("phone") || 
-          k.toLowerCase().includes("mobile") || 
+        const phoneKey = firstRowKeys.find(k =>
+          k.toLowerCase().includes("phone") ||
+          k.toLowerCase().includes("mobile") ||
           k.toLowerCase().includes("contact")
         );
         setPhoneColumnKey(phoneKey || null);
@@ -104,14 +105,20 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
     setActivePhone(phone);
     setActiveRecordId(recordId);
     setTempStatus(currentStatus || "Open");
-    setFeedbackText("");
+    setFeedbackOption("");
+    setFeedbackDetails("");
     setStatusModalOpen(true);
   };
 
   const submitStatusUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (tempStatus === "Closed" && !feedbackText.trim()) return;
-    
+
+    const finalFeedback = tempStatus === "Closed"
+      ? [feedbackOption, feedbackDetails].filter(Boolean).join(" - ")
+      : "";
+
+    if (tempStatus === "Closed" && !finalFeedback.trim()) return;
+
     setSubmittingStatus(true);
     try {
       const res = await fetch("/api/v1/crm", {
@@ -121,7 +128,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
           customerPhone: activePhone,
           sourceType: "UPLOADED_DATA",
           sourceId: activeRecordId,
-          feedbackText: tempStatus === "Closed" ? feedbackText : "",
+          feedbackText: finalFeedback,
           status: tempStatus,
           loggedByEmail: session?.user?.email || "Unknown",
           loggedByName: session?.user?.name || "Unknown User"
@@ -143,7 +150,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
     setReadOnlyProfile(readOnly);
     setView("timeline");
     setLoadingInteractions(true);
-    
+
     try {
       const res = await fetch(`/api/v1/crm/${encodeURIComponent(phone)}`);
       const data = await res.json();
@@ -183,22 +190,22 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
 
   const allColumns = useMemo(() => {
     if (records.length === 0) return [];
-    
+
     // Original uploaded keys
-    const originalKeys = Object.keys(records[0].rowData || {}).filter(k => 
+    const originalKeys = Object.keys(records[0].rowData || {}).filter(k =>
       !["CRM Status", "Latest Feedback", "Last Caller", "Last Call Time"].includes(k)
     );
-    
+
     // Guarantee injected CRM keys appear at the end
     const crmKeys = ["CRM Status", "Last Caller", "Last Call Time", "Latest Feedback"];
-    
+
     // Check if any record actually has the CRM keys populated, otherwise we don't necessarily need to render empty columns
     // But since we want consistent grid extension, we will just render them if they exist in ANY record.
     const keysSet = new Set<string>();
     records.forEach(r => Object.keys(r.rowData || {}).forEach(k => keysSet.add(k)));
-    
+
     const finalCrmKeys = crmKeys.filter(k => keysSet.has(k));
-    
+
     return [...originalKeys, ...finalCrmKeys];
   }, [records]);
 
@@ -207,7 +214,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
   return (
     <div className="fixed inset-0 z-50 bg-gray-900/50 flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden relative">
-        
+
         {/* Header */}
         <div className="h-16 shrink-0 border-b border-gray-100 flex items-center justify-between px-6 bg-white gap-4">
           <div className="flex items-center gap-3 shrink-0">
@@ -224,7 +231,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
               <p className="text-xs text-gray-500">Call Logs & Customer Feedback</p>
             </div>
           </div>
-          
+
           {view === "grid" && (
             <div className="flex-1 max-w-md mx-auto w-full relative">
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -245,20 +252,20 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
 
         {/* Body Content */}
         <div className="flex-1 overflow-hidden relative bg-gray-50/50">
-          
+
           {/* VIEW A: SOURCE SELECTION & QUICK LOOKUP */}
           {view === "select" && (
             <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center">
               <div className="max-w-md w-full bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col min-h-[360px]">
-                
+
                 <div className="flex border-b border-gray-200 bg-gray-50/50">
-                  <button 
+                  <button
                     onClick={() => setLandingTab("working-list")}
                     className={cn("flex-1 py-3 text-sm font-semibold border-b-2 transition-colors", landingTab === "working-list" ? "border-primary text-primary bg-white" : "border-transparent text-gray-500 hover:text-gray-700")}
                   >
                     Working Lists
                   </button>
-                  <button 
+                  <button
                     onClick={() => setLandingTab("quick-lookup")}
                     className={cn("flex-1 py-3 text-sm font-semibold border-b-2 transition-colors", landingTab === "quick-lookup" ? "border-primary text-primary bg-white" : "border-transparent text-gray-500 hover:text-gray-700")}
                   >
@@ -272,7 +279,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
                       <h3 className="text-xl font-bold text-gray-900 mb-2">Select a Working List</h3>
                       <p className="text-sm text-gray-500 mb-6">Choose a dataset to load into the CRM and start making calls.</p>
                       <div className="space-y-4">
-                        <select 
+                        <select
                           disabled={loadingDatasets}
                           value={selectedDatasetId}
                           onChange={(e) => setSelectedDatasetId(e.target.value)}
@@ -281,7 +288,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
                           <option value="">-- Select an Uploaded Dataset --</option>
                           {datasets.map(ds => <option key={ds.id} value={ds.id}>{ds.name} ({ds.totalRows} rows)</option>)}
                         </select>
-                        <button 
+                        <button
                           onClick={loadWorkingList}
                           disabled={!selectedDatasetId || loadingDatasets}
                           className="w-full h-11 bg-primary text-white rounded-lg font-medium shadow-sm hover:bg-primary/90 disabled:opacity-50 transition-colors"
@@ -305,7 +312,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
                           onChange={(e) => setLookupQuery(e.target.value)}
                           className="w-full h-11 pl-10 pr-4 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary bg-gray-50"
                         />
-                        
+
                         {lookupQuery.length >= 3 && (
                           <div className="absolute top-12 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden z-10 max-h-48 overflow-y-auto">
                             {isSearchingLookup ? (
@@ -314,7 +321,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
                               <ul className="divide-y divide-gray-100">
                                 {lookupResults.map(phone => (
                                   <li key={phone}>
-                                    <button 
+                                    <button
                                       onClick={() => openProfile(phone, true)}
                                       className="w-full text-left px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-primary/5 hover:text-primary transition-colors flex items-center justify-between"
                                     >
@@ -367,7 +374,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
                           const currentStatus = r.rowData["CRM Status"] || "Open";
                           const statusColor = STATUS_COLORS[currentStatus] || STATUS_COLORS["Open"];
                           const phoneNum = String(r.rowData[phoneColumnKey!]);
-                          
+
                           return (
                             <tr key={r.id} className="hover:bg-gray-50/80 transition-colors group">
                               <td className="p-3 text-gray-700 font-medium whitespace-nowrap">{r.reference}</td>
@@ -441,7 +448,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
                           <div key={int.id} className="relative pl-6">
                             <div className={`absolute -left-[9px] top-1 h-4 w-4 rounded-full border-2 border-white ${isLatest ? 'bg-primary' : 'bg-gray-300'}`}></div>
                             <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                              
+
                               <div className="flex items-start justify-between gap-4 mb-2">
                                 <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold", STATUS_COLORS[int.status] || "bg-gray-100 text-gray-600")}>
                                   {int.status}
@@ -463,7 +470,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
                                   {int.feedbackText}
                                 </div>
                               )}
-                              
+
                             </div>
                           </div>
                         );
@@ -474,7 +481,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
               </div>
             </div>
           )}
-          
+
         </div>
 
         {/* STATUS UPDATE MODAL (Sub-modal) */}
@@ -483,13 +490,13 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-150">
               <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
                 <h3 className="font-bold text-gray-900">Update Status</h3>
-                <button onClick={() => setStatusModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5"/></button>
+                <button onClick={() => setStatusModalOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
               </div>
-              
+
               <form onSubmit={submitStatusUpdate} className="p-5 flex flex-col gap-4">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Status</label>
-                  <select 
+                  <select
                     value={tempStatus}
                     onChange={(e) => setTempStatus(e.target.value)}
                     className="w-full h-10 border border-gray-300 rounded-md px-3 text-sm focus:ring-1 focus:ring-primary focus:border-primary"
@@ -501,23 +508,43 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
                 </div>
 
                 {tempStatus === "Closed" && (
-                  <div className="animate-in slide-in-from-top-2 duration-200">
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Feedback Note</label>
-                    <textarea 
-                      required
-                      value={feedbackText}
-                      onChange={(e) => setFeedbackText(e.target.value)}
-                      placeholder="Why is this closed?"
-                      className="w-full min-h-[80px] border border-gray-300 rounded-md p-3 text-sm focus:ring-1 focus:ring-primary focus:border-primary resize-none"
-                    />
+                  <div className="animate-in slide-in-from-top-2 duration-200 flex flex-col gap-3">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Feedback</label>
+                      <select
+                        required
+                        value={feedbackOption}
+                        onChange={(e) => setFeedbackOption(e.target.value)}
+                        className="w-full h-10 border border-gray-300 rounded-md px-3 text-sm focus:ring-1 focus:ring-primary focus:border-primary"
+                      >
+                        <option value="">-- Select Feedback --</option>
+                        <option value="Paid">Paid</option>
+                        <option value="Promised to pay today">Promised to pay today</option>
+                        <option value="Promised to pay tomorrow">Promised to pay tomorrow</option>
+                        <option value="Wrong Contact">Wrong Contact</option>
+                        <option value="Not Available">Not Available</option>
+                        <option value="Did not pick">Did not pick</option>
+                        <option value="Switched off">Switched off</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-1">Details (Optional)</label>
+                      <textarea
+                        value={feedbackDetails}
+                        onChange={(e) => setFeedbackDetails(e.target.value)}
+                        placeholder="Additional details..."
+                        className="w-full min-h-[80px] border border-gray-300 rounded-md p-3 text-sm focus:ring-1 focus:ring-primary focus:border-primary resize-none"
+                      />
+                    </div>
                   </div>
                 )}
 
-                <button 
+                <button
                   type="submit"
                   disabled={
-                    submittingStatus || 
-                    (tempStatus === "Closed" && !feedbackText.trim()) ||
+                    submittingStatus ||
+                    (tempStatus === "Closed" && !feedbackOption) ||
                     (tempStatus === (records.find(r => r.id === activeRecordId)?.rowData["CRM Status"] || "Open"))
                   }
                   className="mt-2 w-full h-10 bg-primary text-white font-medium rounded-md hover:bg-primary/90 transition-colors disabled:opacity-50"
