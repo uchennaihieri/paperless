@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { searchUsers, SignatoryInput, SigningType } from "@/app/actions/form";
-import { X, Search, Check, ChevronRight, GitBranch, Layers, Send, UserPlus, ArrowLeft, KeyRound, Loader2, Eye, EyeOff } from "lucide-react";
+import { X, Search, Check, ChevronRight, GitBranch, Layers, Send, UserPlus, ArrowLeft, KeyRound, Loader2, Eye, EyeOff, Copy, Link as LinkIcon } from "lucide-react";
 import Link from "next/link";
 import { numberToWords } from "@/lib/toWords";
 import { SignatureSelectionModal } from "@/app/dashboard/components/SignatureSelectionModal";
@@ -1998,6 +1998,8 @@ export default function FormFillerClient({
           templateName={template.name}
           token={currentUser.token}
           formData={formData}
+          initialIsPublic={template.isPublic}
+          initialPublicSlug={template.publicSlug}
           onClose={() => setShowTargetedRequestModal(false)}
         />
       )}
@@ -2176,14 +2178,19 @@ function TargetedRequestModal({
   templateName,
   token,
   formData,
+  initialIsPublic,
+  initialPublicSlug,
   onClose
 }: {
   templateId: string;
   templateName: string;
   token?: string;
   formData: Record<string, any>;
+  initialIsPublic?: boolean;
+  initialPublicSlug?: string | null;
   onClose: () => void;
 }) {
+  const [activeTab, setActiveTab] = useState<"email" | "csv" | "public">("email");
   const [emailsText, setEmailsText] = useState("");
   const [customMessage, setCustomMessage] = useState(`Hello,\n\nPlease kindly fill out the attached form "${templateName}" at your earliest convenience.\n\nThank you.`);
   const [file, setFile] = useState<File | null>(null);
@@ -2191,12 +2198,40 @@ function TargetedRequestModal({
   const [alertMsg, setAlertMsg] = useState<{type: "error"|"success", msg: string} | null>(null);
   const [step, setStep] = useState<1 | 2>(1);
   const [parsedEmails, setParsedEmails] = useState<string[]>([]);
+  
+  const [isPublic, setIsPublic] = useState(initialIsPublic || false);
+  const [publicSlug, setPublicSlug] = useState(initialPublicSlug || "");
+  const [generatingLink, setGeneratingLink] = useState(false);
+
   const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
+  const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || (typeof window !== 'undefined' ? window.location.origin : "");
+
+  const handleGeneratePublicLink = async () => {
+    setGeneratingLink(true);
+    try {
+      const res = await fetch(`${BASE_URL}/api/v1/forms/${templateId}/toggle-public`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ isPublic: true })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsPublic(true);
+        setPublicSlug(data.data.publicSlug);
+      } else {
+        setAlertMsg({ type: "error", msg: data.error || "Failed to generate link." });
+      }
+    } catch (e) {
+      setAlertMsg({ type: "error", msg: "Error generating link." });
+    } finally {
+      setGeneratingLink(false);
+    }
+  };
 
   const handleNextStep = async () => {
     let targetEmails: string[] = [];
     
-    if (file) {
+    if (activeTab === "csv" && file) {
       const text = await file.text();
       const rows = text.split("\n");
       rows.forEach(r => {
@@ -2208,7 +2243,7 @@ function TargetedRequestModal({
       });
     }
 
-    if (emailsText.trim()) {
+    if (activeTab === "email" && emailsText.trim()) {
       const parts = emailsText.split(/[\s,;]+/);
       parts.forEach(p => {
         const email = p.trim();
@@ -2219,7 +2254,7 @@ function TargetedRequestModal({
     }
 
     if (targetEmails.length === 0) {
-      setAlertMsg({ type: "error", msg: "Please enter at least one valid email address." });
+      setAlertMsg({ type: "error", msg: "Please provide at least one valid email address." });
       return;
     }
     
@@ -2231,13 +2266,9 @@ function TargetedRequestModal({
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-
       const res = await fetch(`${BASE_URL}/api/v1/form-requests`, {
         method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}` 
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           templateId,
           emails: parsedEmails,
@@ -2267,10 +2298,31 @@ function TargetedRequestModal({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-lg font-bold text-gray-900">Request Form Fill</h3>
-              <p className="text-xs text-gray-500 mt-0.5">Send a targeted request to users to fill this form.</p>
+              <p className="text-xs text-gray-500 mt-0.5">Send a targeted request or share a public link.</p>
             </div>
             <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
               <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="flex bg-gray-100 p-1 rounded-lg">
+            <button
+              onClick={() => { setActiveTab("email"); setStep(1); }}
+              className={`flex-1 text-xs font-semibold py-2 rounded-md transition-colors ${activeTab === 'email' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Use Email
+            </button>
+            <button
+              onClick={() => { setActiveTab("csv"); setStep(1); }}
+              className={`flex-1 text-xs font-semibold py-2 rounded-md transition-colors ${activeTab === 'csv' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Use CSV File
+            </button>
+            <button
+              onClick={() => { setActiveTab("public"); setStep(1); }}
+              className={`flex-1 text-xs font-semibold py-2 rounded-md transition-colors ${activeTab === 'public' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              Use Public Link
             </button>
           </div>
 
@@ -2281,57 +2333,104 @@ function TargetedRequestModal({
               </div>
             )}
             
-            {step === 2 && (
-              <div className="space-y-1">
-                <Label className="text-sm font-semibold">Notification Message (Optional)</Label>
-                <textarea
-                  className="w-full text-sm p-3 border rounded-md min-h-[140px] outline-none focus:ring-2 focus:ring-primary/50"
-                  placeholder="Hi, please fill out this form by Friday."
-                  value={customMessage}
-                  onChange={e => setCustomMessage(e.target.value)}
-                />
-                <p className="text-[10px] text-gray-400 font-medium">Sending to {parsedEmails.length} recipient{parsedEmails.length !== 1 && 's'}.</p>
+            {activeTab === "public" ? (
+              <div className="py-4 space-y-4">
+                {isPublic && publicSlug ? (
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Public Link URL</Label>
+                    <div className="flex items-center gap-2">
+                      <Input 
+                        readOnly 
+                        value={`${FRONTEND_URL}/${publicSlug}`} 
+                        className="bg-gray-50 text-gray-600 font-medium"
+                      />
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="icon"
+                        className="shrink-0"
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${FRONTEND_URL}/${publicSlug}`);
+                          setAlertMsg({ type: "success", msg: "Link copied to clipboard!" });
+                        }}
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-gray-400">Anyone with this link can fill out the form.</p>
+                  </div>
+                ) : (
+                  <div className="text-center py-6 space-y-3">
+                    <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto">
+                      <LinkIcon className="w-6 h-6 text-gray-400" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">No Public Link Generated</p>
+                      <p className="text-xs text-gray-500 mt-1 max-w-[250px] mx-auto">Generate a unique public link to allow anyone to fill out this form.</p>
+                    </div>
+                    <Button 
+                      onClick={handleGeneratePublicLink} 
+                      disabled={generatingLink}
+                      variant="outline"
+                      className="mt-2"
+                    >
+                      {generatingLink ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <LinkIcon className="w-4 h-4 mr-2" />}
+                      Generate Public Link
+                    </Button>
+                  </div>
+                )}
               </div>
-            )}
-
-            {step === 1 && (
+            ) : (
               <>
-                <div className="space-y-1">
-                  <Label className="text-sm font-semibold">Enter Email Addresses</Label>
-                  <textarea
-                    className="w-full text-sm p-3 border rounded-md min-h-[80px] outline-none focus:ring-2 focus:ring-primary/50"
-                    placeholder="john@example.com, jane@example.com"
-                    value={emailsText}
-                    onChange={e => setEmailsText(e.target.value)}
-                  />
-                  <p className="text-[10px] text-gray-400">Separate emails by comma, semicolon, or new line.</p>
-                </div>
+                {step === 2 && (
+                  <div className="space-y-1">
+                    <Label className="text-sm font-semibold">Notification Message (Optional)</Label>
+                    <textarea
+                      className="w-full text-sm p-3 border rounded-md min-h-[140px] outline-none focus:ring-2 focus:ring-primary/50"
+                      placeholder="Hi, please fill out this form by Friday."
+                      value={customMessage}
+                      onChange={e => setCustomMessage(e.target.value)}
+                    />
+                    <p className="text-[10px] text-gray-400 font-medium">Sending to {parsedEmails.length} recipient{parsedEmails.length !== 1 && 's'}.</p>
+                  </div>
+                )}
 
-                <div className="flex items-center gap-3">
-                  <div className="h-px flex-1 bg-gray-200" />
-                  <span className="text-xs font-semibold text-gray-400">OR</span>
-                  <div className="h-px flex-1 bg-gray-200" />
-                </div>
+                {step === 1 && activeTab === "email" && (
+                  <div className="space-y-1">
+                    <Label className="text-sm font-semibold">Enter Email Addresses</Label>
+                    <textarea
+                      className="w-full text-sm p-3 border rounded-md min-h-[80px] outline-none focus:ring-2 focus:ring-primary/50"
+                      placeholder="john@example.com, jane@example.com"
+                      value={emailsText}
+                      onChange={e => setEmailsText(e.target.value)}
+                    />
+                    <p className="text-[10px] text-gray-400">Separate emails by comma, semicolon, or new line.</p>
+                  </div>
+                )}
 
-                <div className="space-y-1">
-                  <Label className="text-sm font-semibold">Upload CSV File</Label>
-                  <Input
-                    type="file"
-                    accept=".csv"
-                    onChange={e => {
-                      if (e.target.files && e.target.files.length > 0) {
-                        setFile(e.target.files[0]);
-                      }
-                    }}
-                  />
-                  <p className="text-[10px] text-gray-400">Upload a CSV file containing email addresses.</p>
-                </div>
+                {step === 1 && activeTab === "csv" && (
+                  <div className="space-y-1">
+                    <Label className="text-sm font-semibold">Upload CSV File</Label>
+                    <Input
+                      type="file"
+                      accept=".csv"
+                      onChange={e => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          setFile(e.target.files[0]);
+                        }
+                      }}
+                    />
+                    <p className="text-[10px] text-gray-400">Upload a CSV file containing email addresses.</p>
+                  </div>
+                )}
               </>
             )}
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
-            {step === 1 ? (
+            {activeTab === "public" ? (
+              <Button variant="ghost" onClick={onClose}>Close</Button>
+            ) : step === 1 ? (
               <>
                 <Button variant="ghost" onClick={onClose}>Cancel</Button>
                 <Button onClick={handleNextStep}>

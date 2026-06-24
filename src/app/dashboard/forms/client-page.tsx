@@ -80,6 +80,7 @@ export default function FormsClientPage({
 
   // ── Rejection reason viewer ──
   const [viewingReason, setViewingReason]           = useState<any | null>(null); // holds the submission
+  const [viewingApproval, setViewingApproval]       = useState<any | null>(null);
 
   const [formNavError, setFormNavError]             = useState("");
 
@@ -508,6 +509,18 @@ export default function FormsClientPage({
                             </button>
                           )}
 
+                        {/* Approval comment icon — only when signed and has comment */}
+                        {s.signatories?.some((sig: any) => sig.status === "Signed" && sig.approvalComment) && (
+                            <button
+                              id={`view-approval-${s.id}`}
+                              onClick={(e) => { e.stopPropagation(); setViewingApproval(s); }}
+                              title="View approval comments"
+                              className="p-1.5 rounded-md text-green-500 hover:text-green-700 hover:bg-green-50 transition-colors"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                            </button>
+                          )}
+
                         <ChevronRight
                           className="w-4 h-4 text-gray-300 cursor-pointer"
                           onClick={() => router.push(`/dashboard/forms/submission/${s.id}`)}
@@ -655,6 +668,59 @@ export default function FormsClientPage({
 
                 <div className="pt-2 flex justify-end">
                   <Button variant="outline" onClick={() => setViewingReason(null)}>Close</Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Approval comment modal ── */}
+      {viewingApproval && (() => {
+        const approved = (viewingApproval.signatories ?? []).filter(
+          (sig: any) => sig.status === "Signed" && sig.approvalComment
+        );
+        return (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+              <div className="p-6 space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-full bg-green-100 shrink-0">
+                      <MessageCircle className="w-5 h-5 text-green-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-900">Approval Comments</h3>
+                      <p className="text-xs text-gray-400">
+                        {viewingApproval.reference
+                          ? `${viewingApproval.reference} · `
+                          : ""}{viewingApproval.formName}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setViewingApproval(null)}
+                    className="p-1.5 rounded-full hover:bg-gray-100 transition-colors shrink-0 text-gray-400 hover:text-gray-600 text-xl leading-none"
+                    aria-label="Close"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+                  {approved.map((sig: any) => (
+                    <div key={sig.id} className="bg-green-50 border border-green-200 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-semibold text-green-800">{sig.userName}</span>
+                        <span className="text-xs text-green-600">{sig.email}</span>
+                      </div>
+                      <p className="text-sm text-green-800 leading-relaxed">{sig.approvalComment}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <Button variant="outline" onClick={() => setViewingApproval(null)}>Close</Button>
                 </div>
               </div>
             </div>
