@@ -45,3 +45,18 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
   visibility: hidden !important;
   pointer-events: none !important;
 }
+
+/* Restore pointer cursor for all buttons and interactive elements */
+button, 
+[role="button"],
+select,
+summary {
+  cursor: pointer;
+}
+
+/* Ensure disabled buttons show the correct disabled cursor */
+button:disabled,
+[role="button"]:disabled,
+select:disabled {
+  cursor: not-allowed;
+}
