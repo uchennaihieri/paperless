@@ -46,17 +46,19 @@ input[type="password"]::-webkit-contacts-auto-fill-button {
   pointer-events: none !important;
 }
 
-/* Restore pointer cursor for all buttons and interactive elements */
-button, 
-[role="button"],
-select,
-summary {
-  cursor: pointer;
-}
+@layer base {
+  /* Restore pointer cursor for all buttons and interactive elements */
+  button, 
+  [role="button"],
+  select,
+  summary {
+    cursor: pointer !important;
+  }
 
-/* Ensure disabled buttons show the correct disabled cursor */
-button:disabled,
-[role="button"]:disabled,
-select:disabled {
-  cursor: not-allowed;
+  /* Ensure disabled buttons show the correct disabled cursor */
+  button:disabled,
+  [role="button"]:disabled,
+  select:disabled {
+    cursor: not-allowed !important;
+  }
 }
