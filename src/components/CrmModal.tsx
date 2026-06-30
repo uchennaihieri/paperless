@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { X, Search, PhoneCall, ChevronLeft, Send, CheckCircle, Clock, AlertCircle, ShieldCheck, User } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
@@ -30,10 +30,24 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
 
   // Grid
   const [records, setRecords] = useState<any[]>([]);
+  const [currentDataset, setCurrentDataset] = useState<any>(null);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [phoneColumnKey, setPhoneColumnKey] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchColumn, setSearchColumn] = useState("All");
+  const [selectedValues, setSelectedValues] = useState<string[]>([]);
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+  const filterDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
+        setIsFilterDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Status Modal
   const [statusModalOpen, setStatusModalOpen] = useState(false);
@@ -85,6 +99,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
       const json = await res.json();
       if (json.success && json.data.length > 0) {
         setRecords(json.data);
+        setCurrentDataset(json.dataset);
         const firstRowKeys = Object.keys(json.data[0].rowData || {});
         const phoneKey = firstRowKeys.find(k =>
           k.toLowerCase().includes("phone") ||
@@ -183,27 +198,48 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
     return () => clearTimeout(delay);
   }, [lookupQuery]);
 
+  const distinctColumnValues = useMemo(() => {
+    if (searchColumn === "All" || records.length === 0) return [];
+    const values = new Set<string>();
+    records.forEach(r => {
+      const val = searchColumn === "DAT Reference" ? r.reference : r.rowData[searchColumn];
+      const formattedVal = (val === null || val === undefined || String(val).trim() === "") ? "(Blank)" : String(val);
+      values.add(formattedVal);
+    });
+    return Array.from(values).sort();
+  }, [records, searchColumn]);
+
   const filteredRecords = useMemo(() => {
-    if (!searchQuery) return records;
-    const lowerQuery = searchQuery.toLowerCase();
-    return records.filter(r => {
-      if (searchColumn === "All") {
+    if (searchColumn === "All") {
+      if (!searchQuery) return records;
+      const lowerQuery = searchQuery.toLowerCase();
+      return records.filter(r => {
         return JSON.stringify(r.rowData).toLowerCase().includes(lowerQuery) || 
                String(r.reference || "").toLowerCase().includes(lowerQuery);
-      } else {
+      });
+    } else {
+      if (selectedValues.length === 0) return records;
+      return records.filter(r => {
         const val = searchColumn === "DAT Reference" ? r.reference : r.rowData[searchColumn];
-        return String(val || "").toLowerCase().includes(lowerQuery);
-      }
-    });
-  }, [records, searchQuery, searchColumn]);
+        const formattedVal = (val === null || val === undefined || String(val).trim() === "") ? "(Blank)" : String(val);
+        return selectedValues.includes(formattedVal);
+      });
+    }
+  }, [records, searchQuery, searchColumn, selectedValues]);
 
   const allColumns = useMemo(() => {
     if (records.length === 0) return [];
 
-    // Original uploaded keys
-    const originalKeys = Object.keys(records[0].rowData || {}).filter(k =>
-      !["CRM Status", "Latest Feedback", "Last Caller", "Last Call Time"].includes(k)
-    );
+    let originalKeys: string[] = [];
+    if (currentDataset?.headers && currentDataset.headers.length > 0) {
+      originalKeys = currentDataset.headers.filter((k: string) => 
+        !["CRM Status", "Latest Feedback", "Last Caller", "Last Call Time"].includes(k)
+      );
+    } else {
+      originalKeys = Object.keys(records[0].rowData || {}).filter(k =>
+        !["CRM Status", "Latest Feedback", "Last Caller", "Last Call Time"].includes(k)
+      );
+    }
 
     // Guarantee injected CRM keys appear at the end
     const crmKeys = ["CRM Status", "Last Caller", "Last Call Time", "Latest Feedback"];
@@ -216,7 +252,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
     const finalCrmKeys = crmKeys.filter(k => keysSet.has(k));
 
     return [...originalKeys, ...finalCrmKeys];
-  }, [records]);
+  }, [records, currentDataset]);
 
   if (!isOpen) return null;
 
@@ -245,23 +281,96 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
             <div className="flex-1 max-w-xl mx-auto w-full flex items-center gap-2">
               <select
                 value={searchColumn}
-                onChange={(e) => setSearchColumn(e.target.value)}
+                onChange={(e) => { 
+                  setSearchColumn(e.target.value); 
+                  setSelectedValues([]); 
+                  setSearchQuery(""); 
+                  setIsFilterDropdownOpen(false);
+                }}
                 className="h-9 rounded-md border border-gray-300 text-sm focus:ring-2 focus:ring-primary focus:border-primary bg-white px-2 w-[140px] truncate shrink-0"
               >
                 <option value="All">All Columns</option>
                 <option value="DAT Reference">DAT Reference</option>
                 {allColumns.map(col => <option key={col} value={col}>{col}</option>)}
               </select>
-              <div className="flex-1 relative">
-                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  placeholder={searchColumn === "All" ? "Search any value..." : `Search ${searchColumn}...`}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full h-9 pl-9 pr-3 rounded-md border border-gray-300 text-sm focus:ring-2 focus:ring-primary focus:border-primary bg-gray-50"
-                />
-              </div>
+              
+              {searchColumn === "All" ? (
+                <div className="flex-1 relative">
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search any value..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full h-9 pl-9 pr-3 rounded-md border border-gray-300 text-sm focus:ring-2 focus:ring-primary focus:border-primary bg-gray-50"
+                  />
+                </div>
+              ) : (
+                <div className="flex-1 relative" ref={filterDropdownRef}>
+                  <button
+                    onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
+                    className="w-full h-9 px-3 rounded-md border border-gray-300 text-sm bg-gray-50 text-left flex items-center justify-between hover:bg-gray-100 transition-colors"
+                  >
+                    <span className="truncate text-gray-700">
+                      {selectedValues.length === 0 
+                        ? `Filter by ${searchColumn}...` 
+                        : `${selectedValues.length} selected`}
+                    </span>
+                    <ChevronLeft className={cn("w-4 h-4 text-gray-500 transition-transform", isFilterDropdownOpen ? "rotate-90" : "-rotate-90")} />
+                  </button>
+
+                  {isFilterDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden flex flex-col max-h-[300px]">
+                      <div className="p-2 border-b border-gray-100 shrink-0">
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            placeholder="Search values..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full h-8 pl-8 pr-2 text-xs rounded border border-gray-200 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary bg-gray-50"
+                          />
+                        </div>
+                      </div>
+                      <div className="overflow-y-auto p-1">
+                        {distinctColumnValues
+                          .filter(val => val.toLowerCase().includes(searchQuery.toLowerCase()))
+                          .map((val, idx) => (
+                          <label key={idx} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 rounded cursor-pointer group">
+                            <input
+                              type="checkbox"
+                              checked={selectedValues.includes(val)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedValues(prev => [...prev, val]);
+                                } else {
+                                  setSelectedValues(prev => prev.filter(v => v !== val));
+                                }
+                              }}
+                              className="w-3.5 h-3.5 rounded border-gray-300 text-primary focus:ring-primary"
+                            />
+                            <span className="text-sm text-gray-700 group-hover:text-gray-900 truncate">{val}</span>
+                          </label>
+                        ))}
+                        {distinctColumnValues.filter(val => val.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
+                          <div className="px-3 py-4 text-center text-xs text-gray-500">No matching values</div>
+                        )}
+                      </div>
+                      {selectedValues.length > 0 && (
+                        <div className="p-2 border-t border-gray-100 bg-gray-50 shrink-0 flex justify-end">
+                          <button 
+                            onClick={() => setSelectedValues([])}
+                            className="text-xs font-medium text-red-600 hover:text-red-700 hover:underline"
+                          >
+                            Clear Selection
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

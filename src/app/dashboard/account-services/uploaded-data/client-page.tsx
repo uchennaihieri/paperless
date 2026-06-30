@@ -257,6 +257,7 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: (
   const [hasBVN, setHasBVN] = useState(false);
   const [runFirstCentral, setRunFirstCentral] = useState(false);
   const [runCreditRegistry, setRunCreditRegistry] = useState(false);
+  const [headers, setHeaders] = useState<string[]>([]);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -271,8 +272,9 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: (
           const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
           const records = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
           if (records.length > 0) {
-            const headers = records[0] as string[];
-            const foundBvn = headers.some(h => String(h).toUpperCase() === "BVN");
+            const extractedHeaders = records[0] as string[];
+            setHeaders(extractedHeaders.map(h => String(h)));
+            const foundBvn = extractedHeaders.some(h => String(h).toUpperCase() === "BVN");
             setHasBVN(foundBvn);
             if (!foundBvn) {
               setRunFirstCentral(false);
@@ -305,7 +307,7 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: (
             "Content-Type": "application/json",
             Authorization: `Bearer ${(session?.user as any)?.backendToken}`,
           },
-          body: JSON.stringify({ name, records, runFirstCentral, runCreditRegistry }),
+          body: JSON.stringify({ name, records, runFirstCentral, runCreditRegistry, headers }),
         });
 
         if (res.ok) {

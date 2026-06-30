@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { ArrowLeft, Loader2, Database, Search } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { ArrowLeft, Loader2, Database, Search, ChevronLeft } from "lucide-react";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { useSession } from "next-auth/react";
 
 const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
@@ -24,6 +25,19 @@ export default function UploadedDataDetailClientPage({ datasetId }: { datasetId:
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchColumn, setSearchColumn] = useState("All");
+  const [selectedValues, setSelectedValues] = useState<string[]>([]);
+  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+  const filterDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
+        setIsFilterDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if ((session?.user as any)?.backendToken) fetchRecords();
@@ -47,27 +61,49 @@ export default function UploadedDataDetailClientPage({ datasetId }: { datasetId:
     }
   };
 
+  const distinctColumnValues = React.useMemo(() => {
+    if (searchColumn === "All" || records.length === 0) return [];
+    const values = new Set<string>();
+    records.forEach(r => {
+      const val = searchColumn === "DAT Reference" ? r.reference : r.rowData[searchColumn];
+      const formattedVal = (val === null || val === undefined || String(val).trim() === "") ? "(Blank)" : String(val);
+      values.add(formattedVal);
+    });
+    return Array.from(values).sort();
+  }, [records, searchColumn]);
+
   const filteredRecords = React.useMemo(() => {
-    if (!searchTerm) return records;
-    const lowerQuery = searchTerm.toLowerCase();
-    return records.filter(r => {
-      if (searchColumn === "All") {
+    if (searchColumn === "All") {
+      if (!searchTerm) return records;
+      const lowerQuery = searchTerm.toLowerCase();
+      return records.filter(r => {
         return r.reference.toLowerCase().includes(lowerQuery) || 
                Object.values(r.rowData).some(v => String(v).toLowerCase().includes(lowerQuery));
-      } else {
+      });
+    } else {
+      if (selectedValues.length === 0) return records;
+      return records.filter(r => {
         const val = searchColumn === "DAT Reference" ? r.reference : r.rowData[searchColumn];
-        return String(val || "").toLowerCase().includes(lowerQuery);
-      }
-    });
-  }, [records, searchTerm, searchColumn]);
+        const formattedVal = (val === null || val === undefined || String(val).trim() === "") ? "(Blank)" : String(val);
+        return selectedValues.includes(formattedVal);
+      });
+    }
+  }, [records, searchTerm, searchColumn, selectedValues]);
 
   // Extract dynamic column headers from all records to ensure CRM columns are included
   const dynamicHeaders = React.useMemo(() => {
     if (records.length === 0) return [];
     
-    const originalKeys = Object.keys(records[0].rowData || {}).filter(k => 
-      !["CRM Status", "Latest Feedback", "Last Caller", "Last Call Time"].includes(k)
-    );
+    let originalKeys: string[] = [];
+    if (dataset?.headers && dataset.headers.length > 0) {
+      originalKeys = dataset.headers.filter((k: string) => 
+        !["CRM Status", "Latest Feedback", "Last Caller", "Last Call Time"].includes(k)
+      );
+    } else {
+      originalKeys = Object.keys(records[0].rowData || {}).filter(k => 
+        !["CRM Status", "Latest Feedback", "Last Caller", "Last Call Time"].includes(k)
+      );
+    }
     
     const crmKeys = ["CRM Status", "Last Caller", "Last Call Time", "Latest Feedback"];
     const keysSet = new Set<string>();
@@ -75,7 +111,7 @@ export default function UploadedDataDetailClientPage({ datasetId }: { datasetId:
     
     const finalCrmKeys = crmKeys.filter(k => keysSet.has(k));
     return [...originalKeys, ...finalCrmKeys];
-  }, [records]);
+  }, [records, dataset]);
 
   return (
     <div className="w-full max-w-7xl mx-auto pb-12 space-y-6">
@@ -93,7 +129,12 @@ export default function UploadedDataDetailClientPage({ datasetId }: { datasetId:
           <div className="flex items-center gap-2">
             <select
               value={searchColumn}
-              onChange={(e) => setSearchColumn(e.target.value)}
+              onChange={(e) => {
+                setSearchColumn(e.target.value);
+                setSelectedValues([]);
+                setSearchTerm("");
+                setIsFilterDropdownOpen(false);
+              }}
               className="py-2 pl-3 pr-8 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white max-w-[150px] truncate"
             >
               <option value="All">All Columns</option>
@@ -102,12 +143,80 @@ export default function UploadedDataDetailClientPage({ datasetId }: { datasetId:
                 <option key={header} value={header}>{header}</option>
               ))}
             </select>
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input type="text" placeholder={searchColumn === "All" ? "Search data..." : `Search ${searchColumn}...`}
-                value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
-            </div>
+            
+            {searchColumn === "All" ? (
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input type="text" placeholder="Search data..."
+                  value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+              </div>
+            ) : (
+              <div className="relative w-64" ref={filterDropdownRef}>
+                <button
+                  onClick={() => setIsFilterDropdownOpen(!isFilterDropdownOpen)}
+                  className="w-full h-[38px] px-3 rounded-lg border border-gray-200 text-sm bg-white text-left flex items-center justify-between hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                >
+                  <span className="truncate text-gray-700">
+                    {selectedValues.length === 0 
+                      ? `Filter by ${searchColumn}...` 
+                      : `${selectedValues.length} selected`}
+                  </span>
+                  <ChevronLeft className={cn("w-4 h-4 text-gray-500 transition-transform", isFilterDropdownOpen ? "rotate-90" : "-rotate-90")} />
+                </button>
+
+                {isFilterDropdownOpen && (
+                  <div className="absolute top-full right-0 mt-1 w-[280px] bg-white border border-gray-200 rounded-lg shadow-xl z-50 overflow-hidden flex flex-col max-h-[300px]">
+                    <div className="p-2 border-b border-gray-100 shrink-0">
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          placeholder="Search values..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="w-full h-8 pl-8 pr-2 text-xs rounded border border-gray-200 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 bg-gray-50"
+                        />
+                      </div>
+                    </div>
+                    <div className="overflow-y-auto p-1">
+                      {distinctColumnValues
+                        .filter(val => val.toLowerCase().includes(searchTerm.toLowerCase()))
+                        .map((val, idx) => (
+                        <label key={idx} className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 rounded cursor-pointer group">
+                          <input
+                            type="checkbox"
+                            checked={selectedValues.includes(val)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedValues(prev => [...prev, val]);
+                              } else {
+                                setSelectedValues(prev => prev.filter(v => v !== val));
+                              }
+                            }}
+                            className="w-3.5 h-3.5 rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                          />
+                          <span className="text-sm text-gray-700 group-hover:text-gray-900 truncate">{val}</span>
+                        </label>
+                      ))}
+                      {distinctColumnValues.filter(val => val.toLowerCase().includes(searchTerm.toLowerCase())).length === 0 && (
+                        <div className="px-3 py-4 text-center text-xs text-gray-500">No matching values</div>
+                      )}
+                    </div>
+                    {selectedValues.length > 0 && (
+                      <div className="p-2 border-t border-gray-100 bg-gray-50 shrink-0 flex justify-end">
+                        <button 
+                          onClick={() => setSelectedValues([])}
+                          className="text-xs font-medium text-red-600 hover:text-red-700 hover:underline"
+                        >
+                          Clear Selection
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
