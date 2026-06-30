@@ -23,6 +23,7 @@ export default function UploadedDataDetailClientPage({ datasetId }: { datasetId:
   const [dataset, setDataset] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [searchColumn, setSearchColumn] = useState("All");
 
   useEffect(() => {
     if ((session?.user as any)?.backendToken) fetchRecords();
@@ -46,10 +47,19 @@ export default function UploadedDataDetailClientPage({ datasetId }: { datasetId:
     }
   };
 
-  const filteredRecords = records.filter(r => 
-    r.reference.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    Object.values(r.rowData).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredRecords = React.useMemo(() => {
+    if (!searchTerm) return records;
+    const lowerQuery = searchTerm.toLowerCase();
+    return records.filter(r => {
+      if (searchColumn === "All") {
+        return r.reference.toLowerCase().includes(lowerQuery) || 
+               Object.values(r.rowData).some(v => String(v).toLowerCase().includes(lowerQuery));
+      } else {
+        const val = searchColumn === "DAT Reference" ? r.reference : r.rowData[searchColumn];
+        return String(val || "").toLowerCase().includes(lowerQuery);
+      }
+    });
+  }, [records, searchTerm, searchColumn]);
 
   // Extract dynamic column headers from all records to ensure CRM columns are included
   const dynamicHeaders = React.useMemo(() => {
@@ -80,11 +90,24 @@ export default function UploadedDataDetailClientPage({ datasetId }: { datasetId:
             <h2 className="text-lg font-bold text-gray-900">Dataset Records</h2>
             <p className="text-sm text-gray-500">View and search through your uploaded data rows.</p>
           </div>
-          <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input type="text" placeholder="Search data..."
-              value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+          <div className="flex items-center gap-2">
+            <select
+              value={searchColumn}
+              onChange={(e) => setSearchColumn(e.target.value)}
+              className="py-2 pl-3 pr-8 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30 bg-white max-w-[150px] truncate"
+            >
+              <option value="All">All Columns</option>
+              <option value="DAT Reference">DAT Reference</option>
+              {dynamicHeaders.map(header => (
+                <option key={header} value={header}>{header}</option>
+              ))}
+            </select>
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input type="text" placeholder={searchColumn === "All" ? "Search data..." : `Search ${searchColumn}...`}
+                value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500/30" />
+            </div>
           </div>
         </div>
 

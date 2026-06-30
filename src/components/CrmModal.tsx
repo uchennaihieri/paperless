@@ -33,6 +33,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [phoneColumnKey, setPhoneColumnKey] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchColumn, setSearchColumn] = useState("All");
 
   // Status Modal
   const [statusModalOpen, setStatusModalOpen] = useState(false);
@@ -185,8 +186,16 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
   const filteredRecords = useMemo(() => {
     if (!searchQuery) return records;
     const lowerQuery = searchQuery.toLowerCase();
-    return records.filter(r => JSON.stringify(r.rowData).toLowerCase().includes(lowerQuery));
-  }, [records, searchQuery]);
+    return records.filter(r => {
+      if (searchColumn === "All") {
+        return JSON.stringify(r.rowData).toLowerCase().includes(lowerQuery) || 
+               String(r.reference || "").toLowerCase().includes(lowerQuery);
+      } else {
+        const val = searchColumn === "DAT Reference" ? r.reference : r.rowData[searchColumn];
+        return String(val || "").toLowerCase().includes(lowerQuery);
+      }
+    });
+  }, [records, searchQuery, searchColumn]);
 
   const allColumns = useMemo(() => {
     if (records.length === 0) return [];
@@ -233,15 +242,26 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
           </div>
 
           {view === "grid" && (
-            <div className="flex-1 max-w-md mx-auto w-full relative">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search any value..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-9 pl-9 pr-3 rounded-md border border-gray-300 text-sm focus:ring-2 focus:ring-primary focus:border-primary bg-gray-50"
-              />
+            <div className="flex-1 max-w-xl mx-auto w-full flex items-center gap-2">
+              <select
+                value={searchColumn}
+                onChange={(e) => setSearchColumn(e.target.value)}
+                className="h-9 rounded-md border border-gray-300 text-sm focus:ring-2 focus:ring-primary focus:border-primary bg-white px-2 w-[140px] truncate shrink-0"
+              >
+                <option value="All">All Columns</option>
+                <option value="DAT Reference">DAT Reference</option>
+                {allColumns.map(col => <option key={col} value={col}>{col}</option>)}
+              </select>
+              <div className="flex-1 relative">
+                <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder={searchColumn === "All" ? "Search any value..." : `Search ${searchColumn}...`}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full h-9 pl-9 pr-3 rounded-md border border-gray-300 text-sm focus:ring-2 focus:ring-primary focus:border-primary bg-gray-50"
+                />
+              </div>
             </div>
           )}
 

@@ -196,21 +196,19 @@ export default function UploadedDataClientPage() {
                               >
                                 <Download className="w-4 h-4" /> Download
                               </button>
+                              <button
+                                onClick={() => { setSelectedDatasetId(dataset.id); setIsShareModalOpen(true); setActiveMenu(null); }}
+                                className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                              >
+                                <Share2 className="w-4 h-4" /> Share
+                              </button>
                               {dataset.uploadedBy === session?.user?.email && (
-                                <>
-                                  <button
-                                    onClick={() => { setSelectedDatasetId(dataset.id); setIsShareModalOpen(true); setActiveMenu(null); }}
-                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                  >
-                                    <Share2 className="w-4 h-4" /> Share
-                                  </button>
-                                  <button
-                                    onClick={() => { setDatasetToDelete(dataset.id); setActiveMenu(null); }}
-                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                                  >
-                                    <Trash2 className="w-4 h-4" /> Delete
-                                  </button>
-                                </>
+                                <button
+                                  onClick={() => { setDatasetToDelete(dataset.id); setActiveMenu(null); }}
+                                  className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                                >
+                                  <Trash2 className="w-4 h-4" /> Delete
+                                </button>
                               )}
                             </div>
                           </>
