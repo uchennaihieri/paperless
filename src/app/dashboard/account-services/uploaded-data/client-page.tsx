@@ -177,7 +177,9 @@ export default function UploadedDataClientPage() {
                           {dataset.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-xs text-gray-400">{new Date(dataset.createdAt).toLocaleDateString()}</td>
+                      <td className="px-6 py-4 text-xs text-gray-400">
+                        {new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(dataset.createdAt))}
+                      </td>
                       <td className="px-6 py-4 text-right relative">
                         <button
                           onClick={() => setActiveMenu(activeMenu === dataset.id ? null : dataset.id)}
@@ -299,7 +301,7 @@ function UploadModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: (
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: "array" });
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const records = XLSX.utils.sheet_to_json(firstSheet);
+        const records = XLSX.utils.sheet_to_json(firstSheet, { raw: false });
 
         const res = await fetch(`${BASE_URL}/api/v1/datasets`, {
           method: "POST",
