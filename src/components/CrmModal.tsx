@@ -502,7 +502,10 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
                         {filteredRecords.map((r, idx) => {
                           const currentStatus = r.rowData["CRM Status"] || "Open";
                           const statusColor = STATUS_COLORS[currentStatus] || STATUS_COLORS["Open"];
-                          const phoneNum = String(r.rowData[phoneColumnKey!]);
+                          let phoneNum = r.rowData[phoneColumnKey!] ? String(r.rowData[phoneColumnKey!]).trim() : "";
+                          if (!phoneNum || phoneNum === "undefined" || phoneNum === "null") {
+                            phoneNum = r.rowData["Corp. Phone No."] ? String(r.rowData["Corp. Phone No."]).trim() : "";
+                          }
 
                           return (
                             <tr key={r.id} className="hover:bg-gray-50/80 transition-colors group">
