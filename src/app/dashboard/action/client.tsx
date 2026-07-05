@@ -25,6 +25,8 @@ type ActionItem = {
   createdAt: string;
   template: { name: string; formOwner: string; formTreater: string; fields?: any };
   signatories: Array<{ userName: string; email: string; status: string; signedAt: string; position: number }>;
+  publicSubmitterName?: string | null;
+  publicSubmitterEmail?: string | null;
   submittedBy: { user_name: string; finca_email: string; branch: string } | null;
   documents?: Array<{ id: string; fieldName: string; originalName: string }>;
 };
@@ -288,7 +290,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                       <h4 className="font-semibold text-gray-900">{item.template.name}</h4>
                       <div className="text-xs text-gray-400 mt-1 flex gap-3 flex-wrap">
                         <span>Ref: {item.reference || item.id.slice(-8).toUpperCase()}</span>
-                        <span>By: {item.submittedBy?.user_name ?? "Unknown"}</span>
+                        <span>By: {item.submittedBy?.user_name ?? item.publicSubmitterName ?? "Unknown"}</span>
                         <span>{new Date(item.createdAt).toLocaleDateString()}</span>
                       </div>
                     </div>

@@ -50,6 +50,8 @@ type QueueItem = {
   approverEmail?: string | null;
   formResponses: Record<string, any>;
   signatories: Signatory[];
+  publicSubmitterName?: string | null;
+  publicSubmitterEmail?: string | null;
   submittedBy: { user_name: string | null; finca_email: string | null; branch: string | null } | null;
   documents?: Array<{ id: string; fieldName: string; originalName: string }>;
   prerequisites?: {
@@ -1268,8 +1270,10 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
                       {item.isPrerequisiteTask && item.prerequisiteContext && (
                         <span>For: {item.prerequisiteContext.mainSubmissionName} ({item.prerequisiteContext.mainSubmissionReference})</span>
                       )}
-                      {item.submittedBy && (
+                      {item.submittedBy ? (
                         <span>By: {item.submittedBy.user_name ?? item.submittedBy.finca_email}</span>
+                      ) : (
+                        <span>By: {item.publicSubmitterName ?? "Unknown"}</span>
                       )}
                       <span suppressHydrationWarning>{formatDateTime(item.createdAt)}</span>
                       {item.signatories && item.signatories.length > 0 && (
