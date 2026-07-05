@@ -446,7 +446,7 @@ export default function FormBuilderClient({
                     {isPublic && publicSlug && (
                       <div className="mt-2 pl-7 flex items-center gap-2">
                         <div className="bg-white border border-green-200 px-3 py-1.5 rounded-md text-sm font-mono text-green-800 flex-1">
-                          {`${process.env.NEXT_PUBLIC_FRONTEND_URL || typeof window !== 'undefined' ? window.location.origin : ''}/${publicSlug}`}
+                          {`${process.env.NEXT_PUBLIC_EXTERNAL_DOMAIN || process.env.NEXT_PUBLIC_FRONTEND_URL || (typeof window !== 'undefined' ? window.location.origin : '')}/${publicSlug}`}
                         </div>
                         <Button 
                           type="button" 
@@ -454,7 +454,8 @@ export default function FormBuilderClient({
                           size="icon" 
                           className="shrink-0 text-green-600 border-green-200 hover:bg-green-100 cursor-pointer"
                           onClick={() => {
-                            navigator.clipboard.writeText(`${window.location.origin}/${publicSlug}`);
+                            const baseUrl = process.env.NEXT_PUBLIC_EXTERNAL_DOMAIN || process.env.NEXT_PUBLIC_FRONTEND_URL || window.location.origin;
+                            navigator.clipboard.writeText(`${baseUrl}/${publicSlug}`);
                             alert("Copied to clipboard!");
                           }}
                         >

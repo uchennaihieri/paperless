@@ -2207,7 +2207,7 @@ function TargetedRequestModal({
   const [generatingLink, setGeneratingLink] = useState(false);
 
   const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
-  const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || (typeof window !== 'undefined' ? window.location.origin : "");
+  const FRONTEND_URL = process.env.NEXT_PUBLIC_EXTERNAL_DOMAIN || process.env.NEXT_PUBLIC_FRONTEND_URL || (typeof window !== 'undefined' ? window.location.origin : "");
 
   const handleGeneratePublicLink = async () => {
     setGeneratingLink(true);

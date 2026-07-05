@@ -224,7 +224,7 @@ export default function PublicClientForm({
     setError("");
 
     try {
-      let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
+      let backendUrl = process.env.NEXT_PUBLIC_EXTERNAL_BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
       if (typeof window !== "undefined" && backendUrl.includes("localhost")) {
         const hostname = window.location.hostname;
         if (hostname !== "localhost" && hostname !== "127.0.0.1") {
