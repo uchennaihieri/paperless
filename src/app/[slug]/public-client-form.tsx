@@ -157,7 +157,23 @@ export default function PublicClientForm({
         if (url) {
           const res = await fetch(url);
           const data = await res.json();
-          if (data.success) setDynamicOptions(data.data);
+          const opts = data.success && data.data ? data.data : {};
+          
+          // Parse static manual options
+          for (const field of fields) {
+            if ((field.type === "select" || field.type === "searchable_select") && 
+                field.optionsSource !== "database" && 
+                field.optionsSource !== "reusable_list" && 
+                field.optionsArray) {
+              opts[field.id] = field.optionsArray
+                .split(",")
+                .map((s: string) => s.trim())
+                .filter(Boolean)
+                .map((s: string) => ({ label: s, value: s }));
+            }
+          }
+          
+          setDynamicOptions(opts);
         }
       } catch (err) {
         console.error("Failed to fetch options", err);
