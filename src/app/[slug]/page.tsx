@@ -4,7 +4,8 @@ import PublicClientForm from "./public-client-form";
 
 async function getPublicTemplate(slug: string) {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000"}/api/v1/public-forms/slug/${slug}`, {
+    const baseUrl = process.env.BACKEND_API_URL || "https://paperlessbackend-production.up.railway.app/api/v1";
+    const res = await fetch(`${baseUrl}/public-forms/slug/${slug}`, {
       cache: "no-store",
     });
     const data = await res.json();

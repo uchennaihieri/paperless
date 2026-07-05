@@ -21,7 +21,8 @@ export default async function SignContractPage({ searchParams }: { searchParams:
   let error = null;
 
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1"}/contracts/external/${token}`, {
+    const baseUrl = process.env.BACKEND_API_URL || "https://paperlessbackend-production.up.railway.app/api/v1";
+    const res = await fetch(`${baseUrl}/contracts/external/${token}`, {
       method: "GET",
       cache: "no-store",
     });

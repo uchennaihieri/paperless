@@ -81,7 +81,13 @@ export default function PublicClientForm({
     setError("");
 
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
+      let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
+      if (typeof window !== "undefined" && backendUrl.includes("localhost")) {
+        const hostname = window.location.hostname;
+        if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+          backendUrl = `${window.location.protocol}//${hostname}:4000`;
+        }
+      }
       let url = "";
       let payload: any = {
         formResponses: formData,
