@@ -1,13 +1,114 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Send, CheckCircle } from "lucide-react";
-import { numberToWords } from "@/lib/toWords";
+import { Loader2, Send, CheckCircle, Search, ChevronRight, Check } from "lucide-react";
 import { SignatureSelectionModal } from "@/app/dashboard/components/SignatureSelectionModal";
+
+// ─── Searchable Select Component ───────────────────────────────────────────────
+function SearchableSelect({
+  id,
+  options,
+  value,
+  onChange,
+  required,
+  placeholder = "Select an option...",
+  disabled = false,
+}: {
+  id: string;
+  options: { label: string; value: string }[];
+  value: string;
+  onChange: (val: string) => void;
+  required?: boolean;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter(o =>
+    o.label.toLowerCase().includes(search.toLowerCase()) ||
+    o.value.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const selectedOption = options.find(o => o.value === value);
+
+  return (
+    <div className="relative max-w-md" ref={containerRef}>
+      <div
+        className={`flex w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus-within:ring-2 focus-within:ring-primary focus-within:border-transparent transition-all cursor-pointer shadow-sm ${disabled ? "opacity-50 cursor-not-allowed bg-gray-50" : ""}`}
+        onClick={() => { if (!disabled) setOpen(!open); }}
+      >
+        <span className={`block truncate flex-1 ${!selectedOption ? "text-neutral-500" : "text-neutral-900"}`}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <ChevronRight className={`w-4 h-4 text-neutral-400 transition-transform ${open ? "rotate-90" : "rotate-0"}`} />
+      </div>
+
+      {open && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 flex flex-col overflow-hidden">
+          <div className="p-2 border-b border-gray-100 flex items-center shrink-0">
+            <Search className="w-4 h-4 text-gray-400 mr-2 shrink-0" />
+            <input
+              className="w-full text-sm outline-none bg-transparent"
+              placeholder="Search..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              autoFocus
+            />
+          </div>
+          <div className="overflow-y-auto p-1">
+            {filteredOptions.length === 0 ? (
+              <div className="p-2 text-sm text-gray-500 text-center">No options found.</div>
+            ) : (
+              filteredOptions.map((opt) => (
+                <div
+                  key={opt.value}
+                  className={`px-3 py-2 text-sm cursor-pointer rounded-sm flex items-center justify-between hover:bg-gray-100 ${value === opt.value ? "bg-primary/5 text-primary font-medium" : "text-gray-700"}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChange(opt.value);
+                    setOpen(false);
+                    setSearch("");
+                  }}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {value === opt.value && <Check className="w-4 h-4 shrink-0" />}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Hidden native input for required validation */}
+      <input
+        type="text"
+        id={id}
+        value={value}
+        onChange={() => { }}
+        required={required}
+        className="opacity-0 absolute -z-10 w-0 h-0"
+      />
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function PublicClientForm({
   template,
@@ -29,15 +130,41 @@ export default function PublicClientForm({
   const [error, setError] = useState("");
   const [successReference, setSuccessReference] = useState("");
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+  const [dynamicOptions, setDynamicOptions] = useState<Record<string, { label: string; value: string }[]>>({});
 
   const fields = template?.fields || [];
   
-  // Filter out unsupported fields (e.g., file uploads)
+  // Exclude unsupported internal fields (like extended_service, custom form) but ALLOW file, select, searchable_select, event_selector
   const visibleFields = fields.filter((f: any) => 
-    f.type !== "file" && 
     f.type !== "signable_document" && 
     f.type !== "extended_service"
   );
+
+  useEffect(() => {
+    async function fetchOptions() {
+      try {
+        let backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
+        if (typeof window !== "undefined" && backendUrl.includes("localhost")) {
+          const hostname = window.location.hostname;
+          if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+            backendUrl = `${window.location.protocol}//${hostname}:4000`;
+          }
+        }
+        let url = "";
+        if (token) url = `${backendUrl}/api/v1/public-forms/token/${token}/options`;
+        else if (slug) url = `${backendUrl}/api/v1/public-forms/slug/${slug}/options`;
+        
+        if (url) {
+          const res = await fetch(url);
+          const data = await res.json();
+          if (data.success) setDynamicOptions(data.data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch options", err);
+      }
+    }
+    fetchOptions();
+  }, [slug, token]);
 
   const handleFieldChange = (fieldId: string, value: any) => {
     setFormData((prev) => {
@@ -89,23 +216,37 @@ export default function PublicClientForm({
         }
       }
       let url = "";
-      let payload: any = {
-        formResponses: formData,
-        publicSubmitterName: submitterName,
-        submitterSignature: base64Signature,
-      };
 
       if (token) {
         url = `${backendUrl}/api/v1/public-forms/submit-token/${token}`;
       } else if (slug) {
         url = `${backendUrl}/api/v1/public-forms/submit/${slug}`;
-        payload.publicSubmitterEmail = submitterEmail;
       }
+
+      const formPayload = new FormData();
+      const jsonData: any = {
+        formResponses: { ...formData },
+        publicSubmitterName: submitterName,
+        submitterSignature: base64Signature,
+      };
+
+      if (slug) {
+        jsonData.publicSubmitterEmail = submitterEmail;
+      }
+
+      // Loop formData to separate files from simple values
+      Object.entries(formData).forEach(([key, val]) => {
+         if (Array.isArray(val) && val.length > 0 && val[0] instanceof File) {
+             val.forEach(file => formPayload.append(key, file));
+             delete jsonData.formResponses[key]; // Do not send files in JSON
+         }
+      });
+
+      formPayload.append("data", JSON.stringify(jsonData));
 
       const res = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: formPayload,
       });
 
       const data = await res.json();
@@ -244,14 +385,64 @@ export default function PublicClientForm({
                   {formData[field.id] || "—"}
                 </div>
               )}
-              {/* Fallback for other simple types */}
-              {["select", "searchable_select"].includes(field.type) && (
-                <Input
+              {field.type === "select" && (
+                <select
+                  id={field.id}
                   required={field.required}
-                  value={formData[field.id] || ""}
+                  value={formData[field.id] ?? ""}
                   onChange={(e) => handleFieldChange(field.id, e.target.value)}
-                  placeholder="Enter selection"
+                  className="flex h-10 w-full max-w-md rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all shadow-sm cursor-pointer"
+                >
+                  <option value="">— Select an option —</option>
+                  {(dynamicOptions[field.id] || []).map((opt: { label: string; value: string }) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              )}
+              {(field.type === "searchable_select" || field.type === "event_selector") && (
+                <SearchableSelect
+                  id={field.id}
+                  options={dynamicOptions[field.id] || []}
+                  value={formData[field.id] ?? ""}
+                  onChange={(val) => handleFieldChange(field.id, val)}
+                  required={field.required}
                 />
+              )}
+              {field.type === "file" && (
+                <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 bg-gray-50 hover:bg-gray-100 transition-colors">
+                  <Input
+                    id={field.id}
+                    type="file"
+                    required={field.required && (!formData[field.id] || formData[field.id].length === 0)}
+                    accept={field.accept}
+                    multiple={(field.maxFiles ?? 1) > 1}
+                    className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                    onChange={async (e) => {
+                      const newFiles = Array.from(e.target.files ?? []);
+                      if (newFiles.length === 0) return;
+                      const existing = (formData[field.id] as File[]) || [];
+                      const merged = [...existing, ...newFiles];
+                      handleFieldChange(field.id, merged);
+                      e.target.value = "";
+                    }}
+                  />
+                  {(field.maxFiles ?? 1) > 1 && (
+                    <p className="text-xs text-gray-400 mt-2">You can select multiple files. Each pick adds to the list below.</p>
+                  )}
+                  {formData[field.id] && formData[field.id].length > 0 && (
+                    <ul className="mt-4 space-y-2">
+                      {(formData[field.id] as File[]).map((f: File, i: number) => (
+                        <li key={i} className="text-sm text-gray-600 flex items-center justify-between bg-white px-3 py-2 rounded-md border border-gray-200 shadow-sm">
+                          <span className="truncate">{f.name}</span>
+                          <button type="button" onClick={() => {
+                            const newFiles = (formData[field.id] as File[]).filter((_, idx) => idx !== i);
+                            handleFieldChange(field.id, newFiles.length > 0 ? newFiles : null);
+                          }} className="text-red-400 hover:text-red-600 font-bold p-1">&times;</button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               )}
             </div>
           );
