@@ -22,7 +22,9 @@ type Field = {
   type: "text" | "number" | "date" | "textarea" | "file" | "section_header" | "instructions" | "conditional";
   required: boolean;
   description?: string;
+  minLength?: number;
   maxLength?: number;
+  textType?: "text" | "email" | "tel" | "url" | "password";
 };
 
 type UserResult = {
@@ -429,6 +431,8 @@ export default function EditSubmissionModal({
                         <textarea
                           id={`edit-${field.id}`}
                           required={field.required}
+                          minLength={field.minLength}
+                          maxLength={field.maxLength}
                           rows={4}
                           value={formData[field.id] ?? ""}
                           onChange={(e) => handleFieldChange(field.id, e.target.value)}
@@ -534,8 +538,9 @@ export default function EditSubmissionModal({
                       ) : (
                         <Input
                           id={`edit-${field.id}`}
-                          type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
+                          type={field.type === "number" ? "number" : field.type === "date" ? "date" : (field.textType || "text")}
                           required={field.required}
+                          minLength={field.minLength}
                           maxLength={field.maxLength}
                           value={formData[field.id] ?? ""}
                           onChange={(e) => handleFieldChange(field.id, e.target.value)}

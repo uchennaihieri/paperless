@@ -359,7 +359,10 @@ export default function PublicClientForm({
               
               {field.type === "text" && (
                 <Input
+                  type={field.textType || "text"}
                   required={field.required}
+                  minLength={field.minLength}
+                  maxLength={field.maxLength}
                   value={formData[field.id] || ""}
                   onChange={(e) => handleFieldChange(field.id, e.target.value)}
                 />
@@ -367,6 +370,8 @@ export default function PublicClientForm({
               {field.type === "textarea" && (
                 <textarea
                   required={field.required}
+                  minLength={field.minLength}
+                  maxLength={field.maxLength}
                   value={formData[field.id] || ""}
                   onChange={(e) => handleFieldChange(field.id, e.target.value)}
                   className="flex min-h-[80px] w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-neutral-500 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 disabled:cursor-not-allowed disabled:opacity-50"

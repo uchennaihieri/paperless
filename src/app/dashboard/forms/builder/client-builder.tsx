@@ -39,6 +39,10 @@ type Field = {
   prerequisiteOrder?: number;
   defaultPrereqBranch?: string;
   defaultPrereqRole?: string;
+  // text extras
+  minLength?: number;
+  maxLength?: number;
+  textType?: "text" | "email" | "tel" | "url" | "password";
   // conditional logic extras
   conditionSourceFieldId?: string;
   conditionOperator?: string;
@@ -1303,6 +1307,52 @@ export default function FormBuilderClient({
                       {/* Help text, Required & Prerequisite — only for real input fields */}
                       {field.type !== 'section_header' && field.type !== 'instructions' && (
                         <>
+
+                          {/* Text field specific extras */}
+                          {(field.type === 'text' || field.type === 'textarea') && (
+                            <div className="md:col-span-2 bg-slate-50/50 p-4 rounded-md border border-slate-200 space-y-4 mb-2">
+                              {field.type === 'text' && (
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs font-semibold text-slate-800">Input Type</Label>
+                                  <select
+                                    value={field.textType || "text"}
+                                    onChange={(e) => updateField(idx, "textType", e.target.value)}
+                                    className={SELECT_CLASS}
+                                  >
+                                    <option value="text">Standard Text</option>
+                                    <option value="email">Email Address</option>
+                                    <option value="tel">Phone Number</option>
+                                    <option value="url">Website URL</option>
+                                    <option value="password">Password</option>
+                                  </select>
+                                </div>
+                              )}
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs font-semibold text-slate-800">Min Length</Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    placeholder="e.g. 5"
+                                    value={field.minLength || ""}
+                                    onChange={(e) => updateField(idx, "minLength", e.target.value ? parseInt(e.target.value) : undefined)}
+                                    className="bg-white border-slate-300"
+                                  />
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-xs font-semibold text-slate-800">Max Length</Label>
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    placeholder="e.g. 50"
+                                    value={field.maxLength || ""}
+                                    onChange={(e) => updateField(idx, "maxLength", e.target.value ? parseInt(e.target.value) : undefined)}
+                                    className="bg-white border-slate-300"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )}
 
 
                           <div className="md:col-span-2 space-y-1.5">

@@ -803,6 +803,8 @@ function FormFieldsStep({
                       <textarea
                         id={field.id}
                         required={field.required}
+                        minLength={field.minLength}
+                        maxLength={field.maxLength}
                         rows={4}
                         value={formData[field.id] ?? ""}
                         onChange={(e) => onChange(field.id, e.target.value)}
@@ -1081,8 +1083,9 @@ function FormFieldsStep({
                   return (
                     <Input
                       id={field.id}
-                      type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
+                      type={field.type === "number" ? "number" : field.type === "date" ? "date" : (field.textType || "text")}
                       required={field.required}
+                      minLength={field.minLength}
                       maxLength={field.maxLength}
                       value={formData[field.id] ?? ""}
                       onChange={(e) => onChange(field.id, e.target.value)}
@@ -2554,6 +2557,8 @@ function InternalFormModal({
                     {field.type === "textarea" ? (
                       <textarea
                         required={field.required}
+                        minLength={field.minLength}
+                        maxLength={field.maxLength}
                         rows={4}
                         value={formData[field.id] ?? ""}
                         onChange={(e) => setFormData(prev => ({ ...prev, [field.id]: e.target.value }))}
@@ -2577,8 +2582,9 @@ function InternalFormModal({
                       </select>
                     ) : (
                       <Input
-                        type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
+                        type={field.type === "number" ? "number" : field.type === "date" ? "date" : (field.textType || "text")}
                         required={field.required}
+                        minLength={field.minLength}
                         maxLength={field.maxLength}
                         value={formData[field.id] ?? ""}
                         onChange={(e) => setFormData(prev => ({ ...prev, [field.id]: e.target.value }))}
