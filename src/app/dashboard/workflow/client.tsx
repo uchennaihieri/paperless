@@ -463,13 +463,46 @@ function DetailPanel({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {Object.entries(responses)
-                    .filter(([q]) => q !== "CompletedFormPDF" && q !== "Participants")
-                    .map(([q, a], i) => {
-                    const isAttachmentArray = Array.isArray(a) && a.every(v => v && v.isAttachment);
-                    const isRef = isFormReferenceField(q);
-                    return (
-                      <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                  {(() => {
+                    const templateFields = Array.isArray(item.template?.fields)
+                      ? item.template.fields
+                      : typeof item.template?.fields === "string"
+                        ? JSON.parse(item.template.fields)
+                        : [];
+
+                    const orderedResponses: any[] = [];
+                    const processedKeys = new Set<string>();
+
+                    templateFields.forEach((field: any) => {
+                      const valById = responses[field.id];
+                      const valByLabel = responses[field.label];
+
+                      if (valById !== undefined || valByLabel !== undefined) {
+                        const key = valById !== undefined ? field.id : field.label;
+                        const value = valById !== undefined ? valById : valByLabel;
+
+                        orderedResponses.push({
+                          label: field.label || key,
+                          key,
+                          value: value,
+                        });
+                        if (field.id) processedKeys.add(field.id);
+                        if (field.label) processedKeys.add(field.label);
+                      }
+                    });
+
+                    Object.entries(responses).forEach(([q, a]) => {
+                      if (q !== "CompletedFormPDF" && q !== "Participants" && !processedKeys.has(q)) {
+                        const fallbackLabel = q.charAt(0).toUpperCase() + q.slice(1).replace(/([A-Z])/g, " $1");
+                        orderedResponses.push({ label: fallbackLabel, key: q, value: a });
+                      }
+                    });
+
+                    return orderedResponses.map(({ label: q, key, value: a }, i) => {
+                      const isAttachmentArray = Array.isArray(a) && a.every((v: any) => v && v.isAttachment);
+                      const isRef = isFormReferenceField(key);
+                      return (
+                        <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                         <td className="px-4 py-2.5 font-medium text-gray-700 align-top">{q}</td>
                         <td className="px-4 py-2.5 text-gray-600 align-top">
                           {isRef && typeof a === "string" ? (
@@ -492,7 +525,8 @@ function DetailPanel({
                         </td>
                       </tr>
                     );
-                  })}
+                  });
+                })()}
                 </tbody>
               </table>
             </div>
