@@ -1470,6 +1470,7 @@ export default function FormBuilderClient({
                                       className={SELECT_CLASS}
                                     >
                                       <option value="">— No Default —</option>
+                                      <option value="ME">ME (Current User)</option>
                                       {roles.map((r) => (
                                         <option key={r} value={r}>{r}</option>
                                       ))}

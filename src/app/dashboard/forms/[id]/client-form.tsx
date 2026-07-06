@@ -9,10 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { searchUsers, SignatoryInput, SigningType } from "@/app/actions/form";
-import { X, Search, Check, ChevronRight, GitBranch, Layers, Send, UserPlus, ArrowLeft, KeyRound, Loader2, Eye, EyeOff, Copy, Link as LinkIcon } from "lucide-react";
+import { X, Search, Check, ChevronRight, GitBranch, Layers, Send, UserPlus, ArrowLeft, KeyRound, Loader2, Eye, EyeOff, Copy, Link as LinkIcon, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { numberToWords } from "@/lib/toWords";
-import { SignatureSelectionModal } from "@/app/dashboard/components/SignatureSelectionModal";
+import { PdfSigningCanvas } from "@/app/dashboard/components/PdfSigningCanvas";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -152,8 +152,7 @@ function InterpolatedContent({
 
 // ─── Step Indicator ───────────────────────────────────────────────────────────
 
-function StepIndicator({ currentStep }: { currentStep: number }) {
-  const steps = ["Fill Form", "Add Signatories", "Review & Submit"];
+function StepIndicator({ currentStep, steps }: { currentStep: number; steps: string[] }) {
   return (
     <div className="flex items-center justify-center gap-0 mb-8">
       {steps.map((label, idx) => {
@@ -759,7 +758,7 @@ function FormFieldsStep({
                 </div>
 
                 {(() => {
-                  const isLockedPrereq = !!((field as any).isPrerequisite && (field as any).defaultPrereqBranch && (field as any).defaultPrereqRole && formData[field.id]);
+                  const isLockedPrereq = !!((field as any).isPrerequisite && (field as any).defaultPrereqRole && ((field as any).defaultPrereqBranch || (field as any).defaultPrereqRole === "ME") && formData[field.id]);
                   const isReadOnly = hasReferenceValue || isLockedPrereq;
                   
                   if (field.type === "signable_document") {
@@ -1333,7 +1332,119 @@ function SignatoriesStep({
   );
 }
 
-// ─── Step 3: Review ───────────────────────────────────────────────────────────
+// ─── Step 3: Sign Document ──────────────────────────────────────────────────────
+
+function SignDocumentStep({
+  template,
+  formData,
+  onBack,
+  onNext,
+  token,
+  initiatorNeedsToSign,
+  currentUser
+}: {
+  template: any;
+  formData: Record<string, any>;
+  onBack: () => void;
+  onNext: (pdfId: string, annotations: any[]) => void;
+  token?: string;
+  initiatorNeedsToSign: boolean;
+  currentUser: any;
+}) {
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    const fetchPdf = async () => {
+      try {
+        const payload = {
+          templateId: template.id,
+          formName: template.name,
+          formResponses: formData,
+        };
+        const res = await fetch("/api/v1/forms/draft-pdf", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (active) {
+          if (data.success) {
+            setDraftId(data.data.id);
+            setPdfUrl(`/api/v1/forms/draft-pdf/${data.data.id}`);
+            setError("");
+          } else {
+            setError(data.error || "Failed to generate draft PDF");
+          }
+          setLoading(false);
+        }
+      } catch (err) {
+        if (active) {
+          setError("Network error fetching draft PDF");
+          setLoading(false);
+        }
+      }
+    };
+    fetchPdf();
+    return () => { active = false; };
+  }, [template.id, template.name, formData, token]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 space-y-4 min-h-[400px]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <p className="text-gray-500 font-medium text-sm">Generating your document preview...</p>
+      </div>
+    );
+  }
+
+  if (error || !pdfUrl || !draftId) {
+    return (
+      <div className="p-12 text-center space-y-4 min-h-[400px] flex flex-col justify-center">
+        <div className="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+          <AlertTriangle className="text-red-600 w-6 h-6" />
+        </div>
+        <p className="text-red-600 font-medium">{error || "Failed to load document"}</p>
+        <Button onClick={onBack} variant="outline">Go Back</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col">
+      <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+        <div>
+          <h3 className="text-lg font-bold text-gray-900">Sign Document</h3>
+          <p className="text-sm text-gray-500">Please review and apply your signature to the final document.</p>
+        </div>
+      </div>
+      <div className="relative border border-gray-200 overflow-hidden m-6 bg-gray-100 rounded-md">
+        <div className="h-[650px] overflow-auto">
+          <PdfSigningCanvas
+            pdfUrl={pdfUrl}
+            token={token || ""}
+            onConfirm={(annotations) => {
+              if (initiatorNeedsToSign && annotations.filter((a: any) => a.type === "signature" || a.type === "image").length === 0) {
+                alert("You must apply a signature before continuing.");
+                return;
+              }
+              onNext(draftId, annotations);
+            }}
+            onCancel={onBack}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 4: Review ───────────────────────────────────────────────────────────
 
 function ReviewStep({
   template,
@@ -1596,7 +1707,6 @@ export default function FormFillerClient({
   );
   const [signingType, setSigningType] = useState<SigningType>(() => savedState.current?.signingType || "sequential");
   const [submitting, setSubmitting] = useState(false);
-  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
   const [showPrefillModal, setShowPrefillModal] = useState(false);
   const [showTokenModal, setShowTokenModal] = useState(false);
   const [signatureToken, setSignatureToken] = useState("");
@@ -1605,6 +1715,16 @@ export default function FormFillerClient({
   const [showTargetedRequestModal, setShowTargetedRequestModal] = useState(false);
   const [error, setError] = useState("");
   const [dynamicOptions, setDynamicOptions] = useState<Record<string, { label: string, value: string }[]>>({});
+
+  const [tempPdfId, setTempPdfId] = useState<string | null>(() => savedState.current?.tempPdfId || null);
+  const [initiatorAnnotations, setInitiatorAnnotations] = useState<any[]>(() => savedState.current?.initiatorAnnotations || []);
+
+  const stepsList = useMemo(() => {
+    const base = ["Fill Form", "Add Signatories"];
+    if (hasSignableDocument) base.push("Sign Document");
+    base.push("Review & Submit");
+    return base;
+  }, [hasSignableDocument]);
 
   const fields: Field[] = typeof template.fields === "string"
     ? JSON.parse(template.fields)
@@ -1627,12 +1747,14 @@ export default function FormFillerClient({
         signatories,
         signingType,
         step,
+        tempPdfId,
+        initiatorAnnotations,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {
       // localStorage full or unavailable — silently ignore
     }
-  }, [formData, internalFormsData, signatories, signingType, step, STORAGE_KEY]);
+  }, [formData, internalFormsData, signatories, signingType, step, tempPdfId, initiatorAnnotations, STORAGE_KEY]);
 
   // Clear saved state
   const clearSavedState = useCallback(() => {
@@ -1651,18 +1773,25 @@ export default function FormFillerClient({
 
       for (const field of fields) {
         const f = field as any;
-        if (f.isPrerequisite && f.defaultPrereqBranch && f.defaultPrereqRole && !newFormData[f.id]) {
+        if (f.isPrerequisite && f.defaultPrereqRole && !newFormData[f.id]) {
           try {
-            const branch = f.defaultPrereqBranch;
-            const role = f.defaultPrereqRole;
-            const res = await fetch(`/api/v1/workflow/resolve-assignee?branch=${encodeURIComponent(branch)}&role=${encodeURIComponent(role)}`, {
-              headers: { Authorization: `Bearer ${currentUser.token}` }
-            });
-            const data = await res.json();
-            
-            if (data.success && data.data && data.data.length === 1) {
-              newFormData[f.id] = data.data[0].finca_email;
-              changed = true;
+            if (f.defaultPrereqRole === "ME") {
+              if (currentUser?.email) {
+                newFormData[f.id] = currentUser.email;
+                changed = true;
+              }
+            } else if (f.defaultPrereqBranch) {
+              const branch = f.defaultPrereqBranch;
+              const role = f.defaultPrereqRole;
+              const res = await fetch(`/api/v1/workflow/resolve-assignee?branch=${encodeURIComponent(branch)}&role=${encodeURIComponent(role)}`, {
+                headers: { Authorization: `Bearer ${currentUser.token}` }
+              });
+              const data = await res.json();
+              
+              if (data.success && data.data && data.data.length === 1) {
+                newFormData[f.id] = data.data[0].finca_email;
+                changed = true;
+              }
             }
           } catch (err) {
             console.error("Failed to auto-resolve assignee for", f.id, err);
@@ -1777,7 +1906,6 @@ export default function FormFillerClient({
   };
 
   const submitToBackend = async (base64Signature: string) => {
-    setIsSignatureModalOpen(false);
     setSubmitting(true);
     setError("");
     const textOnlyResponses: Record<string, any> = {};
@@ -1808,6 +1936,8 @@ export default function FormFillerClient({
       initiatorToken: signatureToken || undefined,
       draftId,
       requestToken: requestToken || undefined,
+      tempPdfId: tempPdfId || undefined,
+      initiatorAnnotations: initiatorAnnotations.length > 0 ? initiatorAnnotations : undefined,
     }));
 
     for (const [fieldName, files] of Object.entries(fileFields)) {
@@ -1849,11 +1979,7 @@ export default function FormFillerClient({
   };
 
   const handleReviewSubmit = () => {
-    if (hasSignableDocument && !initiatorNeedsToSign) {
-      setIsSignatureModalOpen(true);
-    } else {
-      setShowTokenModal(true);
-    }
+    setShowTokenModal(true);
   };
 
   return (
@@ -1874,7 +2000,7 @@ export default function FormFillerClient({
         )}
       </div>
 
-      <StepIndicator currentStep={step} />
+      <StepIndicator currentStep={step} steps={stepsList} />
 
       <Card className="border-t-4 border-t-primary shadow-lg">
         <CardHeader className="bg-gray-50 border-b border-gray-100">
@@ -1921,13 +2047,29 @@ export default function FormFillerClient({
           />
         )}
 
-        {step === 3 && (
+        {step === 3 && hasSignableDocument && (
+          <SignDocumentStep
+            template={template}
+            formData={formData}
+            onBack={() => setStep(2)}
+            onNext={(pdfId: string, annotations: any[]) => {
+              setTempPdfId(pdfId);
+              setInitiatorAnnotations(annotations);
+              setStep(4);
+            }}
+            token={currentUser.token}
+            initiatorNeedsToSign={initiatorNeedsToSign}
+            currentUser={currentUser}
+          />
+        )}
+
+        {step === (hasSignableDocument ? 4 : 3) && (
           <ReviewStep
             template={template}
             formData={formData}
             signatories={signatories}
             signingType={signingType}
-            onBack={() => setStep(2)}
+            onBack={() => setStep(hasSignableDocument ? 3 : 2)}
             onSubmit={handleReviewSubmit}
             submitting={submitting}
             prerequisiteInfo={prerequisiteInfo}
@@ -1938,16 +2080,7 @@ export default function FormFillerClient({
         )}
       </Card>
 
-      {/* Signature Modal for Signable Documents */}
-      {hasSignableDocument && (
-        <SignatureSelectionModal
-          isOpen={isSignatureModalOpen}
-          onClose={() => setIsSignatureModalOpen(false)}
-          onSuccess={submitToBackend}
-          token={currentUser.token}
-          allowToken={true}
-        />
-      )}
+
 
       {/* Token Verification Modal for Standard Forms */}
       {showTokenModal && (
