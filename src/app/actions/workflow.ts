@@ -42,6 +42,19 @@ export async function completeProcessWithApprover(submissionId: string, approver
   }
 }
 
+export async function delegateProcess(submissionId: string, targetEmail: string) {
+  try {
+    const result = await apiClient(`/submissions/${submissionId}/delegate`, {
+      method: "POST",
+      body: JSON.stringify({ targetEmail })
+    });
+    revalidatePath("/dashboard/action");
+    return result;
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
 export async function approveSubmission(submissionId: string, signatureToken: string) {
   try {
     const result = await apiClient(`/workflow/${submissionId}/approve`, {

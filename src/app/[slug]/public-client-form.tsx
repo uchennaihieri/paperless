@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Send, CheckCircle, Search, ChevronRight, Check } from "lucide-react";
 import { SignatureSelectionModal } from "@/app/dashboard/components/SignatureSelectionModal";
+import { numberToWords } from "@/lib/toWords";
 
 // ─── Searchable Select Component ───────────────────────────────────────────────
 function SearchableSelect({
@@ -198,6 +199,57 @@ export default function PublicClientForm({
           if (f.derivedOperator === "*") res = v1 * v2;
           if (f.derivedOperator === "/") res = v2 !== 0 ? v1 / v2 : 0;
           next[f.id] = res;
+        });
+
+      // Handle to_words fields
+      visibleFields
+        .filter((f: any) => f.type === "to_words" && f.sourceFieldId)
+        .forEach((f: any) => {
+          const srcVal = next[f.sourceFieldId];
+          let valToConvert = srcVal;
+          if (srcVal !== undefined && srcVal !== null && srcVal !== "") {
+            const num = Number(srcVal);
+            if (!isNaN(num)) valToConvert = Math.abs(num);
+          }
+          next[f.id] = numberToWords(valToConvert ?? '');
+        });
+
+      // Handle conditional fields
+      visibleFields
+        .filter((f: any) => f.type === "conditional" && f.conditionSourceFieldId && f.conditionOperator)
+        .forEach((f: any) => {
+          const srcVal = Number(next[f.conditionSourceFieldId] || 0);
+          const compVal = Number(f.conditionCompareValue || 0);
+          let isTrue = false;
+          switch (f.conditionOperator) {
+            case "<": isTrue = srcVal < compVal; break;
+            case ">": isTrue = srcVal > compVal; break;
+            case "<=": isTrue = srcVal <= compVal; break;
+            case ">=": isTrue = srcVal >= compVal; break;
+            case "==": isTrue = srcVal === compVal; break;
+            case "!=": isTrue = srcVal !== compVal; break;
+          }
+
+          const resolveResult = (type: string, val: string) => {
+            if (!val) return "";
+            if (type === "field") {
+              const refVal = next[val];
+              return refVal !== undefined && refVal !== null ? refVal : 0;
+            }
+            if (type === "absolute_field") {
+              const refVal = next[val];
+              const num = Number(refVal);
+              return isNaN(num) ? 0 : Math.abs(num);
+            }
+            // type === "fixed"
+            return isNaN(Number(val)) ? val : Number(val);
+          };
+
+          const result = isTrue
+            ? resolveResult(f.trueResultType || "fixed", f.trueResultValue)
+            : resolveResult(f.falseResultType || "fixed", f.falseResultValue);
+
+          next[f.id] = result;
         });
 
       return next;
