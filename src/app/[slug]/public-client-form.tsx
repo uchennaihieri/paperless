@@ -239,9 +239,17 @@ export default function PublicClientForm({
         url = `${backendUrl}/api/v1/public-forms/submit/${slug}`;
       }
 
+      const mappedResponses: Record<string, any> = {};
+      fields.forEach((f: any) => {
+        if (f.type === 'section_header' || f.type === 'instructions' || f.type === 'generated_contract') return;
+        if (formData[f.id] !== undefined) {
+          mappedResponses[f.label] = formData[f.id];
+        }
+      });
+
       const formPayload = new FormData();
       const jsonData: any = {
-        formResponses: { ...formData },
+        formResponses: mappedResponses,
         publicSubmitterName: submitterName,
         submitterSignature: base64Signature,
       };
@@ -250,10 +258,10 @@ export default function PublicClientForm({
         jsonData.publicSubmitterEmail = submitterEmail;
       }
 
-      // Loop formData to separate files from simple values
-      Object.entries(formData).forEach(([key, val]) => {
+      // Loop mappedResponses to separate files from simple values
+      Object.entries(mappedResponses).forEach(([key, val]) => {
          if (Array.isArray(val) && val.length > 0 && val[0] instanceof File) {
-             val.forEach(file => formPayload.append(key, file));
+             val.forEach((file: File) => formPayload.append(key, file));
              delete jsonData.formResponses[key]; // Do not send files in JSON
          }
       });
