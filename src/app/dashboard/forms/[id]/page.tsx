@@ -1,4 +1,4 @@
-import { getFormTemplate } from "@/app/actions/form";
+import { getFormTemplate, getSubmission } from "@/app/actions/form";
 import FormFillerClient from "./client-form";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
@@ -8,12 +8,14 @@ export default async function FillFormPage({
   searchParams 
 }: { 
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ requestToken?: string }>;
+  searchParams: Promise<{ requestToken?: string, correctionId?: string }>;
 }) {
   const resolvedParams = await params;
   let template = null;
   let prefilledData = null;
   let requestTokenStr = null;
+  let correctionIdStr = null;
+  let correctionRequests = null;
 
   const session = await auth();
   const userName = session?.user?.name || "Unknown";
@@ -62,6 +64,13 @@ export default async function FillFormPage({
           prefilledData = data.data.prefilledData;
         }
       }
+    } else if (sp.correctionId) {
+      correctionIdStr = sp.correctionId;
+      const sub = await getSubmission(sp.correctionId);
+      if (sub && sub.status === "Awaiting Correction") {
+        prefilledData = sub.formResponses;
+        correctionRequests = sub.correctionRequests;
+      }
     }
   } catch(e) {}
 
@@ -73,5 +82,5 @@ export default async function FillFormPage({
     notFound();
   }
 
-  return <FormFillerClient template={template} currentUser={{ userName, email, token }} prefilledData={prefilledData} requestToken={requestTokenStr} />;
+  return <FormFillerClient template={template} currentUser={{ userName, email, token }} prefilledData={prefilledData} requestToken={requestTokenStr} correctionId={correctionIdStr || undefined} correctionRequests={correctionRequests || undefined} />;
 }

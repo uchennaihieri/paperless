@@ -39,14 +39,7 @@ export default async function PublicFormPage({ params }: { params: Promise<{ slu
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="bg-primary px-6 py-4">
-            <h1 className="text-2xl font-bold text-white text-center">
-              {template.name}
-            </h1>
-          </div>
-          <div className="p-6">
-            <PublicClientForm template={template} slug={resolvedParams.slug} />
-          </div>
+          <PublicClientForm template={template} slug={resolvedParams.slug} />
         </div>
       </div>
     </div>

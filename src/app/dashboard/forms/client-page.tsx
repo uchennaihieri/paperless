@@ -81,6 +81,7 @@ export default function FormsClientPage({
   // ── Rejection reason viewer ──
   const [viewingReason, setViewingReason]           = useState<any | null>(null); // holds the submission
   const [viewingApproval, setViewingApproval]       = useState<any | null>(null);
+  const [viewingCorrection, setViewingCorrection]   = useState<any | null>(null);
 
   const [formNavError, setFormNavError]             = useState("");
 
@@ -521,6 +522,18 @@ export default function FormsClientPage({
                             </button>
                           )}
 
+                        {/* Correction message icon — only when Awaiting Correction and has correctionRequests */}
+                        {s.status === "Awaiting Correction" && s.correctionRequests && Object.keys(s.correctionRequests).length > 0 && (
+                            <button
+                              id={`view-correction-${s.id}`}
+                              onClick={(e) => { e.stopPropagation(); setViewingCorrection(s); }}
+                              title="View correction messages"
+                              className="p-1.5 rounded-md text-amber-500 hover:text-amber-700 hover:bg-amber-50 transition-colors"
+                            >
+                              <MessageCircle className="w-4 h-4" />
+                            </button>
+                          )}
+
                         <ChevronRight
                           className="w-4 h-4 text-gray-300 cursor-pointer"
                           onClick={() => router.push(`/dashboard/forms/submission/${s.id}`)}
@@ -721,6 +734,60 @@ export default function FormsClientPage({
 
                 <div className="pt-2 flex justify-end">
                   <Button variant="outline" onClick={() => setViewingApproval(null)}>Close</Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ── Correction messages modal ── */}
+      {viewingCorrection && (() => {
+        const requests = viewingCorrection.correctionRequests || {};
+        const entries = Object.entries(requests);
+        return (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
+              <div className="p-6 space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-full bg-amber-100 shrink-0">
+                      <MessageCircle className="w-5 h-5 text-amber-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-900">Correction Requests</h3>
+                      <p className="text-xs text-gray-400">
+                        {viewingCorrection.reference
+                          ? `${viewingCorrection.reference} · `
+                          : ""}{viewingCorrection.formName}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setViewingCorrection(null)}
+                    className="p-1.5 rounded-full hover:bg-gray-100 transition-colors shrink-0 text-gray-400 hover:text-gray-600 text-xl leading-none"
+                    aria-label="Close"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+                  {entries.map(([fieldId, message]: [string, any], i) => (
+                    <div key={i} className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-semibold text-amber-800">Field Needs Correction</span>
+                      </div>
+                      <p className="text-sm text-amber-800 leading-relaxed">{message}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-2 flex justify-end gap-3">
+                  <Button variant="outline" onClick={() => setViewingCorrection(null)}>Close</Button>
+                  <Button onClick={() => router.push(`/dashboard/forms/submission/${viewingCorrection.id}`)}>
+                    View Submission
+                  </Button>
                 </div>
               </div>
             </div>

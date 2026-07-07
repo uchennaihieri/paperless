@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Send, CheckCircle, Search, ChevronRight, Check } from "lucide-react";
+import { Loader2, Send, CheckCircle, Search, ChevronRight, Check, AlertTriangle, X } from "lucide-react";
 import { SignatureSelectionModal } from "@/app/dashboard/components/SignatureSelectionModal";
 import { numberToWords } from "@/lib/toWords";
 
@@ -132,6 +132,80 @@ export default function PublicClientForm({
   const [successReference, setSuccessReference] = useState("");
   const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
   const [dynamicOptions, setDynamicOptions] = useState<Record<string, { label: string; value: string }[]>>({});
+
+  // Correction Mode State
+  const [isCorrectionMode, setIsCorrectionMode] = useState(false);
+  const [correctionRequests, setCorrectionRequests] = useState<Record<string, string>>({});
+  const [correctionToken, setCorrectionToken] = useState("");
+  const [correctionId, setCorrectionId] = useState("");
+  const [showCorrectionModal, setShowCorrectionModal] = useState(false);
+  const [corrRef, setCorrRef] = useState("");
+  const [corrEmail, setCorrEmail] = useState("");
+  const [corrName, setCorrName] = useState("");
+  const [corrLoading, setCorrLoading] = useState(false);
+  const [corrError, setCorrError] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("mode") === "correction") {
+        setShowCorrectionModal(true);
+        if (params.get("ref")) setCorrRef(params.get("ref") || "");
+        if (params.get("email")) setCorrEmail(params.get("email") || "");
+      }
+    }
+  }, []);
+
+  const handleVerifyCorrection = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCorrError("");
+    setCorrLoading(true);
+    try {
+      let backendUrl = process.env.NEXT_PUBLIC_EXTERNAL_BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
+      if (typeof window !== "undefined" && backendUrl.includes("localhost")) {
+        const hostname = window.location.hostname;
+        if (hostname !== "localhost" && hostname !== "127.0.0.1") backendUrl = `${window.location.protocol}//${hostname}:4000`;
+      }
+      const res = await fetch(`${backendUrl}/api/v1/public-forms/verify-correction`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reference: corrRef, email: corrEmail, fullName: corrName }),
+      });
+      const data = await res.json();
+      if (data.success && data.data) {
+        const savedResponses = data.data.submission.formResponses || {};
+        const mappedToId: Record<string, any> = {};
+        
+        let allFields: any[] = [];
+        try {
+          allFields = typeof template?.fields === "string" ? JSON.parse(template.fields) : (template?.fields || []);
+        } catch(e) {}
+        
+        allFields.forEach((f: any) => {
+          if (savedResponses[f.label] !== undefined) {
+            mappedToId[f.id] = savedResponses[f.label];
+          } else if (savedResponses[f.id] !== undefined) {
+            mappedToId[f.id] = savedResponses[f.id]; // Fallback
+          }
+        });
+
+        setFormData(mappedToId);
+        setSubmitterName(data.data.submission.publicSubmitterName || "");
+        setSubmitterEmail(data.data.submission.publicSubmitterEmail || "");
+        setCorrectionRequests(data.data.submission.correctionRequests || {});
+        setCorrectionId(data.data.submission.id);
+        setCorrectionToken(data.data.token);
+        setIsCorrectionMode(true);
+        setShowCorrectionModal(false);
+      } else {
+        setCorrError(data.error || "Failed to verify correction details.");
+      }
+    } catch (err: any) {
+      setCorrError(err.message || "An unexpected error occurred.");
+    } finally {
+      setCorrLoading(false);
+    }
+  };
 
   const fields = template?.fields || [];
   
@@ -285,7 +359,9 @@ export default function PublicClientForm({
       }
       let url = "";
 
-      if (token) {
+      if (isCorrectionMode && correctionToken) {
+        url = `${backendUrl}/api/v1/public-forms/submit-correction`;
+      } else if (token) {
         url = `${backendUrl}/api/v1/public-forms/submit-token/${token}`;
       } else if (slug) {
         url = `${backendUrl}/api/v1/public-forms/submit/${slug}`;
@@ -306,7 +382,12 @@ export default function PublicClientForm({
         submitterSignature: base64Signature,
       };
 
-      if (slug) {
+      if (isCorrectionMode) {
+        jsonData.token = correctionToken;
+        jsonData.reference = corrRef;
+        jsonData.email = corrEmail;
+        jsonData.updatedResponses = mappedResponses;
+      } else if (slug) {
         jsonData.publicSubmitterEmail = submitterEmail;
       }
 
@@ -315,10 +396,19 @@ export default function PublicClientForm({
          if (Array.isArray(val) && val.length > 0 && val[0] instanceof File) {
              val.forEach((file: File) => formPayload.append(key, file));
              delete jsonData.formResponses[key]; // Do not send files in JSON
+             if (isCorrectionMode) delete jsonData.updatedResponses[key];
          }
       });
 
-      formPayload.append("data", JSON.stringify(jsonData));
+      if (isCorrectionMode) {
+        formPayload.append("reference", corrRef);
+        formPayload.append("token", correctionToken);
+        formPayload.append("email", corrEmail);
+        formPayload.append("updatedResponses", JSON.stringify(jsonData.updatedResponses));
+        formPayload.append("initiatorSignature", base64Signature);
+      } else {
+        formPayload.append("data", JSON.stringify(jsonData));
+      }
 
       const res = await fetch(url, {
         method: "POST",
@@ -340,20 +430,103 @@ export default function PublicClientForm({
 
   if (successReference) {
     return (
-      <div className="text-center py-12">
-        <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
-          <CheckCircle className="w-8 h-8" />
+      <>
+        {/* Page Header */}
+        <div className="bg-primary px-6 py-4 flex items-center justify-center rounded-t-xl mb-6">
+          <h1 className="text-2xl font-bold text-white text-center">
+            {template?.name || "Form"}
+          </h1>
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Submission Successful!</h2>
-        <p className="text-gray-600 mb-6">
-          Thank you. Your reference number is <strong className="text-gray-900">{successReference}</strong>
-        </p>
-      </div>
+        <div className="text-center py-12">
+          <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle className="w-8 h-8" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            {isCorrectionMode ? "Correction Successful!" : "Submission Successful!"}
+          </h2>
+          <p className="text-gray-600 mb-6">
+            Thank you. Your reference number is <strong className="text-gray-900">{successReference}</strong>
+          </p>
+        </div>
+      </>
     );
   }
 
   return (
     <>
+    {/* Page Header (moved from page.tsx) */}
+    <div className="bg-primary px-6 py-4 flex items-center justify-between rounded-t-xl mb-6">
+      <h1 className="text-2xl font-bold text-white text-center flex-1">
+        {template?.name || "Form"}
+      </h1>
+      <Button 
+        variant="secondary" 
+        size="sm" 
+        onClick={() => setShowCorrectionModal(true)}
+        className="bg-white hover:bg-gray-100 text-primary border-0 font-semibold shadow-sm"
+      >
+        <AlertTriangle className="w-4 h-4 mr-2" />
+        Correction
+      </Button>
+    </div>
+
+    {/* Correction Modal */}
+    {showCorrectionModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-gray-900 flex items-center">
+              <AlertTriangle className="w-5 h-5 text-amber-500 mr-2" />
+              Correct Submission
+            </h2>
+            <button onClick={() => setShowCorrectionModal(false)} className="text-gray-400 hover:text-gray-600">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <p className="text-sm text-gray-600 mb-6">
+            Enter your details to access your submission and make corrections requested by the team.
+          </p>
+          <form onSubmit={handleVerifyCorrection} className="space-y-4">
+            {corrError && (
+              <div className="bg-red-50 text-red-600 p-3 rounded text-sm mb-4">
+                {corrError}
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label>Form Reference</Label>
+              <Input required value={corrRef} onChange={(e) => setCorrRef(e.target.value)} placeholder="e.g. REF123" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Email Address</Label>
+              <Input type="email" required value={corrEmail} onChange={(e) => setCorrEmail(e.target.value)} placeholder="e.g. you@example.com" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Full Name</Label>
+              <Input required value={corrName} onChange={(e) => setCorrName(e.target.value)} placeholder="e.g. John Doe" />
+            </div>
+            <div className="pt-2 flex justify-end gap-3">
+              <Button type="button" variant="outline" onClick={() => setShowCorrectionModal(false)}>Cancel</Button>
+              <Button type="submit" disabled={corrLoading}>
+                {corrLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Verify & Continue
+              </Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
+
+    {isCorrectionMode && (
+      <div className="mx-6 mb-6 bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-lg flex items-start gap-3">
+        <AlertTriangle className="w-5 h-5 mt-0.5 shrink-0" />
+        <div>
+          <h3 className="font-semibold">Correction Mode Active</h3>
+          <p className="text-sm mt-1">Please review the feedback below and update the unlocked fields before resubmitting.</p>
+        </div>
+      </div>
+    )}
+
+    <div className="p-6 pt-0">
     <form onSubmit={handleNextClick} className="space-y-8">
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
@@ -410,8 +583,19 @@ export default function PublicClientForm({
             );
           }
 
+          const isRequested = correctionRequests[field.id] || correctionRequests[field.label];
+          const isLocked = isCorrectionMode && !isRequested;
+
           return (
-            <div key={field.id} className="space-y-1.5">
+            <div key={field.id} className={`space-y-1.5 ${isLocked ? "opacity-60 pointer-events-none bg-gray-50 p-3 rounded-lg border border-gray-100" : ""}`}>
+              {isCorrectionMode && isRequested && (
+                <div className="bg-amber-100 text-amber-900 text-sm p-3 rounded-lg mb-3 border border-amber-200 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-700" />
+                  <div>
+                    <strong>Correction Required:</strong> {isRequested}
+                  </div>
+                </div>
+              )}
               <Label className="text-sm font-medium text-gray-700">
                 {field.label} {field.required && <span className="text-red-500">*</span>}
               </Label>
@@ -538,12 +722,13 @@ export default function PublicClientForm({
             </>
           ) : (
             <>
-              <Send className="w-4 h-4 mr-2" /> Next: Sign & Submit
+              <Send className="w-4 h-4 mr-2" /> {isCorrectionMode ? "Next: Sign & Submit Correction" : "Next: Sign & Submit"}
             </>
           )}
         </Button>
       </div>
     </form>
+    </div>
     
     <SignatureSelectionModal
       isOpen={isSignatureModalOpen}

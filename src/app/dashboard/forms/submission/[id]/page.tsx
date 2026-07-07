@@ -4,6 +4,7 @@ import { getPrerequisites } from "@/app/actions/prerequisites";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ArrowLeft, FileText, FileDown, AlertTriangle, Link2, CheckCircle2, Clock } from "lucide-react";
 import { AttachmentLink } from "./attachment-link";
 import { RegeneratePdfButton } from "./regenerate-button";
@@ -45,8 +46,12 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
     auth().catch(() => null),
   ]);
 
+  let currentUserId: number | null = null;
   let isAdmin = false;
   try {
+    const userIdStr = (session?.user as any)?.id;
+    if (userIdStr) currentUserId = Number(userIdStr);
+    
     const rolesStr = (session?.user as any)?.roles;
     if (rolesStr) {
       const roles = typeof rolesStr === "string" ? JSON.parse(rolesStr) : rolesStr;
@@ -141,6 +146,13 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {submission.status === "Awaiting Correction" && currentUserId === submission.submittedById && (
+            <Link href={`/dashboard/forms/${submission.templateId}?correctionId=${submission.id}`}>
+              <Button size="sm" className="bg-amber-600 hover:bg-amber-700 text-white cursor-pointer">
+                Correct Submission
+              </Button>
+            </Link>
+          )}
           <Badge variant={statusVariant(submission.status) as any} className="text-sm px-3">
             {submission.status}
           </Badge>

@@ -300,6 +300,7 @@ function FormFieldsStep({
   submitting,
   dynamicOptions,
   setDynamicOptions,
+  correctionRequests,
 }: {
   template: any;
   formData: Record<string, any>;
@@ -313,6 +314,7 @@ function FormFieldsStep({
   submitting?: boolean;
   dynamicOptions: Record<string, { label: string; value: string }[]>;
   setDynamicOptions: React.Dispatch<React.SetStateAction<Record<string, { label: string; value: string }[]>>>;
+  correctionRequests?: Record<string, string>;
 }) {
   const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
   const fields: any[] = typeof template.fields === "string" 
@@ -737,6 +739,9 @@ function FormFieldsStep({
             }
 
             questionNum++;
+            const correctionMsg = correctionRequests?.[field.id] || correctionRequests?.[field.label];
+            const hasCorrectionRequest = correctionRequests && (correctionRequests[field.id] !== undefined || correctionRequests[field.label] !== undefined);
+
             return (
               <div key={field.id} className="space-y-2">
                 <div>
@@ -755,11 +760,17 @@ function FormFieldsStep({
                   {field.description && (
                     <p className="text-xs text-gray-400 mt-0.5">{field.description}</p>
                   )}
+                  {correctionMsg && (
+                    <div className="mt-1 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-600 flex items-start gap-2">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{correctionMsg}</span>
+                    </div>
+                  )}
                 </div>
 
                 {(() => {
                   const isLockedPrereq = !!((field as any).isPrerequisite && (field as any).defaultPrereqRole && ((field as any).defaultPrereqBranch || (field as any).defaultPrereqRole === "ME") && formData[field.id]);
-                  const isReadOnly = hasReferenceValue || isLockedPrereq;
+                  const isReadOnly = hasReferenceValue || isLockedPrereq || (correctionRequests && !hasCorrectionRequest);
                   
                   if (field.type === "signable_document") {
                     return (
@@ -1650,7 +1661,9 @@ export default function FormFillerClient({
   initialFormData, 
   prerequisiteInfo,
   prefilledData,
-  requestToken
+  requestToken,
+  correctionId,
+  correctionRequests
 }: { 
   template: any, 
   currentUser: { userName: string; email: string; token?: string }, 
@@ -1658,7 +1671,9 @@ export default function FormFillerClient({
   initialFormData?: Record<string, any>,
   prerequisiteInfo?: any,
   prefilledData?: Record<string, any>,
-  requestToken?: string | null
+  requestToken?: string | null,
+  correctionId?: string,
+  correctionRequests?: Record<string, string>
 }) {
   const router = useRouter();
 
@@ -1680,18 +1695,28 @@ export default function FormFillerClient({
   const savedState = useRef(loadSavedState());
 
   const [step, setStep] = useState(() => savedState.current?.step || 1);
+  const formFields: any[] = typeof template.fields === "string" 
+    ? JSON.parse(template.fields) 
+    : template.fields ?? [];
+
   const [formData, setFormData] = useState<Record<string, any>>(() => {
+    const normalize = (data: Record<string, any>) => {
+      const result = { ...data };
+      formFields.forEach(f => {
+        if (result[f.label] !== undefined && result[f.id] === undefined) {
+          result[f.id] = result[f.label];
+        }
+      });
+      return result;
+    };
+    
     // initialFormData (from drafts) takes priority, then prefilledData (from request token), then saved state, then empty
-    if (initialFormData && Object.keys(initialFormData).length > 0) return initialFormData;
-    if (prefilledData && Object.keys(prefilledData).length > 0) return prefilledData;
+    if (initialFormData && Object.keys(initialFormData).length > 0) return normalize(initialFormData);
+    if (prefilledData && Object.keys(prefilledData).length > 0) return normalize(prefilledData);
     return savedState.current?.formData || {};
   });
   const [internalFormsData, setInternalFormsData] = useState<Record<string, any[]>>(() => savedState.current?.internalFormsData || {});
   const [activeInternalFormTarget, setActiveInternalFormTarget] = useState<{ fieldId: string, templateId: string, index?: number } | null>(null);
-
-  const formFields: any[] = typeof template.fields === "string" 
-    ? JSON.parse(template.fields) 
-    : template.fields ?? [];
   const hasSignableDocument = formFields.some(f => f.type === "signable_document" || (f as any).type === "signable_document" || f.type === "generated_contract" || (f as any).type === "generated_contract");
   const initiatorNeedsToSign = formFields.some(f => 
     (f.type === "signable_document" || (f as any).type === "signable_document" || f.type === "generated_contract" || (f as any).type === "generated_contract") 
@@ -1936,6 +1961,7 @@ export default function FormFillerClient({
       initiatorToken: signatureToken || undefined,
       draftId,
       requestToken: requestToken || undefined,
+      correctionId: correctionId || undefined,
       tempPdfId: tempPdfId || undefined,
       initiatorAnnotations: initiatorAnnotations.length > 0 ? initiatorAnnotations : undefined,
     }));
@@ -1947,7 +1973,11 @@ export default function FormFillerClient({
     }
 
     try {
-      const response = await fetch("/api/v1/submissions", {
+      const endpointUrl = correctionId 
+        ? `/api/v1/submissions/${correctionId}/submit-correction`
+        : "/api/v1/submissions";
+
+      const response = await fetch(endpointUrl, {
         method: "POST",
         body: formDataPayload,
       });
@@ -2032,6 +2062,7 @@ export default function FormFillerClient({
             submitting={submitting}
             dynamicOptions={dynamicOptions}
             setDynamicOptions={setDynamicOptions}
+            correctionRequests={correctionRequests}
           />
         )}
 

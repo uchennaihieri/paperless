@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileDown, ChevronRight, CheckSquare, X, User, RefreshCw, AlertTriangle, Loader2, Eye, EyeOff, BookOpen } from "lucide-react";
-import { assignToSelf, revertAssignment, completeProcessWithApprover, delegateProcess, searchActiveWorkflowUsers, regeneratePdf, getSubmissionDetail } from "@/app/actions/workflow";
+import { assignToSelf, revertAssignment, completeProcessWithApprover, delegateProcess, searchActiveWorkflowUsers, regeneratePdf, getSubmissionDetail, requestCorrection } from "@/app/actions/workflow";
 import { getActionItems } from "@/app/actions/form";
 import { useSmartFetch } from "@/hooks/useSmartFetch";
 import { FormReferenceLink, isFormReferenceField } from "@/components/FormReferenceLink";
@@ -82,8 +82,9 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
   }, [localItems, hasAutoSelected]);
 
   const [showStatusModal, setShowStatusModal] = useState(false);
-  const [statusMode, setStatusMode] = useState<"assign" | "complete" | "revert" | "delegate" | "">("");
+  const [statusMode, setStatusMode] = useState<"assign" | "complete" | "revert" | "delegate" | "correct" | "">("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [correctionRequests, setCorrectionRequests] = useState<Record<string, string>>({});
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [selectedApprover, setSelectedApprover] = useState<any>(null);
   const [isChanging, setIsChanging] = useState(false);
@@ -170,6 +171,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
     setSearchQuery("");
     setSearchResults([]);
     setSelectedApprover(null);
+    setCorrectionRequests({});
     setShowStatusModal(true);
   };
 
@@ -254,6 +256,30 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
         setSearchQuery("");
       } else {
         setAssignError(res.error || "Failed to delegate.");
+      }
+    } catch {
+      setAssignError("Unexpected error. Please try again.");
+    } finally {
+      setIsChanging(false);
+    }
+  };
+
+  const handleRequestCorrection = async () => {
+    if (Object.keys(correctionRequests).length === 0) {
+      setAssignError("Please select at least one field for correction.");
+      return;
+    }
+    setIsChanging(true);
+    try {
+      const res = await requestCorrection(selected!.id, correctionRequests);
+      if (res.success) {
+        updateItemStatus(selected!.id, "Awaiting Correction");
+        setSelected(null);
+        setShowStatusModal(false);
+        setStatusMode("");
+        setCorrectionRequests({});
+      } else {
+        setAssignError(res.error || "Failed to request correction.");
       }
     } catch {
       setAssignError("Unexpected error. Please try again.");
@@ -687,6 +713,15 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                         <div className="text-left"><div className="font-semibold text-gray-900">Delegate Form</div><div className="text-xs text-gray-500 font-normal">Reassign this form to another user directly</div></div>
                       </Button>
                     )}
+
+                  {/* Request Correction */}
+                  {(!selected.status.startsWith("Assigned") ||
+                    (currentUserEmail && selected.treaterEmail?.toLowerCase() === currentUserEmail)) && (
+                      <Button variant="outline" className="h-14 justify-start px-6 cursor-pointer hover:bg-amber-50 hover:border-amber-300" onClick={() => setStatusMode("correct")}>
+                        <AlertTriangle className="w-5 h-5 mr-3 text-amber-600" />
+                        <div className="text-left"><div className="font-semibold text-gray-900">Request Correction</div><div className="text-xs text-gray-500 font-normal">Send back to submitter for corrections</div></div>
+                      </Button>
+                  )}
                 </div>
               )}
 
@@ -803,6 +838,90 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                   </div>
                 </div>
               )}
+
+              {statusMode === "correct" && (() => {
+                const templateFields = Array.isArray(selected.template.fields)
+                  ? selected.template.fields
+                  : typeof selected.template.fields === "string"
+                    ? JSON.parse(selected.template.fields)
+                    : [];
+
+                const processedKeys = new Set<string>();
+                const fieldsForCorrection: any[] = [];
+
+                templateFields.forEach((field: any) => {
+                  const valById = selected.formResponses[field.id];
+                  const valByLabel = selected.formResponses[field.label];
+                  if (valById !== undefined || valByLabel !== undefined) {
+                    const key = valById !== undefined ? field.id : field.label;
+                    fieldsForCorrection.push({ label: field.label || key, key });
+                    if (field.id) processedKeys.add(field.id);
+                    if (field.label) processedKeys.add(field.label);
+                  }
+                });
+                Object.entries(selected.formResponses).forEach(([q]) => {
+                  if (q !== "CompletedFormPDF" && !processedKeys.has(q)) {
+                    const fallbackLabel = q.charAt(0).toUpperCase() + q.slice(1).replace(/([A-Z])/g, " $1");
+                    fieldsForCorrection.push({ label: fallbackLabel, key: q });
+                  }
+                });
+
+                return (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                    <p className="text-sm text-gray-600">Select the fields that need correction and provide a reason.</p>
+
+                    <div className="border border-gray-200 rounded-lg max-h-64 overflow-y-auto bg-white divide-y divide-gray-100 shadow-sm p-2 space-y-2">
+                      {fieldsForCorrection.map((f, idx) => {
+                        const isChecked = correctionRequests[f.key] !== undefined;
+                        return (
+                          <div key={idx} className="p-2">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setCorrectionRequests(prev => ({ ...prev, [f.key]: "" }));
+                                  } else {
+                                    setCorrectionRequests(prev => {
+                                      const next = { ...prev };
+                                      delete next[f.key];
+                                      return next;
+                                    });
+                                  }
+                                }}
+                                className="w-4 h-4 text-primary focus:ring-primary border-gray-300 rounded"
+                              />
+                              <span className="text-sm font-semibold text-gray-800">{f.label}</span>
+                            </label>
+                            {isChecked && (
+                              <textarea
+                                autoFocus
+                                placeholder={`Reason for correcting ${f.label}...`}
+                                className="w-full mt-2 text-sm border rounded p-2 focus:ring-1 focus:ring-primary outline-none"
+                                rows={2}
+                                value={correctionRequests[f.key] || ""}
+                                onChange={(e) => setCorrectionRequests(prev => ({ ...prev, [f.key]: e.target.value }))}
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="pt-4 flex gap-3">
+                      <Button variant="outline" className="flex-1 cursor-pointer" onClick={() => { setStatusMode(""); setCorrectionRequests({}); }}>Cancel</Button>
+                      <Button
+                        className="flex-1 cursor-pointer bg-amber-600 hover:bg-amber-700 text-white"
+                        disabled={Object.keys(correctionRequests).length === 0 || isChanging}
+                        onClick={handleRequestCorrection}
+                      >
+                        {isChanging ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Request Correction"}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

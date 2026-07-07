@@ -169,3 +169,16 @@ export async function regeneratePdf(submissionId: string) {
     return { success: false, error: e.message };
   }
 }
+
+export async function requestCorrection(submissionId: string, correctionRequests: Record<string, string>) {
+  try {
+    const result = await apiClient(`/submissions/${submissionId}/request-correction`, {
+      method: "POST",
+      body: JSON.stringify({ correctionRequests })
+    });
+    revalidatePath("/dashboard/action");
+    return result;
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
