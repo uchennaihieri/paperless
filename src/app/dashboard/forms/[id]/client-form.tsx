@@ -290,6 +290,7 @@ function SearchableSelect({
 function FormFieldsStep({
   template,
   formData,
+  initialFormData = {},
   internalFormsData,
   onChange,
   onNext,
@@ -304,6 +305,7 @@ function FormFieldsStep({
 }: {
   template: any;
   formData: Record<string, any>;
+  initialFormData?: Record<string, any>;
   internalFormsData: Record<string, any[]>;
   onChange: (id: string, value: any) => void;
   onNext: () => void;
@@ -727,14 +729,25 @@ function FormFieldsStep({
             }
 
             let hasReferenceValue = false;
-            if (referenceData && field.description) {
-              const match = field.description.match(/Referenced\s+"([^"]+)"/i);
-              if (match && match[1]) {
-                const sourceLabel = match[1];
-                const sourceValue = referenceData[sourceLabel];
-                if (sourceValue !== undefined && sourceValue !== null && sourceValue !== "") {
-                  hasReferenceValue = true;
+            if (field.description && /View Referenced/i.test(field.description)) {
+              let val = initialFormData[field.id] !== undefined ? initialFormData[field.id] : initialFormData[field.label];
+              
+              if ((val === undefined || val === null || val === "") && referenceData) {
+                const match = field.description.match(/Referenced\s+"([^"]+)"/i);
+                if (match && match[1]) {
+                  val = referenceData[match[1]];
                 }
+              }
+
+              if ((val === undefined || val === null || val === "") && dataReferenceData) {
+                const match = field.description.match(/DataReferenced\s+"([^"]+)"/i);
+                if (match && match[1]) {
+                  val = dataReferenceData[match[1]];
+                }
+              }
+
+              if (val !== undefined && val !== null && val !== "") {
+                hasReferenceValue = true;
               }
             }
 
@@ -1371,11 +1384,18 @@ function SignDocumentStep({
     let active = true;
     const fetchPdf = async () => {
       try {
-        const payload = {
+        const formFields = typeof template.fields === "string" ? JSON.parse(template.fields) : template.fields || [];
+        const contractField = formFields.find((f: any) => f.type === "generated_contract");
+
+        const payload: any = {
           templateId: template.id,
           formName: template.name,
           formResponses: formData,
         };
+        
+        if (contractField) {
+          payload.contractFieldName = contractField.label;
+        }
         const res = await fetch("/api/v1/forms/draft-pdf", {
           method: "POST",
           headers: {
@@ -1445,7 +1465,11 @@ function SignDocumentStep({
                 alert("You must apply a signature before continuing.");
                 return;
               }
-              onNext(draftId, annotations);
+              const mappedAnns = annotations.map((a: any) => ({
+                ...a,
+                value: a.type === "signature" ? a.customSignatureData : a.text
+              }));
+              onNext(draftId, mappedAnns);
             }}
             onCancel={onBack}
           />
@@ -2048,6 +2072,7 @@ export default function FormFillerClient({
           <FormFieldsStep
             template={template}
             formData={formData}
+            initialFormData={initialFormData}
             internalFormsData={internalFormsData}
             onChange={handleFieldChange}
             onNext={handleStep1Next}
