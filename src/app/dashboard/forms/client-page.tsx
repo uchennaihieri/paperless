@@ -9,10 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Search, FilePlus, ChevronRight, ListCollapse, PlusCircle,
-  Edit2, Trash2, AlertTriangle, Pencil, MessageCircle, ChevronDown, ChevronUp, Send, X, MoreVertical, Copy
+  Edit2, Trash2, AlertTriangle, Pencil, MessageCircle, ChevronDown, ChevronUp, Send, X, MoreVertical, Copy, Eye, EyeOff, Power, PowerOff
 } from "lucide-react";
 import Link from "next/link";
-import { deleteFormTemplate, deleteSubmission, deleteFormRequestBatch, copyFormTemplate } from "@/app/actions/form";
+import { deleteFormTemplate, deleteSubmission, deleteFormRequestBatch, copyFormTemplate, toggleFormVisibility } from "@/app/actions/form";
 import { getMySignature } from "@/app/actions/security";
 import EditSubmissionModal from "./edit-submission-modal";
 
@@ -64,6 +64,9 @@ export default function FormsClientPage({
   // ── Template copy state ──
   const [isCopyingTemplate, setIsCopyingTemplate] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  // ── Template toggle visibility state ──
+  const [isTogglingVisibility, setIsTogglingVisibility] = useState(false);
 
   // ── Submission delete modal ──
   const [submissionToDelete, setSubmissionToDelete] = useState<any>(null);
@@ -154,6 +157,18 @@ export default function FormsClientPage({
       router.refresh();
     } else {
       alert(res.error || "Failed to copy form.");
+    }
+  };
+
+  const handleToggleVisibility = async (formId: string, isHidden?: boolean, isActive?: boolean) => {
+    setIsTogglingVisibility(true);
+    setOpenMenuId(null);
+    const res = await toggleFormVisibility(formId, isHidden, isActive);
+    setIsTogglingVisibility(false);
+    if (res.success) {
+      router.refresh();
+    } else {
+      alert(res.error || "Failed to update form.");
     }
   };
 
@@ -328,6 +343,20 @@ export default function FormsClientPage({
                                           >
                                             <Copy className="w-3.5 h-3.5" /> {isCopyingTemplate && openMenuId === form.id ? "..." : "Copy"}
                                           </button>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleToggleVisibility(form.id, !form.isHidden, undefined); }}
+                                            disabled={isTogglingVisibility}
+                                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary flex items-center gap-2 cursor-pointer relative z-30"
+                                          >
+                                            {form.isHidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />} {form.isHidden ? "Unhide" : "Hide"}
+                                          </button>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleToggleVisibility(form.id, undefined, !form.isActive); }}
+                                            disabled={isTogglingVisibility}
+                                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary flex items-center gap-2 cursor-pointer relative z-30"
+                                          >
+                                            {form.isActive ? <PowerOff className="w-3.5 h-3.5 text-red-500" /> : <Power className="w-3.5 h-3.5 text-green-500" />} {form.isActive ? "Deactivate" : "Activate"}
+                                          </button>
                                           <div className="h-px bg-gray-100 my-1 relative z-30" />
                                           <button
                                             onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setTemplateToDelete(form); }}
@@ -340,8 +369,12 @@ export default function FormsClientPage({
                                     )}
                                   </div>
                                 )}
-                                <div className={`${activeTab === 'account_services' ? 'bg-indigo-100 text-indigo-600' : 'bg-primary/10 text-primary'} w-9 h-9 rounded-lg flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
-                                  <FilePlus className="w-5 h-5" />
+                                <div className="flex gap-2">
+                                  <div className={`${activeTab === 'account_services' ? 'bg-indigo-100 text-indigo-600' : 'bg-primary/10 text-primary'} w-9 h-9 rounded-lg flex items-center justify-center mb-3 group-hover:scale-110 transition-transform`}>
+                                    <FilePlus className="w-5 h-5" />
+                                  </div>
+                                  {isAdmin && form.isHidden && <Badge variant="secondary" className="mb-3 h-6">Hidden</Badge>}
+                                  {isAdmin && !form.isActive && <Badge variant="destructive" className="mb-3 h-6 bg-red-100 text-red-700 hover:bg-red-200 border-red-200">Deactivated</Badge>}
                                 </div>
                                 <h3 className="font-semibold text-gray-900 line-clamp-2 mb-1 leading-tight">{form.name}</h3>
                                 <p className="text-xs text-gray-400 line-clamp-2">{form.description}</p>

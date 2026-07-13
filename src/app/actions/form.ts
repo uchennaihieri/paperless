@@ -63,6 +63,19 @@ export async function deleteFormTemplate(id: string) {
   return result;
 }
 
+export async function toggleFormVisibility(id: string, isHidden?: boolean, isActive?: boolean) {
+  const body: any = {};
+  if (isHidden !== undefined) body.isHidden = isHidden;
+  if (isActive !== undefined) body.isActive = isActive;
+  
+  const result = await apiClient(`/forms/${id}/visibility`, { 
+    method: "PATCH",
+    body: JSON.stringify(body)
+  });
+  revalidatePath("/dashboard/forms");
+  return result;
+}
+
 export async function copyFormTemplate(id: string) {
   const result = await apiClient(`/forms/${id}/copy`, { method: "POST" });
   revalidatePath("/dashboard/forms");
