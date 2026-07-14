@@ -783,7 +783,7 @@ function FormFieldsStep({
 
                 {(() => {
                   const isLockedPrereq = !!((field as any).isPrerequisite && (field as any).defaultPrereqRole && ((field as any).defaultPrereqBranch || (field as any).defaultPrereqRole === "ME") && formData[field.id]);
-                  const isReadOnly = isLockedPrereq || (correctionRequests && !hasCorrectionRequest);
+                  const isReadOnly = isLockedPrereq;
                   
                   if (field.type === "signable_document") {
                     return (
@@ -1922,6 +1922,12 @@ export default function FormFillerClient({
   };
 
   const handleStep1Next = async () => {
+    // ── Check if this is a correction ──────────────────────────────────────────
+    const isCorrection = !!correctionRequests && Object.keys(correctionRequests).length > 0;
+    if (isCorrection) {
+      setStep(hasSignableDocument ? 3 : 4);
+      return;
+    }
     // ── Check for automated signatories from template config ──────────────────
     const autoSigs = typeof template.automatedSignatories === "string" ? JSON.parse(template.automatedSignatories) : template.automatedSignatories;
     if (!autoSigs || !Array.isArray(autoSigs) || autoSigs.length === 0) {
@@ -2126,7 +2132,7 @@ export default function FormFillerClient({
           <SignDocumentStep
             template={template}
             formData={formData}
-            onBack={() => setStep(2)}
+            onBack={() => setStep(correctionRequests && Object.keys(correctionRequests).length > 0 ? 1 : 2)}
             onNext={(pdfId: string, annotations: any[]) => {
               setTempPdfId(pdfId);
               setInitiatorAnnotations(annotations);
@@ -2144,7 +2150,7 @@ export default function FormFillerClient({
             formData={formData}
             signatories={signatories}
             signingType={signingType}
-            onBack={() => setStep(hasSignableDocument ? 3 : 2)}
+            onBack={() => setStep(hasSignableDocument ? 3 : (correctionRequests && Object.keys(correctionRequests).length > 0 ? 1 : 2))}
             onSubmit={handleReviewSubmit}
             submitting={submitting}
             prerequisiteInfo={prerequisiteInfo}
