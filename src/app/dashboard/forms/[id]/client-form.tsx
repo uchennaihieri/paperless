@@ -783,7 +783,7 @@ function FormFieldsStep({
 
                 {(() => {
                   const isLockedPrereq = !!((field as any).isPrerequisite && (field as any).defaultPrereqRole && ((field as any).defaultPrereqBranch || (field as any).defaultPrereqRole === "ME") && formData[field.id]);
-                  const isReadOnly = hasReferenceValue || isLockedPrereq || (correctionRequests && !hasCorrectionRequest);
+                  const isReadOnly = isLockedPrereq || (correctionRequests && !hasCorrectionRequest);
                   
                   if (field.type === "signable_document") {
                     return (
