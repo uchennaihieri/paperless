@@ -1385,26 +1385,45 @@ function SignDocumentStep({
     const fetchPdf = async () => {
       try {
         const formFields = typeof template.fields === "string" ? JSON.parse(template.fields) : template.fields || [];
+        const signableField = formFields.find((f: any) => f.type === "signable_document");
         const contractField = formFields.find((f: any) => f.type === "generated_contract");
 
-        const payload: any = {
-          templateId: template.id,
-          formName: template.name,
-          formResponses: formData,
-        };
-        
-        if (contractField) {
-          payload.contractFieldName = contractField.label;
+        let data: any;
+
+        if (signableField && formData[signableField.id] && formData[signableField.id].length > 0) {
+          // Signable Document: upload the user's PDF file directly
+          const file = formData[signableField.id][0] as File;
+          const fd = new FormData();
+          fd.append("file", file);
+          const res = await fetch("/api/v1/forms/draft-pdf/upload", {
+            method: "POST",
+            headers: {
+              ...(token ? { Authorization: `Bearer ${token}` } : {})
+            },
+            body: fd
+          });
+          data = await res.json();
+        } else {
+          // Generated Contract (or fallback): use existing PDF generation
+          const payload: any = {
+            templateId: template.id,
+            formName: template.name,
+            formResponses: formData,
+          };
+          if (contractField) {
+            payload.contractFieldName = contractField.label;
+          }
+          const res = await fetch("/api/v1/forms/draft-pdf", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify(payload)
+          });
+          data = await res.json();
         }
-        const res = await fetch("/api/v1/forms/draft-pdf", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
+
         if (active) {
           if (data.success) {
             setDraftId(data.data.id);
@@ -1455,7 +1474,7 @@ function SignDocumentStep({
           <p className="text-sm text-gray-500">Please review and apply your signature to the final document.</p>
         </div>
       </div>
-      <div className="relative border border-gray-200 overflow-hidden m-6 bg-gray-100 rounded-md">
+      <div className="relative border border-gray-200 overflow-auto m-6 bg-gray-100 rounded-md">
         <div className="h-[650px] overflow-auto">
           <PdfSigningCanvas
             pdfUrl={pdfUrl}

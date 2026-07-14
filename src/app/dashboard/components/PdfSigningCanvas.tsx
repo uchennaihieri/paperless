@@ -255,8 +255,8 @@ export function PdfSigningCanvas({
       </div>
 
       {/* Canvas Area */}
-      <div className="flex-1 overflow-auto bg-gray-100 flex justify-center p-8">
-        <div className="relative shadow-xl bg-white transition-all" style={{ width: pageDimensions ? pageDimensions.width * scale : 'auto' }}>
+      <div className="flex-1 overflow-auto bg-gray-100 p-8">
+        <div className="relative shadow-xl bg-white transition-all mx-auto" style={{ width: pageDimensions ? pageDimensions.width * scale : 'auto' }}>
           <Document
             file={pdfFileOptions as any}
             onLoadSuccess={onDocumentLoadSuccess}
