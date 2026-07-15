@@ -1925,7 +1925,7 @@ export default function FormFillerClient({
     // ── Check if this is a correction ──────────────────────────────────────────
     const isCorrection = !!correctionRequests && Object.keys(correctionRequests).length > 0;
     if (isCorrection) {
-      setStep(hasSignableDocument ? 3 : 4);
+      setStep(3);
       return;
     }
     // ── Check for automated signatories from template config ──────────────────
@@ -2044,6 +2044,17 @@ export default function FormFillerClient({
       setShowTokenModal(false);
 
       if (res?.success) {
+        // Automatically regenerate PDF for corrections so the new signatures are applied
+        if (correctionId) {
+          try {
+            await fetch(`/api/v1/workflow/${correctionId}/generate-pdf`, {
+              method: "POST",
+              headers: currentUser.token ? { Authorization: `Bearer ${currentUser.token}` } : undefined
+            });
+          } catch (e) {
+            console.error("Failed to auto-regenerate PDF after correction", e);
+          }
+        }
         clearSavedState();
         router.refresh();
         router.push("/dashboard/forms");
