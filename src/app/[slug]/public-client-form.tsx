@@ -584,7 +584,7 @@ export default function PublicClientForm({
           }
 
           const isRequested = correctionRequests[field.id] || correctionRequests[field.label];
-          const isLocked = isCorrectionMode && !isRequested;
+          const isLocked = false;
 
           return (
             <div key={field.id} className={`space-y-1.5 ${isLocked ? "opacity-60 pointer-events-none bg-gray-50 p-3 rounded-lg border border-gray-100" : ""}`}>
