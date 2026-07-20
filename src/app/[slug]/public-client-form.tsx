@@ -393,10 +393,21 @@ export default function PublicClientForm({
 
       // Loop mappedResponses to separate files from simple values
       Object.entries(mappedResponses).forEach(([key, val]) => {
-         if (Array.isArray(val) && val.length > 0 && val[0] instanceof File) {
-             val.forEach((file: File) => formPayload.append(key, file));
-             delete jsonData.formResponses[key]; // Do not send files in JSON
-             if (isCorrectionMode) delete jsonData.updatedResponses[key];
+         if (Array.isArray(val) && val.length > 0) {
+             const newFiles = val.filter((item: any) => item instanceof File);
+             const existingMeta = val.filter((item: any) => !(item instanceof File) && typeof item === "object" && item !== null);
+
+             if (newFiles.length > 0) {
+                 newFiles.forEach((file: File) => formPayload.append(key, file));
+             }
+             // Keep only existing metadata in JSON; remove if all were new files
+             if (existingMeta.length > 0) {
+                 jsonData.formResponses[key] = existingMeta;
+                 if (isCorrectionMode && jsonData.updatedResponses) jsonData.updatedResponses[key] = existingMeta;
+             } else {
+                 delete jsonData.formResponses[key];
+                 if (isCorrectionMode) delete jsonData.updatedResponses[key];
+             }
          }
       });
 

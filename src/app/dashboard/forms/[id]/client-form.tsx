@@ -1989,10 +1989,22 @@ export default function FormFillerClient({
       if ((f as any).type === 'section_header' || (f as any).type === 'instructions' || (f as any).type === 'generated_contract') return;
       if (f.type === "file" || (f as any).type === "signable_document") {
         if (formData[f.id]) {
-          fileFields[f.label] = formData[f.id] as File[];
+          const items = Array.isArray(formData[f.id]) ? formData[f.id] : [formData[f.id]];
+          const newFiles = items.filter((item: any) => item instanceof File);
+          const existingMeta = items.filter((item: any) => !(item instanceof File) && typeof item === "object" && item !== null);
+
+          if (newFiles.length > 0) {
+            fileFields[f.label] = newFiles;
+          }
+          // Preserve existing attachment/internal form metadata as JSON
+          if (existingMeta.length > 0) {
+            textOnlyResponses[f.label] = existingMeta;
+          }
         }
         if (internalFormsData[f.id]) {
-          textOnlyResponses[f.label] = internalFormsData[f.id];
+          // Merge internal forms with any existing metadata
+          const existing = Array.isArray(textOnlyResponses[f.label]) ? textOnlyResponses[f.label] : [];
+          textOnlyResponses[f.label] = [...existing, ...internalFormsData[f.id]];
         }
       } else {
         textOnlyResponses[f.label] = formData[f.id] ?? "";
