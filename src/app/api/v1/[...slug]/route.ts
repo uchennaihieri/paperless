@@ -46,6 +46,13 @@ async function proxyRequest(req: NextRequest, { params }: { params: Promise<{ sl
 
     const isJson = response.headers.get("Content-Type")?.includes("application/json");
 
+    if (req.method === 'HEAD') {
+      return new NextResponse(null, {
+         status: response.status,
+         headers: response.headers
+      });
+    }
+
     if (isJson) {
        const data = await response.json();
        return NextResponse.json(data, { status: response.status });

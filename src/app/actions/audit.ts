@@ -47,8 +47,8 @@ export async function getAuditTrail(params: {
   };
 }
 
-export async function getAuditTrailDetails(submissionId: string): Promise<AuditRecord[]> {
-  const result = await apiClient(`/audit/${submissionId}`, { method: "GET" }).catch(() => ({
+export async function getAuditTrailDetails(formReference: string): Promise<AuditRecord[]> {
+  const result = await apiClient(`/audit/${formReference}`, { method: "GET" }).catch(() => ({
     data: [],
   }));
   return result.data || [];

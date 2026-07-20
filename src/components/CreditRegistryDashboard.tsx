@@ -7,7 +7,7 @@ import {
   Search, X, Plus, Loader2, CheckCircle, XCircle, AlertCircle,
   RefreshCw, ArrowLeft, FileText, Download, Copy, Check, History
 } from "lucide-react";
-import { getCreditBureauLogs, runFirstCentralCheck, runCreditRegistryCheck, runFirstCentralReport, checkCrbHistory, type CreditBureauLog } from "@/app/actions/creditbureau";
+import { getCreditBureauLogs, runCreditRegistryCheck, runFirstCentralCheck, checkCrbHistory, type CreditBureauLog } from "@/app/actions/creditbureau";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -34,6 +34,10 @@ function fmtDate(d: string) {
   });
 }
 
+function fmtNaira(n: number) {
+  return "₦" + Number(n || 0).toLocaleString("en-NG", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
 function StatusBadge({ status }: { status: string }) {
   const cfg = {
     "Match Found": { color: "text-emerald-600", bg: "bg-emerald-50 border-emerald-200", icon: CheckCircle },
@@ -48,154 +52,96 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-// ── Report Section ─────────────────────────────────────────────────────────────
+// ── Account Summary Table ──────────────────────────────────────────────────────
 
-function KVTable({ data }: { data: Record<string, any> }) {
-  const entries = Object.entries(data).filter(([, v]) => v !== null && v !== "" && v !== undefined);
-  if (!entries.length) return null;
-  return (
-    <div className="bg-gray-50 rounded-xl border border-gray-100 divide-y divide-gray-100 overflow-hidden">
-      {entries.map(([k, v]) => (
-        <div key={k} className="flex px-3 py-2 text-xs gap-4">
-          <span className="w-2/5 font-medium text-gray-500 capitalize shrink-0">
-            {k.replace(/([A-Z])/g, " $1").trim()}
-          </span>
-          <span className="flex-1 text-gray-800 break-words">
-            {typeof v === "object" ? JSON.stringify(v) : String(v)}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function formatKey(k: string) {
-  return k.replace(/([A-Z])/g, " $1").trim();
-}
-
-function FCPerformanceGrid({ data }: { data: Record<string, any> }) {
-  if (!data) return null;
-
-  // Extract key metrics from the summary object
-  // It handles typical FC keys like "TotalOutstandingdebt", "Amountarrear", etc.
-  const metrics = [
-    { label: "Rating", value: data.Rating ?? data.rating, color: "text-primary", bg: "bg-primary/5", border: "border-purple-100" },
-    { label: "Total Accounts", value: data.TotalAccounts ?? data.totalAccounts, color: "text-blue-700", bg: "bg-blue-50", border: "border-blue-100" },
-    { label: "Good Condition", value: data.TotalaccountinGodcondition ?? data.TotalaccountinGoodcondition, color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-100" },
-    { label: "Bad Condition", value: data.TotalaccountinBadcondition, color: "text-red-600", bg: "bg-red-50", border: "border-red-100" },
-    { label: "Outstanding Debt", value: data.TotalOutstandingdebt, isCurrency: true, color: "text-amber-700", bg: "bg-amber-50", border: "border-amber-100" },
-    { label: "Monthly Instalment", value: data.TotalMonthlyInstalment, isCurrency: true, color: "text-gray-700", bg: "bg-gray-50", border: "border-gray-100" },
-    { label: "Amount in Arrears", value: data.Amountarrear, isCurrency: true, color: "text-rose-700", bg: "bg-rose-50", border: "border-rose-100" },
-    { label: "Judgement Amount", value: data.TotalJudgementAmount, isCurrency: true, color: "text-red-800", bg: "bg-red-50", border: "border-red-100" },
-  ].filter(m => m.value !== undefined && m.value !== null);
+function AccountSummaryTable({ summaries }: { summaries: any[] }) {
+  if (!summaries || summaries.length === 0) return null;
+  const s = summaries[0];
+  const types = [
+    { name: "Revolving",   count: s.Count_Revolving,   balance: s.Balance_Revolving,   limit: s.CreditLimit_Revolving,   payment: s.Payment_Revolving },
+    { name: "Installment", count: s.Count_Installment, balance: s.Balance_Installment, limit: s.CreditLimit_Installment, payment: s.Payment_Installment },
+    { name: "Auto",        count: s.Count_Auto,        balance: s.Balance_Auto,        limit: s.CreditLimit_Auto,        payment: s.Payment_Auto },
+    { name: "Mortgage",    count: s.Count_Mortgage,    balance: s.Balance_Mortgage,    limit: s.CreditLimit_Mortgage,    payment: s.Payment_Mortgage },
+    { name: "Overdraft",   count: s.Count_Overdraft,   balance: s.Balance_Overdraft,   limit: s.CreditLimit_Overdraft,   payment: s.Minimum_Payment ?? 0 },
+    { name: "Other",       count: s.Count_Other,       balance: s.Balance_Other,       limit: s.CreditLimit_Other,       payment: s.Payment_Other },
+  ].filter(t => t.count > 0);
+  const total = { count: s.Count_Total, balance: s.Balance_Total, limit: s.CreditLimit_Total, payment: s.Payment_Total };
 
   return (
     <div>
       <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-2">
-        Credit Account Summary
+        Account Summary ({s.Currency ?? "NGN"})
       </p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-        {metrics.map(item => {
-          let val = String(item.value).replace(/,/g, "");
-          const isNum = !isNaN(Number(val)) && val.trim() !== "";
-          const displayVal = item.isCurrency && isNum 
-            ? "₦" + Number(val).toLocaleString("en-NG", { maximumFractionDigits: 0 }) 
-            : String(item.value);
-
-          return (
-            <div key={item.label} className={`${item.bg} border ${item.border} rounded-lg px-3 py-2.5`}>
-              <p className={`text-lg font-bold ${item.color} truncate`} title={displayVal}>{displayVal || "0"}</p>
-              <p className="text-[10px] font-medium text-gray-500 mt-0.5">{item.label}</p>
-            </div>
-          );
-        })}
+      <div className="overflow-x-auto rounded-xl border border-gray-100">
+        <table className="w-full text-xs">
+          <thead className="bg-gray-50 text-[10px] uppercase tracking-wider text-gray-500">
+            <tr>
+              <th className="px-3 py-2.5 text-left font-semibold">Type</th>
+              <th className="px-3 py-2.5 text-center font-semibold">Count</th>
+              <th className="px-3 py-2.5 text-right font-semibold">Balance</th>
+              <th className="px-3 py-2.5 text-right font-semibold">Credit Limit</th>
+              <th className="px-3 py-2.5 text-right font-semibold">Payment</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {types.map(t => (
+              <tr key={t.name} className="hover:bg-gray-50/50">
+                <td className="px-3 py-2 font-medium text-gray-700">{t.name}</td>
+                <td className="px-3 py-2 text-center text-gray-600">{t.count}</td>
+                <td className="px-3 py-2 text-right font-mono text-gray-800">{fmtNaira(t.balance)}</td>
+                <td className="px-3 py-2 text-right font-mono text-gray-600">{fmtNaira(t.limit)}</td>
+                <td className="px-3 py-2 text-right font-mono text-gray-600">{fmtNaira(t.payment)}</td>
+              </tr>
+            ))}
+            <tr className="bg-gray-50 font-bold">
+              <td className="px-3 py-2 text-gray-900">Total</td>
+              <td className="px-3 py-2 text-center text-gray-900">{total.count}</td>
+              <td className="px-3 py-2 text-right font-mono text-gray-900">{fmtNaira(total.balance)}</td>
+              <td className="px-3 py-2 text-right font-mono text-gray-900">{fmtNaira(total.limit)}</td>
+              <td className="px-3 py-2 text-right font-mono text-gray-900">{fmtNaira(total.payment)}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   );
 }
 
-function FCRatingGrid({ data }: { data: Record<string, any> }) {
-  if (!data) return null;
+// ── Performance Summary Grid ───────────────────────────────────────────────────
 
-  // Group into Good/Bad pairs
-  // e.g. "NoOfRetailAccountsBad", "NoOfRetailAccountsGood" -> Retail Accounts
-  const groups: Record<string, { good: number, bad: number }> = {};
-
-  Object.entries(data).forEach(([k, v]) => {
-    const val = Number(v) || 0;
-    const str = String(k).toLowerCase();
-    
-    // Skip if it doesn't mention good or bad
-    if (!str.includes("good") && !str.includes("bad")) return;
-
-    // Extract the base name (e.g., "RetailAccounts")
-    let base = formatKey(k).replace(/No Of /i, "").replace(/ Good/i, "").replace(/ Bad/i, "").trim();
-    // Fix typos from FC
-    if (base.toLowerCase().includes("auto loanccounts")) base = "Auto Loan Accounts";
-
-    if (!groups[base]) groups[base] = { good: 0, bad: 0 };
-    if (str.includes("good") || str.includes("god")) groups[base].good += val;
-    if (str.includes("bad")) groups[base].bad += val;
-  });
-
-  const validGroups = Object.entries(groups).filter(([, counts]) => counts.good > 0 || counts.bad > 0);
-  if (validGroups.length === 0) return null;
+function PerformanceSummaryGrid({ perf }: { perf: any }) {
+  if (!perf) return null;
+  const items = [
+    { label: "Open Accounts",      value: perf.Count_AccountStatus_Open,                             color: "text-blue-700",    bg: "bg-blue-50",    border: "border-blue-100" },
+    { label: "Performing",         value: perf.Count_AccountStatus_Performing,                        color: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-100" },
+    { label: "Closed",             value: perf.Count_AccountStatus_Closed,                            color: "text-gray-700",    bg: "bg-gray-50",    border: "border-gray-100" },
+    { label: "Late (<30d)",        value: perf.Count_AccountStatus_Late_less_than_30_days,            color: "text-amber-700",   bg: "bg-amber-50",   border: "border-amber-100" },
+    { label: "Delinquent (30-60d)",value: perf.Count_AccountStatus_Delinquent_30_over_60_days,        color: "text-orange-700",  bg: "bg-orange-50",  border: "border-orange-100" },
+    { label: "Substandard (90d)",  value: perf.Count_AccountStatus_Derogatory_Substandard_90,         color: "text-red-600",     bg: "bg-red-50",     border: "border-red-100" },
+    { label: "Doubtful (180d)",    value: perf.Count_AccountStatus_Derogatory_Doubtful_180,           color: "text-red-700",     bg: "bg-red-50",     border: "border-red-100" },
+    { label: "Lost (360d)",        value: perf.Count_AccountStatus_Derogatory_Lost_360,               color: "text-red-800",     bg: "bg-red-50",     border: "border-red-100" },
+    { label: "Written Off",        value: perf.Count_AccountStatus_Written_off,                       color: "text-red-900",     bg: "bg-red-50",     border: "border-red-100" },
+    { label: "Judgments",          value: perf.Count_LegalStatus_Judgment,                            color: "text-rose-700",    bg: "bg-rose-50",    border: "border-rose-100" },
+    { label: "Litigations",        value: perf.Count_LegalStatus_Litigation,                          color: "text-rose-700",    bg: "bg-rose-50",    border: "border-rose-100" },
+    { label: "Inquiries (12mo)",   value: perf.Inquiry_Count_12_Months,                              color: "text-primary",  bg: "bg-primary/5",  border: "border-purple-100" },
+  ];
 
   return (
-    <div className="mt-5">
+    <div>
       <p className="text-[10px] font-bold uppercase tracking-widest text-primary mb-2">
-        Credit Account Rating
+        Performance Summary
       </p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-        {validGroups.map(([name, counts]) => (
-          <div key={name} className="border border-gray-100 bg-white shadow-sm rounded-lg p-3">
-            <p className="text-xs font-bold text-gray-700 mb-2 truncate">{name}</p>
-            <div className="flex items-center gap-4">
-              <div>
-                <span className="text-[10px] font-semibold text-gray-400 uppercase">Good</span>
-                <p className="text-sm font-bold text-emerald-600">{counts.good}</p>
-              </div>
-              <div>
-                <span className="text-[10px] font-semibold text-gray-400 uppercase">Bad</span>
-                <p className="text-sm font-bold text-red-600">{counts.bad}</p>
-              </div>
-            </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+        {items.map(item => (
+          <div key={item.label} className={`${item.bg} border ${item.border} rounded-lg px-3 py-2.5`}>
+            <p className={`text-xl font-bold ${item.color}`}>{item.value ?? "0"}</p>
+            <p className="text-[10px] font-medium text-gray-500 mt-0.5">{item.label}</p>
           </div>
         ))}
       </div>
     </div>
   );
 }
-
-function ReportSection({ report }: { report: any }) {
-  if (!report || typeof report !== "object") {
-    return <p className="text-xs text-gray-400 italic">No report data available.</p>;
-  }
-
-  // Find the exact keys regardless of casing
-  const keys = Object.keys(report);
-  const summaryKey = keys.find(k => k.toLowerCase().replace(/[^a-z]/g, "") === "creditaccountsummary");
-  const ratingKey = keys.find(k => k.toLowerCase().replace(/[^a-z]/g, "") === "creditaccountrating");
-
-  const summaryData = summaryKey ? (Array.isArray(report[summaryKey]) ? report[summaryKey][0] : report[summaryKey]) : null;
-  const ratingData = ratingKey ? (Array.isArray(report[ratingKey]) ? report[ratingKey][0] : report[ratingKey]) : null;
-
-  if (!summaryData && !ratingData) {
-    return (
-      <div className="p-4 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-xs text-gray-500 italic">
-        No account summary or rating data available in this report.
-      </div>
-    );
-  }
-
-  return (
-    <div className="mt-2 border-t border-gray-100 pt-3">
-      {summaryData && <FCPerformanceGrid data={summaryData} />}
-      {ratingData && <FCRatingGrid data={ratingData} />}
-    </div>
-  );
-}
-
 
 // ── Viewer Modal ───────────────────────────────────────────────────────────────
 
@@ -220,7 +166,8 @@ function ViewerModal({ log, onClose, apiBase, token }: {
     return () => clearInterval(int);
   }, [isPdfReady, apiBase, log.reference, token]);
 
-  const matched: any[] = (log.responseData as any)?.matched ?? [];
+  const searchResult: any[] = (log.responseData as any)?.searchResult ?? [];
+  const report = log.reportData as any;
 
   const download = async () => {
     setDownloading(true); setDlError("");
@@ -239,18 +186,13 @@ function ViewerModal({ log, onClose, apiBase, token }: {
     finally { setDownloading(false); }
   };
 
-  // Find best match to show the report under
-  const bestMatchIdx = matched.length > 0
-    ? matched.reduce((bestIdx, m, idx) => Number(m.MatchingRate ?? 0) > Number(matched[bestIdx].MatchingRate ?? 0) ? idx : bestIdx, 0)
-    : -1;
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50 shrink-0">
           <div>
             <span className="font-mono text-xs font-bold text-primary">{log.reference}</span>
-            <h3 className="font-bold text-gray-900 text-lg mt-0.5">FirstCentral CRB Report</h3>
+            <h3 className="font-bold text-gray-900 text-lg mt-0.5">CreditRegistry CRB Report</h3>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={download} disabled={downloading || !isPdfReady} title={!isPdfReady ? "PDF generating…" : "Download PDF"}
@@ -284,56 +226,50 @@ function ViewerModal({ log, onClose, apiBase, token }: {
             ))}
           </div>
 
-          {/* Matches */}
-          {matched.length === 0 ? (
+          {/* Search Results */}
+          {searchResult.length === 0 ? (
             <div className="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-200">
               <AlertCircle className="w-8 h-8 text-gray-300 mx-auto mb-2" />
               <p className="font-semibold text-gray-600">No bureau records found</p>
-              <p className="text-xs text-gray-400 mt-1">This BVN has no credit history on FirstCentral.</p>
+              <p className="text-xs text-gray-400 mt-1">This BVN has no credit history on CreditRegistry.</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                {matched.length} Consumer Record{matched.length > 1 ? "s" : ""} Found
+                {searchResult.length} Search Result{searchResult.length > 1 ? "s" : ""} Found (Showing Best Match)
               </p>
-              {matched
-                .map((m, origIdx) => ({ m, origIdx }))
-                .sort((a, b) => Number(b.m.MatchingRate ?? 0) - Number(a.m.MatchingRate ?? 0))
-                .map(({ m, origIdx }, i) => {
-                  const name = [m.FirstName, m.SecondName, m.Surname].filter(Boolean).join(" ") || "—";
-                  const rate = Number(m.MatchingRate ?? 0);
-                  const isBestMatch = origIdx === bestMatchIdx;
-                  return (
-                    <div key={i} className="border border-gray-200 rounded-xl overflow-hidden">
-                      <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
-                        <span className="font-semibold text-sm text-gray-800">Record #{i + 1} — {name}</span>
-                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${rate >= 80 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
-                          {rate}% Match
-                        </span>
-                      </div>
-                      <div className="divide-y divide-gray-50">
-                        {[
-                          ["Date of Birth", m.BirthDate],
-                          ["Address",       m.Address],
-                          ["Phone",         m.TelePhoneNumber || null],
-                          ["Consumer ID",   m.ConsumerID],
-                          ["Enquiry ID",    m.EnquiryID],
-                          ["FC Reference",  m.Reference],
-                        ].map(([label, val]) => val ? (
-                          <div key={label} className="flex px-4 py-2.5 text-sm gap-4">
-                            <span className="w-1/3 font-medium text-gray-500">{label}</span>
-                            <span className="flex-1 text-gray-800 break-words font-mono text-xs">{val}</span>
-                          </div>
-                        ) : null)}
-                      </div>
-                      {isBestMatch && log.reportData && (
-                        <div className="px-4 pb-4">
-                          <ReportSection report={log.reportData} />
-                        </div>
-                      )}
+              {searchResult
+                .sort((a, b) => (b.Relevance ?? 0) - (a.Relevance ?? 0))
+                .slice(0, 1)
+                .map((r, i) => (
+                  <div key={i} className="border border-gray-200 rounded-xl overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
+                      <span className="font-semibold text-sm text-gray-800">{r.Name ?? "—"}</span>
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${r.Relevance >= 80 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
+                        {r.Relevance}% Relevance
+                      </span>
                     </div>
-                  );
-                })}
+                    <div className="divide-y divide-gray-50">
+                      {[
+                        ["Registry ID",    r.RegistryID],
+                        ["Correlation ID", r.CorrelationID],
+                      ].map(([label, val]) => val ? (
+                        <div key={label} className="flex px-4 py-2.5 text-sm gap-4">
+                          <span className="w-1/3 font-medium text-gray-500">{label}</span>
+                          <span className="flex-1 text-gray-800 break-words font-mono text-xs">{val}</span>
+                        </div>
+                      ) : null)}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+
+          {/* Report: Account Summary + Performance Summary */}
+          {report && (
+            <div className="space-y-5 pt-2 border-t border-gray-100">
+              <AccountSummaryTable summaries={report.AccountSummaries} />
+              <PerformanceSummaryGrid perf={report.PerformanceSummary} />
             </div>
           )}
         </div>
@@ -341,6 +277,7 @@ function ViewerModal({ log, onClose, apiBase, token }: {
     </div>
   );
 }
+
 
 // ── New Check Modal ────────────────────────────────────────────────────────────
 
@@ -359,7 +296,7 @@ function NewCheckModal({ onClose, onSuccess, onView }: {
     startT(async () => {
       if (!historyLog) {
         const histRes = await checkCrbHistory(bvn.trim());
-        if (histRes.success && histRes.data) {
+        if (histRes.success && histRes.data && histRes.data.bureau === "creditregistry") {
           setHistoryLog(histRes.data);
           return;
         }
@@ -371,25 +308,23 @@ function NewCheckModal({ onClose, onSuccess, onView }: {
   const runCheck = (forceNew: boolean, cloneFromReference?: string) => {
     setError("");
     startT(async () => {
-      const p1 = runFirstCentralCheck({ bvn: bvn.trim(), enquiryReason: "Credit Check", forceNew, cloneFromReference });
-      const p2 = runBoth ? runCreditRegistryCheck({ bvn: bvn.trim(), forceNew }) : Promise.resolve(null);
+      const p1 = runCreditRegistryCheck({ bvn: bvn.trim(), forceNew, cloneFromReference });
+      const p2 = runBoth ? runFirstCentralCheck({ bvn: bvn.trim(), enquiryReason: "Credit Check", forceNew }) : Promise.resolve(null);
       const [res] = await Promise.all([p1, p2]);
       if (!res.success) { setError(res.error || "Check failed."); return; }
-      
+
       const newLogObj: CreditBureauLog = {
         id: res.id ?? res.reference ?? Date.now().toString(),
         reference: res.reference ?? "—",
-        bureau: "firstcentral", bvn: bvn.trim(),
-        subjectName: res.subjectName ?? (res.matched?.[0]
-          ? [res.matched[0].FirstName, res.matched[0].SecondName, res.matched[0].Surname].filter(Boolean).join(" ")
-          : ""),
+        bureau: "creditregistry", bvn: bvn.trim(),
+        subjectName: res.subjectName ?? (res.searchResult?.[0]?.Name ?? ""),
         status: res.status ?? "No Match",
         matchCount: res.count ?? 0,
-        pdfPath: null, enquiryReason: "Credit Check",
+        pdfPath: null, enquiryReason: "KYCCheck",
         verifiedBy: res.verifiedBy ?? "You", createdAt: res.createdAt ?? new Date().toISOString(),
         requestData: { bvn: bvn.trim() },
-        responseData: { matched: res.matched ?? [] },
-        reportData: cloneFromReference ? (historyLog?.reportData ?? null) : null,
+        responseData: { searchResult: res.searchResult ?? [] },
+        reportData: res.report ?? null,
       };
 
       onSuccess(newLogObj);
@@ -406,7 +341,7 @@ function NewCheckModal({ onClose, onSuccess, onView }: {
           </div>
           <h3 className="font-bold text-gray-900 text-lg mb-2">Previous Check Found</h3>
           <p className="text-sm text-gray-500 mb-6">
-            A CRB check for this BVN was previously performed on <br/>
+            A CreditRegistry check for this BVN was previously performed on <br/>
             <span className="font-semibold text-gray-800">{fmtDate(historyLog.createdAt)}</span>.
             <span className="mt-2 block"><StatusBadge status={historyLog.status} /></span>
           </p>
@@ -432,22 +367,22 @@ function NewCheckModal({ onClose, onSuccess, onView }: {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50 rounded-t-2xl">
           <div>
-            <h3 className="font-bold text-gray-900 text-lg">New FirstCentral Check</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Enter the customer's BVN to search the bureau.</p>
+            <h3 className="font-bold text-gray-900 text-lg">New CreditRegistry Check</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Enter the customer&apos;s BVN to search the bureau.</p>
           </div>
           <button onClick={onClose} disabled={isPending} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
         </div>
-        <form id="crb-form" onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+        <form id="cr-form" onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
           <div>
             <label className="block text-xs font-semibold text-gray-700 mb-1">BVN <span className="text-red-500">*</span></label>
             <Input type="text" required maxLength={11} placeholder="11-digit BVN"
               value={bvn} onChange={e => setBvn(e.target.value.replace(/\D/g, ""))} className="text-sm font-mono" />
           </div>
           <div className="flex items-center gap-2 mt-2">
-            <input type="checkbox" id="runBothFC" checked={runBoth} onChange={e => setRunBoth(e.target.checked)} 
+            <input type="checkbox" id="runBothCR" checked={runBoth} onChange={e => setRunBoth(e.target.checked)} 
               className="rounded border-gray-300 text-primary focus:ring-primary/30 w-4 h-4 cursor-pointer" />
-            <label htmlFor="runBothFC" className="text-xs text-gray-600 cursor-pointer">
-              Also run a CreditRegistry check simultaneously
+            <label htmlFor="runBothCR" className="text-xs text-gray-600 cursor-pointer">
+              Also run a FirstCentral check simultaneously
             </label>
           </div>
           {error && (
@@ -458,7 +393,7 @@ function NewCheckModal({ onClose, onSuccess, onView }: {
         </form>
         <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 rounded-b-2xl">
           <Button variant="ghost" onClick={onClose} disabled={isPending}>Cancel</Button>
-          <Button type="submit" form="crb-form" disabled={isPending} className="min-w-[110px] bg-primary hover:bg-primary/90">
+          <Button type="submit" form="cr-form" disabled={isPending} className="min-w-[110px] bg-primary hover:bg-primary/90">
             {isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Searching…</> : "Run Check"}
           </Button>
         </div>
@@ -469,7 +404,7 @@ function NewCheckModal({ onClose, onSuccess, onView }: {
 
 // ── Main Dashboard ─────────────────────────────────────────────────────────────
 
-export default function FirstCentralDashboard() {
+export default function CreditRegistryDashboard() {
   const { data: session } = useSession();
   const [logs, setLogs]         = useState<CreditBureauLog[]>([]);
   const [total, setTotal]       = useState(0);
@@ -487,7 +422,7 @@ export default function FirstCentralDashboard() {
 
   const fetchLogs = useCallback(async (pg = 1, q = search) => {
     setLoading(true);
-    const res = await getCreditBureauLogs({ bureau: "firstcentral", search: q || undefined, page: pg, limit });
+    const res = await getCreditBureauLogs({ bureau: "creditregistry", search: q || undefined, page: pg, limit });
     setLogs(res.data); setTotal(res.total); setPage(pg); setLoading(false);
   }, [search]);
 
@@ -512,8 +447,8 @@ export default function FirstCentralDashboard() {
       {/* Hero */}
       <div className="bg-gradient-to-r from-primary to-primary/80 text-white rounded-2xl px-8 py-6 flex items-center justify-between gap-4 shadow-lg">
         <div>
-          <h2 className="text-2xl font-bold">FirstCentral CRB</h2>
-          <p className="text-sm text-white/70 mt-1">Run a FirstCentral Credit Bureau consumer match using a customer's BVN.</p>
+          <h2 className="text-2xl font-bold">CreditRegistry CRB</h2>
+          <p className="text-sm text-white/70 mt-1">Run a CreditRegistry Credit Bureau check using a customer&apos;s BVN.</p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
           <button onClick={() => fetchLogs(page)}

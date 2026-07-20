@@ -330,9 +330,9 @@ export function HistoryModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                   {/* Signatories progress */}
                   {item.signatories.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
-                      {item.signatories.map((sig) => (
+                      {item.signatories.map((sig, index) => (
                         <span
-                          key={sig.email}
+                          key={`${sig.email}-${index}`}
                           title={`${sig.email} — ${sig.status}`}
                           className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium ${SIG_COLORS[sig.status] ?? SIG_COLORS.Pending}`}
                         >

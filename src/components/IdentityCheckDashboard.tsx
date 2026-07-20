@@ -70,6 +70,22 @@ function ViewerModal({ log, onClose, apiBase, token }: {
 }) {
   const [downloading, setDownloading] = useState(false);
   const [dlError, setDlError] = useState("");
+  const [isPdfReady, setIsPdfReady] = useState(!!log.pdfPath);
+
+  useEffect(() => {
+    if (isPdfReady) return;
+    const int = setInterval(async () => {
+      try {
+        const res = await fetch(`${apiBase}/identity/pdf/${log.reference}`, {
+          method: "HEAD",
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.status === 200) setIsPdfReady(true);
+      } catch {}
+    }, 3000);
+    return () => clearInterval(int);
+  }, [isPdfReady, apiBase, log.reference, token]);
+
   const data    = log.responseData ?? {};
   const idKey   = log.idType.toLowerCase();
   const idData: Record<string, any> = data[idKey] ?? data.bvn ?? data.nin ?? {};
@@ -110,12 +126,12 @@ function ViewerModal({ log, onClose, apiBase, token }: {
           <div className="flex items-center gap-2">
             <button
               onClick={download}
-              disabled={downloading || !log.pdfPath}
-              title={!log.pdfPath ? "PDF still generating…" : "Download PDF"}
+              disabled={downloading || !isPdfReady}
+              title={!isPdfReady ? "PDF still generating…" : "Download PDF"}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
             >
               {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-              {log.pdfPath ? "Download PDF" : "Generating…"}
+              {isPdfReady ? "Download PDF" : "Generating…"}
             </button>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
               <X className="w-5 h-5" />
@@ -406,14 +422,9 @@ export default function IdentityCheckDashboard({ config }: { config: CheckPageCo
     timer.current = setTimeout(() => startT(() => { fetchLogs(1, v); }), 400);
   };
 
-  const handleNewCheck = (log: IdentityLog) => { setShowModal(false); setLogs(p => [log, ...p]); setTotal(t => t + 1); };
+  const handleNewCheck = (log: IdentityLog) => { setShowModal(false); setLogs(p => [log, ...p.filter(l => l.id !== log.id)]); setTotal(t => logs.some(l => l.id === log.id) ? t : t + 1); };
 
   const totalPages = Math.ceil(total / limit);
-  const headerGradient: Record<string, string> = {
-    indigo: "from-indigo-600 to-indigo-800", emerald: "from-emerald-600 to-emerald-800",
-    sky:    "from-sky-600 to-sky-800",        purple:  "from-purple-600 to-purple-800",
-  };
-  const grad = headerGradient[config.color] ?? headerGradient.indigo;
 
   return (
     <div className="w-full max-w-6xl mx-auto pb-12 space-y-6">
@@ -423,7 +434,7 @@ export default function IdentityCheckDashboard({ config }: { config: CheckPageCo
       </Link>
 
       {/* Hero */}
-      <div className={`bg-gradient-to-r ${grad} text-white rounded-2xl px-8 py-6 flex items-center justify-between gap-4 shadow-lg`}>
+      <div className={`bg-gradient-to-r from-primary to-primary/80 text-white rounded-2xl px-8 py-6 flex items-center justify-between gap-4 shadow-lg`}>
         <div>
           <h2 className="text-2xl font-bold">{config.title}</h2>
           <p className="text-sm text-white/70 mt-1">{config.description}</p>
@@ -452,19 +463,6 @@ export default function IdentityCheckDashboard({ config }: { config: CheckPageCo
         </div>
       ) : (
         <>
-          {/* Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {[
-              { label: "Total Checks",        value: total,                                             color: "text-gray-900"   },
-              { label: "Verified",             value: logs.filter(l => l.status === "Verified").length,  color: "text-emerald-600" },
-              { label: "Failed / Partial",     value: logs.filter(l => l.status !== "Verified").length,  color: "text-red-500"    },
-            ].map(s => (
-              <div key={s.label} className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">{s.label}</p>
-                <p className={`text-3xl font-bold ${s.color}`}>{s.value}</p>
-              </div>
-            ))}
-          </div>
 
           {/* Table */}
           <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">

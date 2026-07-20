@@ -91,19 +91,19 @@ export function AuditTrailModal({ isOpen, onClose }: { isOpen: boolean; onClose:
   // Load on open
   useEffect(() => {
     if (isOpen) {
-      setSelectedSubmissionId(null);
+      setSelectedFormReference(null);
       fetchAudit(1, { reference: "", email: "", status: "", date: "" });
     }
   }, [isOpen, fetchAudit]);
 
   // Load details when a row is clicked
   useEffect(() => {
-    if (!selectedSubmissionId) return;
+    if (!selectedFormReference) return;
 
     const fetchDetails = async () => {
       setLoadingDetails(true);
       try {
-        const details = await getAuditTrailDetails(selectedSubmissionId);
+        const details = await getAuditTrailDetails(selectedFormReference);
         setFullTrail(details);
       } catch (err) {
         console.error("Failed to load audit trail details", err);
@@ -112,7 +112,7 @@ export function AuditTrailModal({ isOpen, onClose }: { isOpen: boolean; onClose:
       }
     };
     fetchDetails();
-  }, [selectedSubmissionId]);
+  }, [selectedFormReference]);
 
   const handleSearch = () => {
     const filters = { reference, email, status, date };
@@ -145,9 +145,9 @@ export function AuditTrailModal({ isOpen, onClose }: { isOpen: boolean; onClose:
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-3">
-            {selectedSubmissionId ? (
+            {selectedFormReference ? (
               <button
-                onClick={() => setSelectedSubmissionId(null)}
+                onClick={() => setSelectedFormReference(null)}
                 className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
                 title="Back to table"
               >
@@ -160,10 +160,10 @@ export function AuditTrailModal({ isOpen, onClose }: { isOpen: boolean; onClose:
             )}
             <div>
               <h2 className="text-lg font-bold text-gray-900">
-                {selectedSubmissionId ? `Audit Trail: ${selectedFormReference || "Unknown Reference"}` : "Audit Trail"}
+                {selectedFormReference ? `Audit Trail: ${selectedFormReference}` : "Audit Trail"}
               </h2>
               <p className="text-xs text-gray-400">
-                {selectedSubmissionId
+                {selectedFormReference
                   ? "Full history of this submission"
                   : meta.total > 0 ? `${meta.total} form${meta.total !== 1 ? "s" : ""} recorded` : "Latest form statuses"}
               </p>
@@ -175,7 +175,7 @@ export function AuditTrailModal({ isOpen, onClose }: { isOpen: boolean; onClose:
         </div>
 
         {/* Content Area */}
-        {selectedSubmissionId ? (
+        {selectedFormReference ? (
           <div className="flex-1 overflow-auto p-6 bg-gray-50">
             {loadingDetails ? (
               <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-3">
@@ -321,7 +321,6 @@ export function AuditTrailModal({ isOpen, onClose }: { isOpen: boolean; onClose:
                         key={r.id}
                         className={`${i % 2 === 0 ? "bg-white" : "bg-gray-50"} cursor-pointer hover:bg-gray-100 transition-colors`}
                         onClick={() => {
-                          setSelectedSubmissionId(r.submissionId);
                           setSelectedFormReference(r.formReference);
                         }}
                       >

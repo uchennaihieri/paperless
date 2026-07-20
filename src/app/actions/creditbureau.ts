@@ -67,3 +67,18 @@ export async function runFirstCentralReport(payload: {
     body: JSON.stringify(payload),
   }).catch((e: any) => ({ success: false, error: e.message }));
 }
+
+export async function runCreditRegistryCheck(payload: {
+  bvn: string;
+  forceNew?: boolean;
+  cloneFromReference?: string;
+}): Promise<{
+  success: boolean; id?: string; reference?: string; status?: string;
+  count?: number; searchResult?: any[]; report?: any;
+  verifiedBy?: string; createdAt?: string; subjectName?: string; error?: string;
+}> {
+  return apiClient("/credit-bureau/consumer/bvn", {
+    method: "POST",
+    body: JSON.stringify({ ...payload, bureau: "creditregistry" }),
+  }).catch((e: any) => ({ success: false, error: e.message }));
+}
