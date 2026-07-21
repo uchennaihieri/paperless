@@ -5,13 +5,15 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileText, FileDown, AlertTriangle, Link2, CheckCircle2, Clock } from "lucide-react";
+import { FileText, FileDown, AlertTriangle, Link2, CheckCircle2, Clock } from "lucide-react";
 import { AttachmentLink } from "./attachment-link";
 import { RegeneratePdfButton } from "./regenerate-button";
 import { RemindButton } from "./remind-button";
 import { PrereqRemindButton } from "./prereq-remind-button";
 import { FormResponseCell } from "./form-response-cell";
 import { SoftDeleteButton } from "./soft-delete-button";
+import { CopyButton } from "@/components/CopyButton";
+import { BackToFormsLink } from "./back-link";
 
 function statusVariant(status: string) {
   switch (status) {
@@ -132,16 +134,16 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <Link href="/dashboard/forms" className="inline-flex items-center text-sm text-gray-500 hover:text-primary transition-colors">
-        <ArrowLeft className="w-4 h-4 mr-1" /> Back to forms
-      </Link>
+      <BackToFormsLink />
 
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">{submission.formName}</h2>
           <p className="text-sm text-gray-400 mt-0.5">
-            Ref: {submission.reference || submission.id.slice(-8).toUpperCase()} · Submitted{" "}
+            Ref: {submission.reference || submission.id.slice(-8).toUpperCase()}{" "}
+            <CopyButton value={submission.reference || submission.id.slice(-8).toUpperCase()} />
+            {" "}· Submitted{" "}
             {new Date(submission.createdAt).toLocaleString()}
           </p>
         </div>

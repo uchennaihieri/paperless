@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,8 +10,9 @@ import { FileDown, ChevronRight, CheckSquare, X, User, RefreshCw, AlertTriangle,
 import { assignToSelf, revertAssignment, completeProcessWithApprover, delegateProcess, searchActiveWorkflowUsers, regeneratePdf, getSubmissionDetail, requestCorrection } from "@/app/actions/workflow";
 import { getActionItems } from "@/app/actions/form";
 import { useSmartFetch } from "@/hooks/useSmartFetch";
-import { FormReferenceLink, isFormReferenceField } from "@/components/FormReferenceLink";
+import { FormResponseCell } from "@/app/dashboard/forms/submission/[id]/form-response-cell";
 import { JournalModal } from "@/components/JournalModal";
+import { CopyButton } from "@/components/CopyButton";
 
 type ActionItem = {
   id: string;
@@ -31,8 +33,9 @@ type ActionItem = {
   documents?: Array<{ id: string; fieldName: string; originalName: string }>;
 };
 
-export default function ActionClient({ items }: { items: ActionItem[] }) {
+export default function ActionClient({ items, viewMode = "list", detailId }: { items: ActionItem[], viewMode?: "list" | "detail", detailId?: string }) {
   const { data: session } = useSession();
+  const router = useRouter();
   const token = (session?.user as any)?.backendToken ?? "";
   const currentUserEmail = (session?.user as any)?.email?.toLowerCase() ?? "";
 
@@ -43,8 +46,9 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
   const isAccountant = activeRole?.specialAccess?.toLowerCase().includes("accountant");
 
   const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
-  const [selected, setSelected] = useState<ActionItem | null>(null);
-  const [hasAutoSelected, setHasAutoSelected] = useState(false);
+
+  // Optimistic status override for immediate feedback
+  const [statusOverride, setStatusOverride] = useState<Record<string, string>>({});
 
   const {
     data: fetchedItems,
@@ -59,27 +63,33 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
 
   const localItems = fetchedItems || items;
 
-  // Sync a status change across both the list and the detail view
-  const updateItemStatus = (id: string, newStatus: string) => {
-    // Relying on native revalidation/fetch rather than tight local mutating,
-    // but we update the selected manually to show immediate visual feedback
-    setSelected(prev => prev?.id === id ? { ...prev, status: newStatus } : prev);
-    forceRefresh(); // Trigger a background refresh to resync
+  // Derive selected from URL segment
+  const selected = useMemo(() => {
+    if (viewMode === "list" || !detailId) return null;
+    const match = localItems.find(i => i.reference === detailId || i.id === detailId);
+    if (!match) return null;
+    // Apply optimistic status override if present
+    if (statusOverride[match.id]) {
+      return { ...match, status: statusOverride[match.id] };
+    }
+    return match;
+  }, [viewMode, detailId, localItems, statusOverride]);
+
+  // Navigate to detail view via URL
+  const openDetail = (item: ActionItem) => {
+    router.push(`/dashboard/action/${item.id}`);
   };
 
-  useEffect(() => {
-    if (!hasAutoSelected && typeof window !== "undefined") {
-      const searchParams = new URLSearchParams(window.location.search);
-      const reference = searchParams.get("reference");
-      if (reference && localItems.length > 0) {
-        const match = localItems.find(i => i.reference === reference || i.id === reference);
-        if (match) setSelected(match);
-        setHasAutoSelected(true);
-      } else if (localItems.length > 0) {
-        setHasAutoSelected(true);
-      }
-    }
-  }, [localItems, hasAutoSelected]);
+  // Navigate back via browser history (restores scroll position)
+  const goBack = () => {
+    router.back();
+  };
+
+  // Sync a status change across both the list and the detail view
+  const updateItemStatus = (id: string, newStatus: string) => {
+    setStatusOverride(prev => ({ ...prev, [id]: newStatus }));
+    forceRefresh();
+  };
 
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [statusMode, setStatusMode] = useState<"assign" | "complete" | "revert" | "delegate" | "correct" | "">("");
@@ -98,15 +108,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
   const [assignError, setAssignError] = useState("");
   const [showCheckPdfErrorModal, setShowCheckPdfErrorModal] = useState(false);
 
-  // Keep the selected item in sync with fetched localItems to automatically receive new PDF/status updates
-  useEffect(() => {
-    if (selected) {
-      const upToDate = localItems.find(item => item.id === selected.id);
-      if (upToDate) {
-        setSelected(upToDate);
-      }
-    }
-  }, [localItems, selected?.id]);
+  // The selected item is automatically kept in sync with fetched localItems via useMemo
 
   const handleCheckPdf = async (id: string) => {
     setIsRegenerating(true);
@@ -217,7 +219,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
       if (res.success) {
         const newStatus = isNone ? "Completed" : "Awaiting Final Approval";
         updateItemStatus(selected!.id, newStatus);
-        setSelected(null);
+        goBack();
         setShowStatusModal(false);
         setShowTreaterTokenModal(false);
         setStatusMode("");
@@ -248,7 +250,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
       const res = await delegateProcess(selected!.id, email);
       if (res.success) {
         updateItemStatus(selected!.id, "Processing");
-        setSelected(null);
+        goBack();
         setShowStatusModal(false);
         setStatusMode("");
         setSelectedApprover(null);
@@ -274,7 +276,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
       const res = await requestCorrection(selected!.id, correctionRequests);
       if (res.success) {
         updateItemStatus(selected!.id, "Awaiting Correction");
-        setSelected(null);
+        goBack();
         setShowStatusModal(false);
         setStatusMode("");
         setCorrectionRequests({});
@@ -301,24 +303,26 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
 
   return (
     <div className="space-y-6 max-w-6xl print:space-y-0">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 print:hidden">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Action Center</h2>
-          <p className="text-gray-500">Treat approved and signed forms. View submitted responses and generate documents.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
-            {isFetching ? (
-              <><Loader2 className="w-3 h-3 animate-spin" /> Fetching updates…</>
-            ) : (
-              `Last updated: ${timeAgoStr}`
-            )}
-            <button onClick={forceRefresh} className="p-1 hover:bg-gray-200 rounded-full transition-colors ml-1" title="Refresh">
-              <RefreshCw className="w-3 h-3" />
-            </button>
+      {!selected && (
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 print:hidden">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Action Center</h2>
+            <p className="text-gray-500">Treat approved and signed forms. View submitted responses and generate documents.</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-100">
+              {isFetching ? (
+                <><Loader2 className="w-3 h-3 animate-spin" /> Fetching updates…</>
+              ) : (
+                `Last updated: ${timeAgoStr}`
+              )}
+              <button onClick={forceRefresh} className="p-1 hover:bg-gray-200 rounded-full transition-colors ml-1" title="Refresh">
+                <RefreshCw className="w-3 h-3" />
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {!selected ? (
         <div className="grid gap-3">
@@ -332,7 +336,7 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
               <Card
                 key={item.id}
                 className="hover:shadow-md transition-all cursor-pointer group border-l-4 border-l-green-500"
-                onClick={() => setSelected(item)}
+                onClick={() => openDetail(item)}
               >
                 <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                   <div className="flex items-start md:items-center gap-4 w-full md:w-auto">
@@ -364,231 +368,162 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
           )}
         </div>
       ) : (
-        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 print:hidden">
-            <Button variant="outline" onClick={() => setSelected(null)} className="cursor-pointer">
-              ← Back
-            </Button>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-2 w-full sm:w-auto">
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={openStatusModal} className="cursor-pointer">
-                  Change Status
-                </Button>
+        <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+          <button onClick={goBack} className="inline-flex items-center text-sm text-gray-500 hover:text-primary transition-colors cursor-pointer print:hidden">
+            <svg className="w-4 h-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg> Back
+          </button>
 
-                {selected.status === "Completed" && (
-                  <Button size="sm" variant="outline" onClick={() => handleRegenerate(selected.id)} disabled={isRegenerating} className="cursor-pointer border-amber-200 text-amber-700 hover:bg-amber-50">
-                    <RefreshCw className={`w-4 h-4 mr-2 ${isRegenerating ? "animate-spin" : ""}`} />
-                    {isRegenerating ? "Regenerating..." : "Regenerate PDF"}
-                  </Button>
-                )}
-                {selected?.formResponses?.["CompletedFormPDF"]?.[0]?.url ? (
-                  <a href={selected.formResponses["CompletedFormPDF"][0].url} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" className="cursor-pointer">
-                      <FileDown className="w-4 h-4 mr-2" /> Open PDF
-                    </Button>
-                  </a>
-                ) : (
-                  <Button
-                    size="sm"
-                    disabled={isRegenerating}
-                    onClick={() => handleCheckPdf(selected.id)}
-                    className="cursor-pointer"
-                  >
-                    {isRegenerating ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Checking...
-                      </>
-                    ) : (
-                      <>
-                        <FileDown className="w-4 h-4 mr-2" /> Check PDF
-                      </>
-                    )}
-                  </Button>
-                )}
-              </div>
-              {regenError && (
-                <span className="text-xs text-red-500 flex items-center gap-1 mt-1">
-                  <AlertTriangle className="w-3 h-3" /> {regenError}
-                </span>
-              )}
+          {/* Header */}
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">{selected.template.name}</h2>
+              <p className="text-sm text-gray-400 mt-0.5">
+                Ref: {selected.reference || selected.id.slice(-8).toUpperCase()}{" "}
+                <CopyButton value={selected.reference || selected.id.slice(-8).toUpperCase()} />
+                {" "}· Submitted{" "}
+                {new Date(selected.createdAt).toLocaleString()}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Badge variant={
+                selected.status === "Filed" ? "secondary" :
+                  selected.status === "Processing" ? "warning" :
+                    selected.status.startsWith("Assigned") ? "default" : "success"
+              } className="text-sm px-3">
+                {selected.status}
+              </Badge>
             </div>
           </div>
 
-
-          <div className="max-w-[800px] mx-auto space-y-6">
-
-            {/* Table */}
-            <div className="mb-10">
-              <div className="bg-gray-900 rounded-t-lg text-white px-4 py-2.5 text-[10px] font-bold flex">
-                <div className="w-1/2">FORM FIELD</div>
-                <div className="w-1/2">VALUE/RESPONSE</div>
-              </div>
-              <div className="border-x border-b rounded-b-lg border-gray-100 divide-y divide-gray-100">
-                {(() => {
-                  const templateFields = Array.isArray(selected.template.fields)
-                    ? selected.template.fields
-                    : typeof selected.template.fields === "string"
-                      ? JSON.parse(selected.template.fields)
-                      : [];
-
-                  const orderedResponses: any[] = [];
-                  const processedKeys = new Set<string>();
-
-                  templateFields.forEach((field: any) => {
-                    const valById = selected.formResponses[field.id];
-                    const valByLabel = selected.formResponses[field.label];
-
-                    if (valById !== undefined || valByLabel !== undefined) {
-                      const key = valById !== undefined ? field.id : field.label;
-                      const value = valById !== undefined ? valById : valByLabel;
-
-                      orderedResponses.push({
-                        label: field.label || key,
-                        key,
-                        value: value,
-                        isPrerequisite: field.isPrerequisite,
-                      });
-                      if (field.id) processedKeys.add(field.id);
-                      if (field.label) processedKeys.add(field.label);
-                    }
-                  });
-
-                  Object.entries(selected.formResponses).forEach(([q, a]) => {
-                    if (q !== "CompletedFormPDF" && !processedKeys.has(q)) {
-                      const fallbackLabel = q.charAt(0).toUpperCase() + q.slice(1).replace(/([A-Z])/g, " $1");
-                      orderedResponses.push({ label: fallbackLabel, key: q, value: a, isPrerequisite: false });
-                    }
-                  });
-
-                  return orderedResponses.map(({ label, key, value, isPrerequisite }, i) => {
-                    const isRef = isPrerequisite || isFormReferenceField(key);
-                    return (
-                      <div key={i} className="flex px-4 py-3 text-xs flex-col sm:flex-row gap-2 sm:gap-0">
-                        <div className="w-full sm:w-1/2 font-semibold text-gray-700">{label}</div>
-                        <div className="w-full sm:w-1/2 text-gray-600 break-words">
-                          {isRef && typeof value === "string" ? (
-                            <FormReferenceLink value={value} token={token} backendUrl={BASE_URL} />
-                          ) : Array.isArray(value) && value.length > 0 && value[0]?.isAttachment
-                            ? value.map((v: any, idx: number) => (
-                              <a
-                                key={idx}
-                                href={v.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-1.5 text-[#b50938] underline hover:text-[#9a0730] transition-colors mb-1"
-                              >
-                                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                                </svg>
-                                {v.name}
-                              </a>
-                            ))
-                            : String(value)}
-                        </div>
-                      </div>
-                    );
-                  });
-                })()}
+          {/* Form Responses */}
+          <div>
+            <div className="flex justify-between items-center border-b border-gray-200 pb-2 mb-3">
+              <h3 className="text-xs font-semibold text-primary uppercase tracking-widest">Form Responses</h3>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={openStatusModal} className="cursor-pointer">
+                  Change Status
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => handleRegenerate(selected.id)} disabled={isRegenerating} className="cursor-pointer border-amber-200 text-amber-700 hover:bg-amber-50">
+                  <RefreshCw className={`w-4 h-4 mr-2 ${isRegenerating ? "animate-spin" : ""}`} />
+                  {isRegenerating ? "Regenerating..." : "Regenerate PDF"}
+                </Button>
+                {regenError && (
+                  <span className="text-xs text-red-500 flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3" /> {regenError}
+                  </span>
+                )}
               </div>
             </div>
+            <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-900 text-white text-xs">
+                    <th className="px-4 py-3 text-left font-semibold w-1/2">Question</th>
+                    <th className="px-4 py-3 text-left font-semibold w-1/2">Response</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {(() => {
+                    const templateFields = Array.isArray(selected.template.fields)
+                      ? selected.template.fields
+                      : typeof selected.template.fields === "string"
+                        ? JSON.parse(selected.template.fields)
+                        : [];
 
-            {/* Generated PDFs */}
-            {(completedPdfArr.length > 0 || signedContractDocs.length > 0 || prerequisiteDocs.length > 0) && (
-              <div className="mb-10">
-                <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Completed Generated Document</h3>
-                <div className="space-y-3">
-                  {/* Legacy Auto-Generated PDF */}
-                  {completedPdfArr.length > 0 && (
-                    <div className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
-                          <FileDown className="w-5 h-5 text-[#b50938]" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-gray-800">{selected.formResponses["CompletedFormPDF"][0].name}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">Generated PDF document</p>
-                        </div>
+                    const orderedResponses: any[] = [];
+                    const processedKeys = new Set<string>();
+
+                    templateFields.forEach((field: any) => {
+                      const valById = selected.formResponses[field.id];
+                      const valByLabel = selected.formResponses[field.label];
+
+                      if (valById !== undefined || valByLabel !== undefined) {
+                        const key = valById !== undefined ? field.id : field.label;
+                        const value = valById !== undefined ? valById : valByLabel;
+
+                        orderedResponses.push({
+                          label: field.label || key,
+                          key,
+                          value: value,
+                          isPrerequisite: field.isPrerequisite,
+                        });
+                        if (field.id) processedKeys.add(field.id);
+                        if (field.label) processedKeys.add(field.label);
+                      }
+                    });
+
+                    Object.entries(selected.formResponses).forEach(([q, a]) => {
+                      if (q !== "CompletedFormPDF" && !processedKeys.has(q)) {
+                        const fallbackLabel = q.charAt(0).toUpperCase() + q.slice(1).replace(/([A-Z])/g, " $1");
+                        orderedResponses.push({ label: fallbackLabel, key: q, value: a, isPrerequisite: false });
+                      }
+                    });
+
+                    return orderedResponses.map(({ label, key, value, isPrerequisite }, i) => (
+                      <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                        <td className="px-4 py-3 font-medium text-gray-700">
+                          <span>{label}</span>
+                          {isPrerequisite && (
+                            <span className="ml-2 inline-flex items-center gap-1 px-1.5 py-0.5 text-xs rounded-full bg-orange-100 text-orange-700 font-semibold border border-orange-200">
+                              prereq
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">
+                          <FormResponseCell label={key} value={value} forceRef={isPrerequisite} />
+                        </td>
+                      </tr>
+                    ));
+                  })()}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Completed Generated Documents */}
+          {(completedPdfArr.length > 0 || signedContractDocs.length > 0 || prerequisiteDocs.length > 0) && (
+            <div className="mt-8">
+              <h3 className="text-xs font-semibold text-primary uppercase tracking-widest border-b border-gray-200 pb-2 mb-3">
+                Completed Generated Document
+              </h3>
+              <div className="space-y-3">
+                {/* Auto-Generated PDF */}
+                {completedPdfArr.length > 0 && (
+                  <div className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                        <FileDown className="w-5 h-5 text-[#b50938]" />
                       </div>
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={selected.formResponses["CompletedFormPDF"][0].url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-1.5 px-4 py-2 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors shadow-sm"
-                        >
-                          <FileDown className="w-3.5 h-3.5" /> Open PDF
-                        </a>
-                        <a
-                          href={selected.formResponses["CompletedFormPDF"][0].url}
-                          download
-                          className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors shadow-sm"
-                        >
-                          Download
-                        </a>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">{selected.formResponses["CompletedFormPDF"][0].name}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">Generated PDF document</p>
                       </div>
                     </div>
-                  )}
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={selected.formResponses["CompletedFormPDF"][0].url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1.5 px-4 py-2 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors shadow-sm"
+                      >
+                        <FileDown className="w-3.5 h-3.5" /> Open PDF
+                      </a>
+                      <a
+                        href={selected.formResponses["CompletedFormPDF"][0].url}
+                        download
+                        className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors shadow-sm"
+                      >
+                        Download
+                      </a>
+                    </div>
+                  </div>
+                )}
 
-                  {/* Signed Contract Document */}
-                  {selected.documents && selected.documents.map((doc: any) => {
-                    if (doc.fieldName === "SignedContract") {
-                      const fileUrl = `/api/v1/file?docId=${doc.id}`;
-                      const fileName = doc.originalName || "Signed_Contract.pdf";
-                      const openDoc = async () => {
-                        const newWindow = window.open("", "_blank");
-                        if (newWindow) newWindow.document.write(`<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;color:#666;">Loading ${fileName}...</div>`);
-                        try {
-                          const res = await fetch(fileUrl, { headers: { Authorization: `Bearer ${token}` } });
-                          const blob = await res.blob();
-                          const url = URL.createObjectURL(blob);
-                          if (newWindow) newWindow.location.href = url;
-                          setTimeout(() => URL.revokeObjectURL(url), 60000);
-                        } catch { if (newWindow) newWindow.document.write(`<div style="color:red;padding:20px;">Failed to load file.</div>`); }
-                      };
-                      const downloadDoc = async () => {
-                        const res = await fetch(fileUrl, { headers: { Authorization: `Bearer ${token}` } });
-                        const blob = await res.blob();
-                        const a = document.createElement("a");
-                        a.href = URL.createObjectURL(blob);
-                        a.download = fileName;
-                        a.click();
-                      };
-                      return (
-                        <div key={doc.id} className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
-                              <FileDown className="w-5 h-5 text-[#b50938]" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-semibold text-gray-800">{fileName}</p>
-                              <p className="text-xs text-gray-400 mt-0.5">Signed Contract document</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={openDoc}
-                              className="flex items-center gap-1.5 px-4 py-2 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors shadow-sm cursor-pointer"
-                            >
-                              <FileDown className="w-3.5 h-3.5" /> Open PDF
-                            </button>
-                            <button
-                              onClick={downloadDoc}
-                              className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors shadow-sm cursor-pointer"
-                            >
-                              Download
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })}
-
-                  {/* Prerequisite PDFs */}
-                  {prerequisiteDocs.map((doc: any) => {
+                {/* Signed Contract Document */}
+                {selected.documents && selected.documents.map((doc: any) => {
+                  if (doc.fieldName === "SignedContract") {
                     const fileUrl = `/api/v1/file?docId=${doc.id}`;
-                    const docName = doc.fieldName.replace("PrerequisitePDF:", "");
-                    const fileName = doc.originalName || `${docName}.pdf`;
+                    const fileName = doc.originalName || "Signed_Contract.pdf";
                     const openDoc = async () => {
                       const newWindow = window.open("", "_blank");
                       if (newWindow) newWindow.document.write(`<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;color:#666;">Loading ${fileName}...</div>`);
@@ -611,18 +546,18 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                     return (
                       <div key={doc.id} className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
-                            <FileDown className="w-5 h-5 text-orange-600" />
+                          <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                            <FileDown className="w-5 h-5 text-[#b50938]" />
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-gray-800">{fileName}</p>
-                            <p className="text-xs text-gray-400 mt-0.5">Prerequisite: {docName}</p>
+                            <p className="text-xs text-gray-400 mt-0.5">Signed Contract document</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={openDoc}
-                            className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-xs font-semibold rounded-lg hover:bg-orange-700 transition-colors shadow-sm cursor-pointer"
+                            className="flex items-center gap-1.5 px-4 py-2 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors shadow-sm cursor-pointer"
                           >
                             <FileDown className="w-3.5 h-3.5" /> Open PDF
                           </button>
@@ -635,11 +570,100 @@ export default function ActionClient({ items }: { items: ActionItem[] }) {
                         </div>
                       </div>
                     );
-                  })}
-                </div>
-              </div>
-            )}
+                  }
+                  return null;
+                })}
 
+                {/* Prerequisite PDFs */}
+                {prerequisiteDocs.map((doc: any) => {
+                  const fileUrl = `/api/v1/file?docId=${doc.id}`;
+                  const docName = doc.fieldName.replace("PrerequisitePDF:", "");
+                  const fileName = doc.originalName || `${docName}.pdf`;
+                  const openDoc = async () => {
+                    const newWindow = window.open("", "_blank");
+                    if (newWindow) newWindow.document.write(`<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;color:#666;">Loading ${fileName}...</div>`);
+                    try {
+                      const res = await fetch(fileUrl, { headers: { Authorization: `Bearer ${token}` } });
+                      const blob = await res.blob();
+                      const url = URL.createObjectURL(blob);
+                      if (newWindow) newWindow.location.href = url;
+                      setTimeout(() => URL.revokeObjectURL(url), 60000);
+                    } catch { if (newWindow) newWindow.document.write(`<div style="color:red;padding:20px;">Failed to load file.</div>`); }
+                  };
+                  const downloadDoc = async () => {
+                    const res = await fetch(fileUrl, { headers: { Authorization: `Bearer ${token}` } });
+                    const blob = await res.blob();
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = fileName;
+                    a.click();
+                  };
+                  return (
+                    <div key={doc.id} className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+                          <FileDown className="w-5 h-5 text-orange-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-800">{fileName}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">Prerequisite: {docName}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={openDoc}
+                          className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-xs font-semibold rounded-lg hover:bg-orange-700 transition-colors shadow-sm cursor-pointer"
+                        >
+                          <FileDown className="w-3.5 h-3.5" /> Open PDF
+                        </button>
+                        <button
+                          onClick={downloadDoc}
+                          className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors shadow-sm cursor-pointer"
+                        >
+                          Download
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Signatories */}
+          <div>
+            <h3 className="text-xs font-semibold text-primary uppercase tracking-widest border-b border-gray-200 pb-2 mb-3">
+              Signatories
+            </h3>
+            <div className="space-y-2">
+              {selected.signatories?.map((s: any) => (
+                <div key={s.email + s.position} className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg px-4 py-3 shadow-sm">
+                  <div className="h-7 w-7 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center shrink-0">
+                    {s.position}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900">{s.userName}</p>
+                    <p className="text-xs text-gray-400">{s.email}</p>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <Badge
+                      variant={
+                        s.status === "Signed"
+                          ? "success"
+                          : s.status === "Declined"
+                          ? "destructive"
+                          : "secondary"
+                      }
+                    >
+                      {s.status}
+                    </Badge>
+                    {s.signedAt && (
+                      <span className="text-xs text-gray-400">{new Date(s.signedAt).toLocaleString()}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

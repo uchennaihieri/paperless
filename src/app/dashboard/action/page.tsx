@@ -3,5 +3,5 @@ import ActionClient from "./client";
 
 export default async function ActionPage() {
   const items = await getActionItems();
-  return <ActionClient items={items as any} />;
+  return <ActionClient items={items as any} viewMode="list" />;
 }
