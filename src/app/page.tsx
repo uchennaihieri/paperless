@@ -290,19 +290,17 @@ function LoginPage() {
                 <Button 
                   type="button" 
                   variant="outline" 
-                  className="w-full flex items-center justify-center gap-2 relative overflow-hidden" 
-                  disabled={true}
+                  className="w-full cursor-pointer flex items-center justify-center gap-2" 
+                  disabled={isLoading}
+                  onClick={handleMicrosoftLogin}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 21 21" className="opacity-50">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 21 21">
                     <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
                     <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
                     <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
                     <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
                   </svg>
-                  <span className="opacity-50">Log in with Microsoft</span>
-                  <span className="absolute top-0 right-0 bg-primary/20 text-primary text-[10px] font-bold px-2 py-0.5 rounded-bl-md uppercase tracking-wider">
-                    Coming Soon
-                  </span>
+                  Log in with Microsoft
                 </Button>
 
                 <Link href="/reset-password" className="text-sm text-primary hover:underline self-center mt-2">
