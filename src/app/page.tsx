@@ -84,6 +84,20 @@ function LoginPage() {
     }
   };
 
+  const handleMicrosoftLogin = async () => {
+    if (!employeeId) {
+      setErrorMsg("Please enter your Employee ID before logging in with Microsoft.");
+      return;
+    }
+    setErrorMsg("");
+    setIsLoading(true);
+    // Set a cookie for NextAuth jwt callback to read
+    document.cookie = `pending_employee_id=${encodeURIComponent(employeeId.trim())}; path=/; max-age=300; SameSite=Lax`;
+    
+    // Redirect to Microsoft OAuth
+    await signIn("microsoft-entra-id", { callbackUrl: "/role-selection" });
+  };
+
   // ── Step 2: Validate new password fields and advance to OTP ───────────────
   const handleSetNewPassword = (e: React.FormEvent) => {
     e.preventDefault();
@@ -266,7 +280,30 @@ function LoginPage() {
                 <Button type="submit" className="w-full cursor-pointer" disabled={isLoading}>
                   {isLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing…</> : "Continue"}
                 </Button>
-                <Link href="/reset-password" className="text-sm text-primary hover:underline self-center">
+                
+                <div className="relative flex py-2 items-center w-full">
+                  <div className="flex-grow border-t border-gray-300"></div>
+                  <span className="flex-shrink-0 mx-4 text-gray-400 text-sm">or</span>
+                  <div className="flex-grow border-t border-gray-300"></div>
+                </div>
+
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  className="w-full cursor-pointer flex items-center justify-center gap-2" 
+                  disabled={isLoading}
+                  onClick={handleMicrosoftLogin}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 21 21">
+                    <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+                    <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+                    <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+                    <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+                  </svg>
+                  Log in with Microsoft
+                </Button>
+
+                <Link href="/reset-password" className="text-sm text-primary hover:underline self-center mt-2">
                   Forgot Password?
                 </Link>
               </CardFooter>

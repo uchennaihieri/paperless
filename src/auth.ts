@@ -1,6 +1,8 @@
 import NextAuth, { DefaultSession, CredentialsSignin } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
+import MicrosoftEntraId from "next-auth/providers/microsoft-entra-id"
 import { apiClient } from "@/lib/apiClient"
+import { cookies } from "next/headers"
 
 declare module "next-auth" {
   interface Session {
@@ -9,6 +11,7 @@ declare module "next-auth" {
       activeRoleId: string;
       backendToken: string;
       mustResetPassword: boolean;
+      profileImage: string | null;
     } & DefaultSession["user"]
   }
 }
@@ -16,6 +19,12 @@ declare module "next-auth" {
 export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
   basePath: "/api/auth",
   providers: [
+    MicrosoftEntraId({
+      clientId: process.env.SHAREPOINT_CLIENT_ID!,
+      clientSecret: process.env.SHAREPOINT_CLIENT_SECRET!,
+      issuer: `https://login.microsoftonline.com/${process.env.SHAREPOINT_TENANT_ID}/v2.0`,
+      authorization: { params: { scope: "openid profile email User.Read" } },
+    }),
     CredentialsProvider({
       name: "OTP",
       credentials: {
@@ -55,6 +64,7 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
             backendToken: result.token,
             mustResetPassword: result.mustResetPassword ?? false,
             isLegacyAccount: result.isLegacyAccount ?? false,
+            profileImage: result.profileImage ?? null,
           };
         } catch (err: any) {
            if (err instanceof CredentialsSignin) throw err;
@@ -66,13 +76,68 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
     })
   ],
   callbacks: {
-    async jwt({ token, user, trigger, session }) {
-      if (user) {
+    async jwt({ token, user, account, trigger, session }) {
+      if (account?.provider === "microsoft-entra-id" && user) {
+        const cookieStore = await cookies();
+        const employeeId = cookieStore.get("pending_employee_id")?.value;
+
+        if (!employeeId) {
+          throw new Error("Employee ID is missing. Please enter your Employee ID before logging in with Microsoft.");
+        }
+
+        try {
+           const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
+
+           // Fetch Microsoft profile photo using the OAuth access token
+           let profileImageBase64: string | null = null;
+           if (account.access_token) {
+             try {
+               const photoRes = await fetch("https://graph.microsoft.com/v1.0/me/photo/$value", {
+                 headers: { Authorization: `Bearer ${account.access_token}` },
+               });
+               if (photoRes.ok) {
+                 const buffer = Buffer.from(await photoRes.arrayBuffer());
+                 const contentType = photoRes.headers.get("content-type") || "image/jpeg";
+                 profileImageBase64 = `data:${contentType};base64,${buffer.toString("base64")}`;
+               }
+             } catch {
+               // Profile photo is optional — continue without it
+             }
+           }
+
+           const res = await fetch(`${backendUrl}/api/v1/auth/oauth-login`, {
+             method: "POST",
+             headers: { "Content-Type": "application/json" },
+             body: JSON.stringify({ 
+               employeeId, 
+               email: user.email, 
+               secret: process.env.JWT_SECRET,
+               profileImage: profileImageBase64,
+             })
+           });
+           const data = await res.json();
+           
+           if (!data.success) {
+             throw new Error(data.error || "Microsoft login failed.");
+           }
+           
+           token.roles = JSON.stringify(data.user.roles || []);
+           token.activeRoleId = data.user.roles?.[0]?.id?.toString() ?? data.user.id.toString();
+           token.backendToken = data.token;
+           token.mustResetPassword = data.mustResetPassword ?? false;
+           token.isLegacyAccount = data.isLegacyAccount ?? false;
+           token.profileImage = data.profileImage ?? null;
+        } catch (e: any) {
+           console.error("OAuth Backend error:", e.message);
+           throw new Error(e.message || "Failed to authenticate with backend.");
+        }
+      } else if (user) {
         token.roles = (user as any).roles;
         token.activeRoleId = (user as any).activeRoleId ?? user.id;
         token.backendToken = (user as any).backendToken;
         token.mustResetPassword = (user as any).mustResetPassword ?? false;
         token.isLegacyAccount = (user as any).isLegacyAccount ?? false;
+        token.profileImage = (user as any).profileImage ?? null;
       }
       if (trigger === "update") {
         if (session?.activeRoleId) token.activeRoleId = session.activeRoleId;
@@ -88,6 +153,7 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
         (session.user as any).backendToken = token.backendToken;
         (session.user as any).mustResetPassword = token.mustResetPassword ?? false;
         (session.user as any).isLegacyAccount = token.isLegacyAccount ?? false;
+        (session.user as any).profileImage = token.profileImage ?? null;
       }
       return session;
     }

@@ -194,10 +194,22 @@ export default function DashboardLayout({
             <div className="relative" ref={avatarMenuRef}>
               <button
                 onClick={() => setIsAvatarMenuOpen((v) => !v)}
-                className="h-8 w-8 bg-primary rounded-full flex items-center justify-center text-white text-sm font-medium uppercase hover:ring-2 hover:ring-primary/40 transition-all cursor-pointer"
+                className="h-8 w-8 rounded-full flex items-center justify-center text-white text-sm font-medium uppercase hover:ring-2 hover:ring-primary/40 transition-all cursor-pointer overflow-hidden"
                 aria-label="User menu"
+                style={{ backgroundColor: (session?.user as any)?.profileImage ? 'transparent' : undefined }}
               >
-                {activeRole?.user_name ? activeRole.user_name.charAt(0) : "U"}
+                {(session?.user as any)?.profileImage ? (
+                  <img 
+                    src={(session?.user as any)?.profileImage} 
+                    alt="Profile" 
+                    className="h-full w-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <span className="h-8 w-8 bg-primary rounded-full flex items-center justify-center">
+                    {activeRole?.user_name ? activeRole.user_name.charAt(0) : "U"}
+                  </span>
+                )}
               </button>
 
               {isAvatarMenuOpen && (
