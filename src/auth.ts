@@ -87,8 +87,6 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
         }
 
         try {
-           const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:4000";
-
            // Fetch Microsoft profile photo using the OAuth access token
            let profileImageBase64: string | null = null;
            if (account.access_token) {
@@ -106,9 +104,8 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
              }
            }
 
-           const res = await fetch(`${backendUrl}/api/v1/auth/oauth-login`, {
+           const data = await apiClient("/auth/oauth-login", {
              method: "POST",
-             headers: { "Content-Type": "application/json" },
              body: JSON.stringify({ 
                employeeId, 
                email: user.email, 
@@ -116,7 +113,6 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
                profileImage: profileImageBase64,
              })
            });
-           const data = await res.json();
            
            if (!data.success) {
              throw new Error(data.error || "Microsoft login failed.");
