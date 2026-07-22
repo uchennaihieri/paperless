@@ -85,10 +85,9 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
     router.back();
   };
 
-  // Sync a status change across both the list and the detail view
   const updateItemStatus = (id: string, newStatus: string) => {
     setStatusOverride(prev => ({ ...prev, [id]: newStatus }));
-    forceRefresh();
+    setTimeout(() => forceRefresh(), 500);
   };
 
   const [showStatusModal, setShowStatusModal] = useState(false);
@@ -123,7 +122,7 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
       // Fetch up-to-date detail to see if PDF was generated successfully
       const freshDetail = await getSubmissionDetail(id);
       if (freshDetail?.formResponses?.["CompletedFormPDF"]?.[0]?.url) {
-        await forceRefresh();
+        setTimeout(() => forceRefresh(), 500);
       } else {
         setShowCheckPdfErrorModal(true);
       }
