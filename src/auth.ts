@@ -17,7 +17,7 @@ declare module "next-auth" {
 }
 
 export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
-  debug: true,
+  debug: false,
   basePath: "/api/auth",
   providers: [
     MicrosoftEntraId({
