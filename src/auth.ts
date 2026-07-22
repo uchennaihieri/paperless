@@ -17,12 +17,13 @@ declare module "next-auth" {
 }
 
 export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
+  debug: true,
   basePath: "/api/auth",
   providers: [
     MicrosoftEntraId({
-      clientId: process.env.SHAREPOINT_CLIENT_ID!,
-      clientSecret: process.env.SHAREPOINT_CLIENT_SECRET!,
-      issuer: `https://login.microsoftonline.com/${process.env.SHAREPOINT_TENANT_ID}/v2.0`,
+      clientId: process.env.SHAREPOINT_CLIENT_ID || "",
+      clientSecret: process.env.SHAREPOINT_CLIENT_SECRET || "",
+      issuer: `https://login.microsoftonline.com/${process.env.SHAREPOINT_TENANT_ID || "common"}/v2.0`,
       authorization: { params: { scope: "openid profile email User.Read" } },
     }),
     CredentialsProvider({
