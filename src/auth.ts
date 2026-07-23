@@ -11,7 +11,7 @@ declare module "next-auth" {
       activeRoleId: string;
       backendToken: string;
       mustResetPassword: boolean;
-      profileImage: string | null;
+      hasProfileImage: boolean;
     } & DefaultSession["user"]
   }
 }
@@ -65,7 +65,7 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
             backendToken: result.token,
             mustResetPassword: result.mustResetPassword ?? false,
             isLegacyAccount: result.isLegacyAccount ?? false,
-            profileImage: result.profileImage ?? null,
+            hasProfileImage: result.hasProfileImage ?? false,
           };
         } catch (err: any) {
            if (err instanceof CredentialsSignin) throw err;
@@ -123,7 +123,7 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
            token.backendToken = data.token;
            token.mustResetPassword = data.mustResetPassword ?? false;
            token.isLegacyAccount = data.isLegacyAccount ?? false;
-           token.profileImage = data.profileImage ?? null;
+           token.hasProfileImage = data.hasProfileImage ?? false;
         } catch (e: any) {
            console.error("OAuth Backend error:", e.message);
            throw new Error(e.message || "Failed to authenticate with backend.");
@@ -134,7 +134,7 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
         token.backendToken = (user as any).backendToken;
         token.mustResetPassword = (user as any).mustResetPassword ?? false;
         token.isLegacyAccount = (user as any).isLegacyAccount ?? false;
-        token.profileImage = (user as any).profileImage ?? null;
+        token.hasProfileImage = (user as any).hasProfileImage ?? false;
       }
       if (trigger === "update") {
         if (session?.activeRoleId) token.activeRoleId = session.activeRoleId;
@@ -150,7 +150,7 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
         (session.user as any).backendToken = token.backendToken;
         (session.user as any).mustResetPassword = token.mustResetPassword ?? false;
         (session.user as any).isLegacyAccount = token.isLegacyAccount ?? false;
-        (session.user as any).profileImage = token.profileImage ?? null;
+        (session.user as any).hasProfileImage = token.hasProfileImage ?? false;
       }
       return session;
     }

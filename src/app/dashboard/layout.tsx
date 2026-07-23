@@ -18,6 +18,7 @@ import { SessionGuard } from "@/components/SessionGuard";
 import { FilingsModal } from "@/components/FilingsModal";
 import SwapDelegateModal from "@/components/SwapDelegateModal";
 import { CrmModal } from "@/components/CrmModal";
+import { getProfile } from "@/app/actions/profile";
 
 const navigation = [
   { name: "Workflow", href: "/dashboard/workflow", icon: LayoutDashboard },
@@ -57,6 +58,18 @@ export default function DashboardLayout({
   const [isSwapDelegateOpen, setIsSwapDelegateOpen] = useState(false);
   const [isCrmOpen, setIsCrmOpen] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement>(null);
+
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if ((session?.user as any)?.hasProfileImage) {
+      getProfile().then(profile => {
+        if (profile?.profileImage) {
+          setProfileImage(profile.profileImage);
+        }
+      });
+    }
+  }, [session]);
 
   // Close avatar menu when clicking outside
   useEffect(() => {
@@ -196,11 +209,11 @@ export default function DashboardLayout({
                 onClick={() => setIsAvatarMenuOpen((v) => !v)}
                 className="h-8 w-8 rounded-full flex items-center justify-center text-white text-sm font-medium uppercase hover:ring-2 hover:ring-primary/40 transition-all cursor-pointer overflow-hidden"
                 aria-label="User menu"
-                style={{ backgroundColor: (session?.user as any)?.profileImage ? 'transparent' : undefined }}
+                style={{ backgroundColor: (session?.user as any)?.hasProfileImage ? 'transparent' : undefined }}
               >
-                {(session?.user as any)?.profileImage ? (
+                {(session?.user as any)?.hasProfileImage && profileImage ? (
                   <img 
-                    src={(session?.user as any)?.profileImage} 
+                    src={profileImage} 
                     alt="Profile" 
                     className="h-full w-full object-cover"
                     referrerPolicy="no-referrer"
