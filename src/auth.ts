@@ -124,6 +124,18 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
            token.mustResetPassword = data.mustResetPassword ?? false;
            token.isLegacyAccount = data.isLegacyAccount ?? false;
            token.hasProfileImage = data.hasProfileImage ?? false;
+           
+           // CRITICAL FIX: NextAuth automatically injects the entire OAuth profile
+           // (picture, name, email, etc.) into the JWT token.
+           // For Microsoft Entra, this can be massive and blow up the Nginx proxy buffer 
+           // when NextAuth chunks it into multiple Set-Cookie headers.
+           delete token.picture;
+           delete token.name;
+           delete token.email;
+           delete (token as any).accessToken;
+           delete (token as any).idToken;
+           delete (token as any).profile;
+
         } catch (e: any) {
            console.error("OAuth Backend error:", e.message);
            throw new Error(e.message || "Failed to authenticate with backend.");
