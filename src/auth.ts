@@ -155,5 +155,6 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
   },
   pages: {
     signIn: "/",
+    error: "/", // Redirect any OAuth errors back to the login page with ?error=...
   }
 })

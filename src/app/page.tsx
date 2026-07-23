@@ -23,6 +23,19 @@ function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionExpired = searchParams.get("reason") === "session_expired";
+  
+  // Catch NextAuth OAuth errors (e.g. from /api/auth/error?error=...)
+  const oauthError = searchParams.get("error");
+  let oauthErrorMsg = "";
+  if (oauthError) {
+    if (oauthError === "CallbackRouteError" || oauthError === "OAuthProfileParseError" || oauthError === "OAuthSignInError") {
+      oauthErrorMsg = "Microsoft Login Failed: Could not connect to Microsoft's servers. Please check your internet connection or try again later.";
+    } else if (oauthError === "AccessDenied") {
+      oauthErrorMsg = "Microsoft Login Failed: You did not grant permission to this app.";
+    } else {
+      oauthErrorMsg = `Microsoft Login Failed: ${oauthError}`;
+    }
+  }
 
   const [step, setStep] = useState<Step>("credentials");
 
@@ -215,6 +228,15 @@ function LoginPage() {
           <div className="p-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-500" />
             <span>Your session has expired. Please sign in again to continue.</span>
+          </div>
+        </div>
+      )}
+
+      {oauthErrorMsg && (
+        <div className="sm:mx-auto sm:w-full sm:max-w-md mt-4">
+          <div className="p-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
+            <span>{oauthErrorMsg}</span>
           </div>
         </div>
       )}
