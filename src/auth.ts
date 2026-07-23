@@ -91,15 +91,20 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
            let profileImageBase64: string | null = null;
            if (account.access_token) {
              try {
+               const controller = new AbortController();
+               const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 second timeout
                const photoRes = await fetch("https://graph.microsoft.com/v1.0/me/photo/$value", {
                  headers: { Authorization: `Bearer ${account.access_token}` },
+                 signal: controller.signal
                });
+               clearTimeout(timeoutId);
                if (photoRes.ok) {
                  const buffer = Buffer.from(await photoRes.arrayBuffer());
                  const contentType = photoRes.headers.get("content-type") || "image/jpeg";
                  profileImageBase64 = `data:${contentType};base64,${buffer.toString("base64")}`;
                }
-             } catch {
+             } catch (err) {
+               console.warn("Graph API profile fetch failed or timed out", err);
                // Profile photo is optional — continue without it
              }
            }
