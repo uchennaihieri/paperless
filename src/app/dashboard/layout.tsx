@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
+import { OfflineIndicator } from "@/components/OfflineIndicator";
 import {
   Building2, FileText, CheckSquare, PenTool, LayoutDashboard,
   LogOut, Users, BarChart2, Menu, X, History, Settings, ShieldCheck, Zap, BookOpen,
@@ -206,6 +207,7 @@ export default function DashboardLayout({
             </h1>
           </div>
           <div className="flex items-center gap-3">
+            <OfflineIndicator />
             <div className="hidden sm:block text-sm font-medium text-gray-700">
               {activeRole?.user_name || session?.user?.name || "User"}
             </div>
