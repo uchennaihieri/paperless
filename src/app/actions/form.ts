@@ -92,8 +92,8 @@ export async function getRoles(): Promise<string[]> {
   return result.data || [];
 }
 
-export async function getActionItems() {
-  const result = await apiClient("/submissions/action-items", { method: "GET" }).catch(e => ({ data: [] }));
+export async function getActionItems(status: string = "Pending") {
+  const result = await apiClient(`/submissions/action-items?status=${encodeURIComponent(status)}`, { method: "GET" }).catch(e => ({ data: [] }));
   return result.data || [];
 }
 

@@ -71,6 +71,13 @@ export default function DashboardLayout({
     }
   }, [session]);
 
+  // Listen for open-file-room event
+  useEffect(() => {
+    const handleOpenFileRoom = () => setIsFilingsOpen(true);
+    window.addEventListener('open-file-room', handleOpenFileRoom);
+    return () => window.removeEventListener('open-file-room', handleOpenFileRoom);
+  }, []);
+
   // Close avatar menu when clicking outside
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -85,7 +92,7 @@ export default function DashboardLayout({
   if (status === "loading") {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
-        <Building2 className="h-12 w-12 text-primary/30 animate-pulse mb-6" />
+        <img src="/logo.png" alt="FINCALite Logo" className="h-16 w-16 animate-pulse mb-6 object-contain opacity-50 rounded-full" />
         <div className="flex items-center gap-2">
           <div className="w-2.5 h-2.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]" />
           <div className="w-2.5 h-2.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]" />
@@ -114,7 +121,7 @@ export default function DashboardLayout({
       )}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-2 text-primary font-bold text-xl">
-            <Building2 className="h-6 w-6" />
+            <img src="/logo.png" alt="FINCALite Logo" className="h-8 object-contain rounded-full" />
             FINCALite
           </div>
           <button className="md:hidden p-1 text-gray-500" onClick={() => setIsMobileMenuOpen(false)}>
@@ -237,11 +244,11 @@ export default function DashboardLayout({
                   >
                     <History className="w-4 h-4 text-gray-400" /> History
                   </button>
-                  <button
+                  <button 
+                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2 transition-colors"
                     onClick={() => { setIsFilingsOpen(true); setIsAvatarMenuOpen(false); }}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                   >
-                    <FolderOpen className="w-4 h-4 text-gray-400" /> Filings
+                    <FolderOpen className="w-4 h-4 text-gray-400" /> File Room
                   </button>
                   {activeRole?.specialAccess?.toLowerCase().includes("control") && (
                     <button

@@ -6,13 +6,14 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileDown, ChevronRight, CheckSquare, X, User, RefreshCw, AlertTriangle, Loader2, Eye, EyeOff, BookOpen } from "lucide-react";
+import { FileDown, ChevronRight, CheckSquare, X, User, RefreshCw, AlertTriangle, Loader2, Eye, EyeOff, BookOpen, Search, Filter, Folder } from "lucide-react";
 import { assignToSelf, revertAssignment, completeProcessWithApprover, delegateProcess, searchActiveWorkflowUsers, regeneratePdf, getSubmissionDetail, requestCorrection } from "@/app/actions/workflow";
 import { getActionItems } from "@/app/actions/form";
 import { useSmartFetch } from "@/hooks/useSmartFetch";
 import { FormResponseCell } from "@/app/dashboard/forms/submission/[id]/form-response-cell";
 import { JournalModal } from "@/components/JournalModal";
 import { CopyButton } from "@/components/CopyButton";
+import { FileToFolderModal } from "./FileToFolderModal";
 
 type ActionItem = {
   id: string;
@@ -31,6 +32,8 @@ type ActionItem = {
   publicSubmitterEmail?: string | null;
   submittedBy: { user_name: string; finca_email: string; branch: string } | null;
   documents?: Array<{ id: string; fieldName: string; originalName: string }>;
+  treaterBranch?: string | null;
+  manualFolders?: any[];
 };
 
 export default function ActionClient({ items, viewMode = "list", detailId }: { items: ActionItem[], viewMode?: "list" | "detail", detailId?: string }) {
@@ -44,11 +47,15 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
   const activeId = (session?.user as any)?.activeRoleId;
   const activeRole = roles.find((r: any) => String(r.id) === String(activeId)) || roles[0];
   const isAccountant = activeRole?.specialAccess?.toLowerCase().includes("accountant");
+  const userBranch = activeRole?.branch || (session?.user as any)?.branch;
 
   const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
 
+  const [textSearch, setTextSearch] = useState("");
+
   // Optimistic status override for immediate feedback
   const [statusOverride, setStatusOverride] = useState<Record<string, string>>({});
+  const [statusFilter, setStatusFilter] = useState("All");
 
   const {
     data: fetchedItems,
@@ -57,11 +64,29 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
     timeAgoStr,
     forceRefresh
   } = useSmartFetch<ActionItem[]>(async () => {
-    const data = await getActionItems();
+    const data = await getActionItems(statusFilter);
     return data as ActionItem[];
-  }, []);
+  }, [statusFilter]);
 
-  const localItems = fetchedItems || items;
+  const localItems = (fetchedItems || items).filter(item => {
+    if (!textSearch.trim()) return true;
+    const q = textSearch.toLowerCase();
+    
+    let formValuesMatch = false;
+    if (item.formResponses) {
+      formValuesMatch = Object.values(item.formResponses).some(v => 
+        v && typeof v === 'string' && v.toLowerCase().includes(q)
+      );
+    }
+
+    return (
+      item.template.name.toLowerCase().includes(q) ||
+      (item.reference && item.reference.toLowerCase().includes(q)) ||
+      (item.submittedBy?.user_name && item.submittedBy.user_name.toLowerCase().includes(q)) ||
+      (item.publicSubmitterName && item.publicSubmitterName.toLowerCase().includes(q)) ||
+      formValuesMatch
+    );
+  });
 
   // Derive selected from URL segment
   const selected = useMemo(() => {
@@ -106,6 +131,10 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
   const [isJournalOpen, setIsJournalOpen] = useState(false);
   const [assignError, setAssignError] = useState("");
   const [showCheckPdfErrorModal, setShowCheckPdfErrorModal] = useState(false);
+  
+  // File to Folder State
+  const [showFileModal, setShowFileModal] = useState(false);
+  const [fileTargetId, setFileTargetId] = useState<string | null>(null);
 
   // The selected item is automatically kept in sync with fetched localItems via useMemo
 
@@ -323,6 +352,34 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
         </div>
       )}
 
+      {!selected && (
+        <div className="flex flex-col sm:flex-row gap-4 mb-4 print:hidden">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search by ref, form name, or submitter..."
+              value={textSearch}
+              onChange={(e) => setTextSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none"
+            />
+          </div>
+          <div className="relative">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="appearance-none pl-10 pr-8 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary outline-none bg-white cursor-pointer"
+            >
+              <option value="All">All forms</option>
+              <option value="Processing">Processing</option>
+              <option value="Assigned">Assigned to me</option>
+              <option value="Completed">Completed forms</option>
+            </select>
+            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          </div>
+        </div>
+      )}
+
       {!selected ? (
         <div className="grid gap-3">
           {localItems.length === 0 ? (
@@ -355,10 +412,36 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
                     <Badge variant={
                       item.status === "Filed" ? "secondary" :
                         item.status === "Processing" ? "warning" :
-                          item.status.startsWith("Assigned") ? "default" : "success"
+                          item.status === "Awaiting Correction" ? "pending" :
+                            item.status.startsWith("Assigned") ? "default" : "success"
                     }>
                       {item.status}
                     </Badge>
+                    
+                    {statusFilter === "Completed" && (() => {
+                      const hasAutomated = (item.template?.formOwner?.toLowerCase() === userBranch?.toLowerCase()) || 
+                                           (item.treaterBranch?.toLowerCase() === userBranch?.toLowerCase()) || 
+                                           (item.formResponses?.Branch === userBranch) || 
+                                           (item.formResponses?.branch === userBranch);
+                      const hasManual = item.manualFolders && item.manualFolders.length > 0;
+                      const hasAnyFolder = hasAutomated || hasManual;
+
+                      return (
+                        <button
+                          className="z-10 p-1.5 rounded-md hover:bg-red-50 transition-colors cursor-pointer flex items-center justify-center"
+                          style={{ color: "#B50938" }}
+                          title="File to Folder"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setFileTargetId(item.id);
+                            setShowFileModal(true);
+                          }}
+                        >
+                          <Folder className={`w-4 h-4 ${hasAnyFolder ? "fill-current" : ""}`} />
+                        </button>
+                      );
+                    })()}
+
                     <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-primary transition-colors hidden md:block" />
                   </div>
                 </CardContent>
@@ -387,7 +470,8 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
               <Badge variant={
                 selected.status === "Filed" ? "secondary" :
                   selected.status === "Processing" ? "warning" :
-                    selected.status.startsWith("Assigned") ? "default" : "success"
+                    selected.status === "Awaiting Correction" ? "pending" :
+                      selected.status.startsWith("Assigned") ? "default" : "success"
               } className="text-sm px-3">
                 {selected.status}
               </Badge>
@@ -1036,6 +1120,24 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
         </div>
       )}
 
+      {showFileModal && fileTargetId && (
+        <FileToFolderModal
+          submissionId={fileTargetId}
+          submissionItem={items.find(i => i.id === fileTargetId) || fetchedItems?.find(i => i.id === fileTargetId)}
+          userBranch={userBranch}
+          onClose={() => {
+            setShowFileModal(false);
+            setFileTargetId(null);
+          }}
+          onSuccess={() => {
+            setShowFileModal(false);
+            setFileTargetId(null);
+            forceRefresh();
+          }}
+          token={token}
+          baseUrl={BASE_URL}
+        />
+      )}
     </div>
   );
 }

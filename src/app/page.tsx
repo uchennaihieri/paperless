@@ -59,11 +59,22 @@ function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
+  const allowedLoginTypesStr = process.env.NEXT_PUBLIC_ALLOWED_LOGIN_TYPES || "microsoft,credentials";
+  const allowedLoginTypes = allowedLoginTypesStr.split(",").map(s => s.trim().toLowerCase());
+  const allowCredentials = allowedLoginTypes.includes("credentials");
+  const allowMicrosoft = allowedLoginTypes.includes("microsoft");
+
   // ── Step 1: Employee ID + Temp Password → /auth/login ─────────────────────
   // The temporary password is treated purely as a verification token.
   // If mustResetPassword is true, the user must set a new password before OTP.
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!allowCredentials && allowMicrosoft) {
+      return handleMicrosoftLogin();
+    } else if (!allowCredentials) {
+      return;
+    }
+    
     setIsLoading(true);
     setErrorMsg("");
     try {
@@ -173,8 +184,12 @@ function LoginPage() {
   const stepMeta: Record<Step, { title: string; description: string; subtitle: string }> = {
     "credentials": {
       title: "Sign In",
-      description: "Enter your Employee ID and password to continue.",
-      subtitle: "Sign in with your Employee ID",
+      description: (!allowCredentials && allowMicrosoft) 
+        ? "Enter your Employee ID and submit to login." 
+        : "Enter your Employee ID and password to continue.",
+      subtitle: (!allowCredentials && allowMicrosoft) 
+        ? "Access your dashboard" 
+        : "Sign in with your Employee ID",
     },
     "new-password": {
       title: "Set New Password",
@@ -194,8 +209,8 @@ function LoginPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md flex flex-col items-center">
-        <div className="h-16 w-16 bg-primary rounded-2xl flex items-center justify-center text-white shadow-xl mb-4">
-          <Building2 size={32} />
+        <div className="h-20 mb-2 rounded-full overflow-hidden">
+          <img src="/logo.png" alt="FINCALite Logo" className="w-full h-full object-contain drop-shadow-md rounded-full" />
         </div>
         <h2 className="mt-2 text-center text-3xl font-bold tracking-tight text-gray-900">
           FINCALite
@@ -241,21 +256,21 @@ function LoginPage() {
         </div>
       )}
 
-      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-md">
-        <Card className="border-none shadow-xl bg-white/80 backdrop-blur-sm">
+      <div className="mt-6 sm:mx-auto sm:w-full sm:max-w-lg">
+        <Card className="border-none shadow-2xl bg-white/90 backdrop-blur-md rounded-xl overflow-hidden p-2 sm:p-4">
           <CardHeader>
             <div className="flex items-center gap-2">
               {step === "new-password" && <ShieldCheck className="w-5 h-5 text-primary" />}
               {step === "otp" && <KeyRound className="w-5 h-5 text-primary" />}
-              <CardTitle>{meta.title}</CardTitle>
+              <CardTitle className="text-2xl">{meta.title}</CardTitle>
             </div>
-            <CardDescription>{meta.description}</CardDescription>
+            <CardDescription className="text-base">{meta.description}</CardDescription>
           </CardHeader>
 
           {/* ── Step 1: Credentials ───────────────────────────────────────── */}
           {step === "credentials" && (
             <form onSubmit={handleLogin}>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-5">
                 {errorMsg && (
                   <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
@@ -263,7 +278,7 @@ function LoginPage() {
                   </div>
                 )}
                 <div className="space-y-2">
-                  <Label htmlFor="employeeId">Employee ID</Label>
+                  <Label htmlFor="employeeId" className="text-sm font-semibold">Employee ID</Label>
                   <Input
                     id="employeeId"
                     type="text"
@@ -272,62 +287,80 @@ function LoginPage() {
                     autoComplete="username"
                     value={employeeId}
                     onChange={(e) => setEmployeeId(e.target.value)}
+                    className="h-11"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="••••••••"
-                      required
-                      autoComplete="current-password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                      tabIndex={-1}
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
+                {allowCredentials && (
+                  <div className="space-y-2">
+                    <Label htmlFor="password" className="text-sm font-semibold">Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="••••••••"
+                        required={allowCredentials}
+                        autoComplete="current-password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pr-10 h-11"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        tabIndex={-1}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
               </CardContent>
-              <CardFooter className="flex flex-col gap-3">
-                <Button type="submit" className="w-full cursor-pointer" disabled={isLoading}>
-                  {isLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing…</> : "Continue"}
-                </Button>
+              <CardFooter className="flex flex-col gap-4 mt-2">
+                {allowCredentials && (
+                  <Button type="submit" className="w-full h-11 text-base font-medium cursor-pointer" disabled={isLoading}>
+                    {isLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing…</> : "Continue"}
+                  </Button>
+                )}
                 
-                <div className="relative flex py-2 items-center w-full">
-                  <div className="flex-grow border-t border-gray-300"></div>
-                  <span className="flex-shrink-0 mx-4 text-gray-400 text-sm">or</span>
-                  <div className="flex-grow border-t border-gray-300"></div>
-                </div>
+                {allowCredentials && allowMicrosoft && (
+                  <div className="relative flex py-2 items-center w-full">
+                    <div className="flex-grow border-t border-gray-300"></div>
+                    <span className="flex-shrink-0 mx-4 text-gray-400 text-sm font-medium">or</span>
+                    <div className="flex-grow border-t border-gray-300"></div>
+                  </div>
+                )}
 
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="w-full cursor-pointer flex items-center justify-center gap-2" 
-                  disabled={isLoading}
-                  onClick={handleMicrosoftLogin}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 21 21">
-                    <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
-                    <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
-                    <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
-                    <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
-                  </svg>
-                  Log in with Microsoft
-                </Button>
+                {allowMicrosoft && (
+                  <Button 
+                    type="button" 
+                    className="w-full cursor-pointer flex items-center justify-center gap-3 bg-primary hover:bg-primary/90 text-white h-12 text-base font-semibold shadow-sm hover:shadow-md transition-all rounded-lg border-none" 
+                    disabled={isLoading}
+                    onClick={handleMicrosoftLogin}
+                  >
+                    {isLoading ? (
+                      <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Processing…</>
+                    ) : (
+                      <>
+                        <div className="bg-white p-1 rounded-sm flex items-center justify-center">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 21 21">
+                            <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+                            <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+                            <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+                            <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+                          </svg>
+                        </div>
+                        Sign in with Microsoft
+                      </>
+                    )}
+                  </Button>
+                )}
 
-                <Link href="/reset-password" className="text-sm text-primary hover:underline self-center mt-2">
-                  Forgot Password?
-                </Link>
+                {allowCredentials && (
+                  <Link href="/reset-password" className="text-sm text-primary hover:underline self-center mt-2 font-medium">
+                    Forgot Password?
+                  </Link>
+                )}
               </CardFooter>
             </form>
           )}
