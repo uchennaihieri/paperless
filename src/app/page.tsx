@@ -282,7 +282,7 @@ function LoginPage() {
                   <Input
                     id="employeeId"
                     type="text"
-                    placeholder="e.g. EMP001"
+                    placeholder="e.g. FNGA0001"
                     required
                     autoComplete="username"
                     value={employeeId}
