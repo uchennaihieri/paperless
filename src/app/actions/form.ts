@@ -39,19 +39,19 @@ export async function isAdministrator() {
   }
 }
 
-export async function createFormTemplate(name: string, description: string, fields: any[], formOwner?: string, formTreater?: string, formTreaterRole?: string, pdfTemplateId?: string, mobileEnabled: boolean = false, accountServicesEnabled: boolean = false, isInternal: boolean = false, needsContract: boolean = false, contractTemplateId?: string, automatedSignatories: any[] = [], automatedSigningType: string = "sequential", generatesExcel: boolean = false, pdfGeneratorType?: string, templateMappings?: Record<string, string>) {
+export async function createFormTemplate(name: string, description: string, fields: any[], formOwner?: string, formTreater?: string, formTreaterFallbackBranch?: string, formTreaterRole?: string, pdfTemplateId?: string, mobileEnabled: boolean = false, accountServicesEnabled: boolean = false, isInternal: boolean = false, needsContract: boolean = false, contractTemplateId?: string, automatedSignatories: any[] = [], automatedSigningType: string = "sequential", generatesExcel: boolean = false, pdfGeneratorType?: string, templateMappings?: Record<string, string>) {
   const result = await apiClient("/forms", {
     method: "POST",
-    body: JSON.stringify({ name, description, fields, formOwner, formTreater, formTreaterRole, pdfTemplateId, mobileEnabled, accountServicesEnabled, isInternal, needsContract, contractTemplateId, automatedSignatories, automatedSigningType, generatesExcel, pdfGeneratorType, templateMappings })
+    body: JSON.stringify({ name, description, fields, formOwner, formTreater, formTreaterFallbackBranch, formTreaterRole, pdfTemplateId, mobileEnabled, accountServicesEnabled, isInternal, needsContract, contractTemplateId, automatedSignatories, automatedSigningType, generatesExcel, pdfGeneratorType, templateMappings })
   });
   revalidatePath("/dashboard/forms");
   return result;
 }
 
-export async function updateFormTemplate(id: string, name: string, description: string, fields: any[], formOwner?: string, formTreater?: string, formTreaterRole?: string, pdfTemplateId?: string, mobileEnabled: boolean = false, accountServicesEnabled: boolean = false, isInternal: boolean = false, needsContract: boolean = false, contractTemplateId?: string, automatedSignatories: any[] = [], automatedSigningType: string = "sequential", generatesExcel: boolean = false, pdfGeneratorType?: string, templateMappings?: Record<string, string>) {
+export async function updateFormTemplate(id: string, name: string, description: string, fields: any[], formOwner?: string, formTreater?: string, formTreaterFallbackBranch?: string, formTreaterRole?: string, pdfTemplateId?: string, mobileEnabled: boolean = false, accountServicesEnabled: boolean = false, isInternal: boolean = false, needsContract: boolean = false, contractTemplateId?: string, automatedSignatories: any[] = [], automatedSigningType: string = "sequential", generatesExcel: boolean = false, pdfGeneratorType?: string, templateMappings?: Record<string, string>) {
   const result = await apiClient(`/forms/${id}`, {
     method: "PATCH",
-    body: JSON.stringify({ name, description, fields, formOwner, formTreater, formTreaterRole, pdfTemplateId, mobileEnabled, accountServicesEnabled, isInternal, needsContract, contractTemplateId, automatedSignatories, automatedSigningType, generatesExcel, pdfGeneratorType, templateMappings })
+    body: JSON.stringify({ name, description, fields, formOwner, formTreater, formTreaterFallbackBranch, formTreaterRole, pdfTemplateId, mobileEnabled, accountServicesEnabled, isInternal, needsContract, contractTemplateId, automatedSignatories, automatedSigningType, generatesExcel, pdfGeneratorType, templateMappings })
   });
   revalidatePath("/dashboard/forms", "layout");
   return result;

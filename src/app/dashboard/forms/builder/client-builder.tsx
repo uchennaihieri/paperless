@@ -88,10 +88,11 @@ export default function FormBuilderClient({
   const [accountServicesEnabled, setAccountServicesEnabled] = useState(initialTemplate?.accountServicesEnabled || false);
   const [formOwner, setFormOwner] = useState(initialTemplate?.formOwner || "");
   const [formTreater, setFormTreater] = useState(initialTemplate?.formTreater || "");
+  const [formTreaterFallbackBranch, setFormTreaterFallbackBranch] = useState(initialTemplate?.formTreaterFallbackBranch || "");
   const [formTreaterRole, setFormTreaterRole] = useState(initialTemplate?.formTreaterRole || "");
   const [isPublic, setIsPublic] = useState(initialTemplate?.isPublic || false);
   const [publicSlug, setPublicSlug] = useState(initialTemplate?.publicSlug || "");
-  const [automatedSignatories, setAutomatedSignatories] = useState<{branch: string, role: string, signingType: string}[]>(
+  const [automatedSignatories, setAutomatedSignatories] = useState<{branch: string, role: string, signingType: string, fallbackBranch?: string}[]>(
     typeof initialTemplate?.automatedSignatories === "string" ? JSON.parse(initialTemplate.automatedSignatories) : (initialTemplate?.automatedSignatories || [])
   );
   const [automatedSigningType, setAutomatedSigningType] = useState(initialTemplate?.automatedSigningType || "sequential");
@@ -284,6 +285,7 @@ export default function FormBuilderClient({
         fields,
         formOwner || undefined,
         formTreater || undefined,
+        formTreaterFallbackBranch || undefined,
         formTreaterRole || undefined,
         pdfTemplateId || undefined,
         false, // mobileEnabled removed
@@ -304,6 +306,7 @@ export default function FormBuilderClient({
         fields,
         formOwner || undefined,
         formTreater || undefined,
+        formTreaterFallbackBranch || undefined,
         formTreaterRole || undefined,
         pdfTemplateId || undefined,
         false, // mobileEnabled removed
@@ -495,14 +498,36 @@ export default function FormBuilderClient({
                 <select
                   id="form-treater"
                   value={formTreater}
-                  onChange={(e) => setFormTreater(e.target.value)}
+                  onChange={(e) => {
+                    setFormTreater(e.target.value);
+                    if (e.target.value !== "MY_BRANCH") setFormTreaterFallbackBranch("");
+                  }}
                   className={SELECT_CLASS}
                 >
                   <option value="">— None (No Treater Required) —</option>
+                  <option value="MY_BRANCH" className="font-semibold text-primary">My Branch (Referrer's Branch)</option>
                   {branches.map((b) => (
                     <option key={b} value={b}>{b}</option>
                   ))}
                 </select>
+                {formTreater === "MY_BRANCH" && (
+                  <div className="mt-2 pl-4 border-l-2 border-primary/20">
+                    <Label htmlFor="form-treater-fallback" className="text-xs text-gray-500">
+                      If Officer is at Head Office, route to:
+                    </Label>
+                    <select
+                      id="form-treater-fallback"
+                      value={formTreaterFallbackBranch}
+                      onChange={(e) => setFormTreaterFallbackBranch(e.target.value)}
+                      className={SELECT_CLASS}
+                    >
+                      <option value="">— Select Fallback Branch —</option>
+                      {branches.map((b) => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               {/* Form Treater Role */}
@@ -644,31 +669,54 @@ export default function FormBuilderClient({
                         <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-500 shrink-0">
                           {automatedSigningType === "sequential" ? index + 1 : "-"}
                         </div>
-                        <div className="flex-1 grid grid-cols-2 gap-3">
-                          <select
-                            value={sig.branch}
-                            onChange={(e) => {
-                              const updated = [...automatedSignatories];
-                              updated[index].branch = e.target.value;
-                              setAutomatedSignatories(updated);
-                            }}
-                            className={SELECT_CLASS}
-                          >
-                            <option value="">— Select branch —</option>
-                            {branches.map(b => <option key={b} value={b}>{b}</option>)}
-                          </select>
-                          <select
-                            value={sig.role}
-                            onChange={(e) => {
-                              const updated = [...automatedSignatories];
-                              updated[index].role = e.target.value;
-                              setAutomatedSignatories(updated);
-                            }}
-                            className={SELECT_CLASS}
-                          >
-                            <option value="">— Select role —</option>
-                            {roles.map((r: any) => <option key={r.id || r} value={r.name || r}>{r.name || r}</option>)}
-                          </select>
+                        <div className="flex-1 flex flex-col gap-2">
+                          <div className="grid grid-cols-2 gap-3">
+                            <select
+                              value={sig.branch}
+                              onChange={(e) => {
+                                const updated = [...automatedSignatories];
+                                updated[index].branch = e.target.value;
+                                if (e.target.value !== "MY_BRANCH") {
+                                  delete updated[index].fallbackBranch;
+                                }
+                                setAutomatedSignatories(updated);
+                              }}
+                              className={SELECT_CLASS}
+                            >
+                              <option value="">— Select branch —</option>
+                              <option value="MY_BRANCH" className="font-semibold text-primary">My Branch (Referrer's Branch)</option>
+                              {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                            </select>
+                            <select
+                              value={sig.role}
+                              onChange={(e) => {
+                                const updated = [...automatedSignatories];
+                                updated[index].role = e.target.value;
+                                setAutomatedSignatories(updated);
+                              }}
+                              className={SELECT_CLASS}
+                            >
+                              <option value="">— Select role —</option>
+                              {roles.map((r: any) => <option key={r.id || r} value={r.name || r}>{r.name || r}</option>)}
+                            </select>
+                          </div>
+                          {sig.branch === "MY_BRANCH" && (
+                            <div className="w-full">
+                              <label className="text-xs font-semibold text-gray-500 mb-1 block">If Officer is at Head Office, route to:</label>
+                              <select
+                                value={sig.fallbackBranch || ""}
+                                onChange={(e) => {
+                                  const updated = [...automatedSignatories];
+                                  updated[index].fallbackBranch = e.target.value;
+                                  setAutomatedSignatories(updated);
+                                }}
+                                className={SELECT_CLASS}
+                              >
+                                <option value="">— Select Fallback Branch —</option>
+                                {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                              </select>
+                            </div>
+                          )}
                         </div>
                         <Button
                           type="button"

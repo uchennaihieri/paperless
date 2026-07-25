@@ -39,6 +39,10 @@ export default async function PublicFormPage({ params }: { params: Promise<{ slu
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
+        <div className="flex items-center justify-center gap-3 mb-8 text-primary font-bold text-2xl">
+          <img src="/logo.png" alt="FINCALite Logo" className="h-10 w-10 object-contain rounded-full bg-white shadow-sm" />
+          FINCALite
+        </div>
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
           <PublicClientForm template={template} slug={resolvedParams.slug} />
         </div>

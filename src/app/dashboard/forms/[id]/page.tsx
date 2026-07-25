@@ -82,5 +82,7 @@ export default async function FillFormPage({
     notFound();
   }
 
-  return <FormFillerClient template={template} currentUser={{ userName, email, token }} prefilledData={prefilledData} requestToken={requestTokenStr} correctionId={correctionIdStr || undefined} correctionRequests={correctionRequests || undefined} />;
+  const userId = session?.user?.id || "";
+
+  return <FormFillerClient template={template} currentUser={{ userName, email, token, id: userId }} prefilledData={prefilledData} requestToken={requestTokenStr} correctionId={correctionIdStr || undefined} correctionRequests={correctionRequests || undefined} />;
 }

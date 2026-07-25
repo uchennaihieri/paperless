@@ -1709,7 +1709,7 @@ export default function FormFillerClient({
   correctionRequests
 }: { 
   template: any, 
-  currentUser: { userName: string; email: string; token?: string }, 
+  currentUser: { userName: string; email: string; token?: string; id?: string }, 
   draftId?: string, 
   initialFormData?: Record<string, any>,
   prerequisiteInfo?: any,
@@ -1851,7 +1851,8 @@ export default function FormFillerClient({
             } else if (f.defaultPrereqBranch) {
               const branch = f.defaultPrereqBranch;
               const role = f.defaultPrereqRole;
-              const res = await fetch(`/api/v1/workflow/resolve-assignee?branch=${encodeURIComponent(branch)}&role=${encodeURIComponent(role)}`, {
+              const fallback = f.defaultPrereqFallbackBranch ? `&fallbackBranch=${encodeURIComponent(f.defaultPrereqFallbackBranch)}` : '';
+              const res = await fetch(`/api/v1/workflow/resolve-assignee?branch=${encodeURIComponent(branch)}&role=${encodeURIComponent(role)}${fallback}`, {
                 headers: { Authorization: `Bearer ${currentUser.token}` }
               });
               const data = await res.json();
@@ -1943,7 +1944,8 @@ export default function FormFillerClient({
       let hasError = false;
 
       for (const sig of autoSigs) {
-        const res = await fetch(`/api/v1/workflow/resolve-assignee?branch=${encodeURIComponent(sig.branch)}&role=${encodeURIComponent(sig.role)}`, {
+        const fallback = sig.fallbackBranch ? `&fallbackBranch=${encodeURIComponent(sig.fallbackBranch)}` : '';
+        const res = await fetch(`/api/v1/workflow/resolve-assignee?branch=${encodeURIComponent(sig.branch)}&role=${encodeURIComponent(sig.role)}${fallback}`, {
           headers: { Authorization: `Bearer ${currentUser.token}` }
         });
         const data = await res.json();
@@ -2241,6 +2243,7 @@ export default function FormFillerClient({
           initialIsPublic={template.isPublic}
           initialPublicSlug={template.publicSlug}
           onClose={() => setShowTargetedRequestModal(false)}
+          currentUser={currentUser}
         />
       )}
 
@@ -2420,7 +2423,8 @@ function TargetedRequestModal({
   formData,
   initialIsPublic,
   initialPublicSlug,
-  onClose
+  onClose,
+  currentUser
 }: {
   templateId: string;
   templateName: string;
@@ -2429,9 +2433,11 @@ function TargetedRequestModal({
   initialIsPublic?: boolean;
   initialPublicSlug?: string | null;
   onClose: () => void;
+  currentUser: { userName: string; email: string; token?: string; id?: string };
 }) {
   const [activeTab, setActiveTab] = useState<"email" | "csv" | "public">("email");
   const [emailsText, setEmailsText] = useState("");
+  const [officerNeedsToSign, setOfficerNeedsToSign] = useState(true);
   const [customMessage, setCustomMessage] = useState(`Hello,\n\nPlease kindly fill out the attached form "${templateName}" at your earliest convenience.\n\nThank you.`);
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -2577,7 +2583,7 @@ function TargetedRequestModal({
               <div className="py-4 space-y-4">
                 {isPublic && publicSlug ? (
                   <div className="space-y-2">
-                    <Label className="text-sm font-semibold">Public Link URL</Label>
+                    <Label className="text-sm font-semibold">Public Link URL (General)</Label>
                     <div className="flex items-center gap-2">
                       <Input 
                         readOnly 
@@ -2591,13 +2597,48 @@ function TargetedRequestModal({
                         className="shrink-0"
                         onClick={() => {
                           navigator.clipboard.writeText(`${FRONTEND_URL}/${publicSlug}`);
-                          setAlertMsg({ type: "success", msg: "Link copied to clipboard!" });
+                          setAlertMsg({ type: "success", msg: "General link copied to clipboard!" });
                         }}
                       >
                         <Copy className="w-4 h-4" />
                       </Button>
                     </div>
-                    <p className="text-[10px] text-gray-400">Anyone with this link can fill out the form.</p>
+                    
+                    <div className="flex items-center justify-between mt-4">
+                      <Label className="text-sm font-semibold">My Personal Link (Routed to me)</Label>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="checkbox" 
+                          id="officerNeedsToSign"
+                          checked={officerNeedsToSign}
+                          onChange={(e) => setOfficerNeedsToSign(e.target.checked)}
+                          className="h-3.5 w-3.5 rounded border-gray-300 text-primary focus:ring-primary"
+                        />
+                        <Label htmlFor="officerNeedsToSign" className="text-xs font-medium cursor-pointer">
+                          I need to sign
+                        </Label>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Input 
+                        readOnly 
+                        value={`${FRONTEND_URL}/${publicSlug}${currentUser.id || ""}${!officerNeedsToSign ? '?nosign=1' : ''}`} 
+                        className="bg-primary/5 text-primary font-medium border-primary/20"
+                      />
+                      <Button 
+                        type="button" 
+                        variant="default" 
+                        size="icon"
+                        className="shrink-0"
+                        onClick={() => {
+                          navigator.clipboard.writeText(`${FRONTEND_URL}/${publicSlug}${currentUser.id || ""}${!officerNeedsToSign ? '?nosign=1' : ''}`);
+                          setAlertMsg({ type: "success", msg: "Personal link copied to clipboard!" });
+                        }}
+                      >
+                        <Copy className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1">Anyone with your personal link will have their submission routed directly to your workflow queue.</p>
                   </div>
                 ) : (
                   <div className="text-center py-6 space-y-3">

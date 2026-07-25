@@ -364,7 +364,7 @@ export default function PublicClientForm({
       } else if (token) {
         url = `${backendUrl}/api/v1/public-forms/submit-token/${token}`;
       } else if (slug) {
-        url = `${backendUrl}/api/v1/public-forms/submit/${slug}`;
+        url = `${backendUrl}/api/v1/public-forms/submit/${slug}${window.location.search}`;
       }
 
       const mappedResponses: Record<string, any> = {};
