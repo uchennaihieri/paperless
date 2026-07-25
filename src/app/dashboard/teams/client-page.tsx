@@ -134,7 +134,8 @@ export default function TeamsClientPage({ users, branches, templates }: { users:
       return (
         (user.user_name || "").toLowerCase().includes(search) ||
         (user.employee_id || "").toLowerCase().includes(search) ||
-        (user.email || "").toLowerCase().includes(search)
+        (user.email || "").toLowerCase().includes(search) ||
+        (user.finca_email || "").toLowerCase().includes(search)
       );
     });
   }, [users, searchTerm]);

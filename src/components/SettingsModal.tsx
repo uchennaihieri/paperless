@@ -467,10 +467,10 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                               className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary focus:ring-offset-2 cursor-pointer"
                             />
                             <div>
-                              <p className="text-sm font-semibold text-gray-700 group-hover:text-gray-900 transition-colors">
-                                Microsoft Teams Notifications <span className="text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded ml-1">Coming Soon</span>
-                              </p>
-                              <p className="text-xs text-gray-400">Receive instant chat alerts inside Microsoft Teams channel.</p>
+                              <span className="font-semibold text-gray-800 text-sm mb-1 flex items-center">
+                                Microsoft Teams
+                              </span>
+                              <p className="text-xs text-gray-400">Receive instant chat alerts via flow bot on microsoft teams</p>
                             </div>
                           </label>
                         </div>
