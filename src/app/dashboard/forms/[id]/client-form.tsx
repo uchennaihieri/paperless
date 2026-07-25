@@ -1930,8 +1930,43 @@ export default function FormFillerClient({
       return;
     }
     // ── Check for automated signatories from template config ──────────────────
-    const autoSigs = typeof template.automatedSignatories === "string" ? JSON.parse(template.automatedSignatories) : template.automatedSignatories;
-    if (!autoSigs || !Array.isArray(autoSigs) || autoSigs.length === 0) {
+    const rawAutoSigs = typeof template.automatedSignatories === "string" ? JSON.parse(template.automatedSignatories) : template.automatedSignatories;
+    
+    let autoSigs: any[] = [];
+    if (rawAutoSigs && Array.isArray(rawAutoSigs)) {
+      // Filter based on conditions
+      autoSigs = rawAutoSigs.filter((sig) => {
+        if (!sig.rules || !Array.isArray(sig.rules) || sig.rules.length === 0) return true;
+        
+        const matchRule = (rule: any) => {
+          const formValue = formData[rule.fieldId] ?? "";
+          const targetValue = rule.value ?? "";
+          
+          let numFormValue = Number(formValue);
+          let numTargetValue = Number(targetValue);
+          const isNum = !isNaN(numFormValue) && !isNaN(numTargetValue) && formValue !== "" && targetValue !== "";
+
+          switch (rule.operator) {
+            case "==": return isNum ? numFormValue === numTargetValue : String(formValue).toLowerCase() === String(targetValue).toLowerCase();
+            case "!=": return isNum ? numFormValue !== numTargetValue : String(formValue).toLowerCase() !== String(targetValue).toLowerCase();
+            case ">": return isNum ? numFormValue > numTargetValue : false;
+            case "<": return isNum ? numFormValue < numTargetValue : false;
+            case ">=": return isNum ? numFormValue >= numTargetValue : false;
+            case "<=": return isNum ? numFormValue <= numTargetValue : false;
+            case "contains": return String(formValue).toLowerCase().includes(String(targetValue).toLowerCase());
+            default: return false;
+          }
+        };
+
+        if (sig.logicType === "OR") {
+          return sig.rules.some(matchRule);
+        } else {
+          return sig.rules.every(matchRule);
+        }
+      });
+    }
+
+    if (!autoSigs || autoSigs.length === 0) {
       setStep(2);
       return;
     }
@@ -1952,11 +1987,14 @@ export default function FormFillerClient({
         
         if (data.success && data.data && data.data.length > 0) {
           const user = data.data[0];
-          resolvedSigs.push({
-            position: resolvedSigs.length + 1,
-            userName: user.user_name ?? "",
-            email: user.finca_email ?? "",
-          });
+          // Deduplicate if identical signatory role/branch results in same user
+          if (!resolvedSigs.some(s => s.email.toLowerCase() === (user.finca_email || "").toLowerCase())) {
+            resolvedSigs.push({
+              position: resolvedSigs.length + 1,
+              userName: user.user_name ?? "",
+              email: user.finca_email ?? "",
+            });
+          }
         } else {
           hasError = true;
           break;
@@ -1965,7 +2003,7 @@ export default function FormFillerClient({
 
       setSubmitting(false);
 
-      if (!hasError && resolvedSigs.length === autoSigs.length + 1) {
+      if (!hasError) {
         setSignatories(resolvedSigs);
         if (template.automatedSigningType) {
           setSigningType(template.automatedSigningType as SigningType);

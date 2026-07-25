@@ -92,7 +92,7 @@ export default function FormBuilderClient({
   const [formTreaterRole, setFormTreaterRole] = useState(initialTemplate?.formTreaterRole || "");
   const [isPublic, setIsPublic] = useState(initialTemplate?.isPublic || false);
   const [publicSlug, setPublicSlug] = useState(initialTemplate?.publicSlug || "");
-  const [automatedSignatories, setAutomatedSignatories] = useState<{branch: string, role: string, signingType: string, fallbackBranch?: string}[]>(
+  const [automatedSignatories, setAutomatedSignatories] = useState<{branch: string, role: string, signingType: string, fallbackBranch?: string, logicType?: "AND" | "OR", rules?: {fieldId: string, operator: string, value: string}[]}[]>(
     typeof initialTemplate?.automatedSignatories === "string" ? JSON.parse(initialTemplate.automatedSignatories) : (initialTemplate?.automatedSignatories || [])
   );
   const [automatedSigningType, setAutomatedSigningType] = useState(initialTemplate?.automatedSigningType || "sequential");
@@ -717,6 +717,129 @@ export default function FormBuilderClient({
                               </select>
                             </div>
                           )}
+                          
+                          {/* Condition Rules */}
+                          <div className="mt-2 pt-2 border-t border-gray-100">
+                            {!sig.rules ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = [...automatedSignatories];
+                                  updated[index].logicType = "AND";
+                                  updated[index].rules = [{ fieldId: "", operator: "==", value: "" }];
+                                  setAutomatedSignatories(updated);
+                                }}
+                                className="text-xs font-semibold text-primary hover:underline flex items-center gap-1"
+                              >
+                                <Plus className="w-3 h-3" /> Add Condition (Optional)
+                              </button>
+                            ) : (
+                              <div className="bg-gray-50 p-3 rounded border border-gray-200">
+                                <div className="flex items-center gap-2 mb-2 text-xs font-semibold text-gray-700">
+                                  <span>Match</span>
+                                  <select
+                                    value={sig.logicType || "AND"}
+                                    onChange={(e) => {
+                                      const updated = [...automatedSignatories];
+                                      updated[index].logicType = e.target.value as "AND" | "OR";
+                                      setAutomatedSignatories(updated);
+                                    }}
+                                    className="p-1 rounded border bg-white"
+                                  >
+                                    <option value="AND">ALL</option>
+                                    <option value="OR">ANY</option>
+                                  </select>
+                                  <span>of the following rules:</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = [...automatedSignatories];
+                                      delete updated[index].rules;
+                                      delete updated[index].logicType;
+                                      setAutomatedSignatories(updated);
+                                    }}
+                                    className="ml-auto text-red-500 hover:underline"
+                                  >
+                                    Remove Condition
+                                  </button>
+                                </div>
+                                <div className="space-y-2">
+                                  {sig.rules.map((rule, rIdx) => (
+                                    <div key={rIdx} className="flex items-center gap-2">
+                                      <select
+                                        value={rule.fieldId}
+                                        onChange={(e) => {
+                                          const updated = [...automatedSignatories];
+                                          updated[index].rules![rIdx].fieldId = e.target.value;
+                                          setAutomatedSignatories(updated);
+                                        }}
+                                        className="text-xs p-1.5 rounded border bg-white flex-1"
+                                      >
+                                        <option value="">— Select Field —</option>
+                                        {fields.filter(f => !["header", "paragraph", "signature"].includes(f.type)).map(f => (
+                                          <option key={f.id} value={f.id}>{f.label || f.id}</option>
+                                        ))}
+                                      </select>
+                                      <select
+                                        value={rule.operator}
+                                        onChange={(e) => {
+                                          const updated = [...automatedSignatories];
+                                          updated[index].rules![rIdx].operator = e.target.value;
+                                          setAutomatedSignatories(updated);
+                                        }}
+                                        className="text-xs p-1.5 rounded border bg-white w-24"
+                                      >
+                                        <option value="==">Equals</option>
+                                        <option value="!=">Not Equals</option>
+                                        <option value=">">Greater than</option>
+                                        <option value="<">Less than</option>
+                                        <option value=">=">Greater or eq</option>
+                                        <option value="<=">Less or eq</option>
+                                        <option value="contains">Contains</option>
+                                      </select>
+                                      <input
+                                        type="text"
+                                        value={rule.value}
+                                        placeholder="Value..."
+                                        onChange={(e) => {
+                                          const updated = [...automatedSignatories];
+                                          updated[index].rules![rIdx].value = e.target.value;
+                                          setAutomatedSignatories(updated);
+                                        }}
+                                        className="text-xs p-1.5 rounded border bg-white w-24"
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const updated = [...automatedSignatories];
+                                          updated[index].rules!.splice(rIdx, 1);
+                                          if (updated[index].rules!.length === 0) {
+                                            delete updated[index].rules;
+                                            delete updated[index].logicType;
+                                          }
+                                          setAutomatedSignatories(updated);
+                                        }}
+                                        className="text-gray-400 hover:text-red-500"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const updated = [...automatedSignatories];
+                                      updated[index].rules!.push({ fieldId: "", operator: "==", value: "" });
+                                      setAutomatedSignatories(updated);
+                                    }}
+                                    className="text-[10px] font-bold text-gray-500 hover:text-gray-800 flex items-center gap-1 mt-1"
+                                  >
+                                    <Plus className="w-3 h-3" /> Add Rule
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <Button
                           type="button"
