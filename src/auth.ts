@@ -112,9 +112,10 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
            // (picture, name, email, etc.) into the JWT token.
            // For Microsoft Entra, this can be massive and blow up the Nginx proxy buffer 
            // when NextAuth chunks it into multiple Set-Cookie headers.
+           // We delete the huge fields but keep name and email.
+           token.name = data.user.user_name || data.user.name || user.name || "Unknown";
+           token.email = data.user.finca_email || data.user.email || user.email || "";
            delete token.picture;
-           delete token.name;
-           delete token.email;
            delete (token as any).accessToken;
            delete (token as any).idToken;
            delete (token as any).profile;
