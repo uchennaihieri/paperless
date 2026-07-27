@@ -68,6 +68,131 @@ type Field = {
 
 const SELECT_CLASS = "flex h-10 w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all cursor-pointer shadow-sm";
 
+function ConditionalRuleBuilder({
+  rules,
+  onChange,
+  onAddRule,
+  onRemoveRuleGroup,
+  title,
+  subtitle,
+  fields,
+  children
+}: {
+  rules: any[];
+  onChange: (index: number, newRuleGroup: any) => void;
+  onAddRule: () => void;
+  onRemoveRuleGroup: (index: number) => void;
+  title: string;
+  subtitle?: string;
+  fields?: any[];
+  children?: (ruleGroup: any, index: number, updateRuleGroup: (rg: any) => void) => React.ReactNode;
+}) {
+  return (
+    <div className="mt-4 p-4 border border-dashed border-gray-300 rounded-lg bg-gray-50/50">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h4 className="text-sm font-semibold text-gray-800">{title}</h4>
+          {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
+        </div>
+        <Button type="button" variant="outline" size="sm" onClick={onAddRule} className="flex items-center gap-1 cursor-pointer">
+          <Plus className="w-4 h-4" /> Add Override Rule
+        </Button>
+      </div>
+
+      {rules.length > 0 && (
+        <div className="space-y-4">
+          {rules.map((ruleGroup, index) => (
+            <div key={index} className="bg-white p-3 rounded border shadow-sm space-y-3 relative">
+              <button type="button" onClick={() => onRemoveRuleGroup(index)} className="absolute top-2 right-2 text-gray-400 hover:text-red-500">
+                <Trash2 className="w-4 h-4" />
+              </button>
+              
+              {children && children(ruleGroup, index, (newRg) => onChange(index, newRg))}
+
+              <div className="border-t pt-3 mt-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-semibold text-gray-700">Conditions:</span>
+                  <select
+                    value={ruleGroup.logicType || "AND"}
+                    onChange={(e) => {
+                      const rg = { ...ruleGroup, logicType: e.target.value };
+                      onChange(index, rg);
+                    }}
+                    className="text-xs p-1 border rounded bg-gray-50"
+                  >
+                    <option value="AND">Match ALL rules</option>
+                    <option value="OR">Match ANY rule</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  {(ruleGroup.rules || []).map((r: any, rIdx: number) => (
+                    <div key={rIdx} className="flex items-center gap-2 bg-gray-50 p-2 rounded border border-gray-100">
+                      {fields ? (
+                        <select
+                          value={r.fieldId}
+                          onChange={(e) => {
+                            const rg = { ...ruleGroup };
+                            rg.rules[rIdx].fieldId = e.target.value;
+                            onChange(index, rg);
+                          }}
+                          className="text-xs p-1.5 rounded border bg-white flex-1"
+                        >
+                          <option value="">— Select Field —</option>
+                          {fields.filter((f: any) => !["header", "paragraph", "signature"].includes(f.type)).map((f: any) => (
+                            <option key={f.id} value={f.id}>{f.label || f.id}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input type="text" placeholder="Field ID or Label..." value={r.fieldId} onChange={(e) => {
+                          const rg = { ...ruleGroup };
+                          rg.rules[rIdx].fieldId = e.target.value;
+                          onChange(index, rg);
+                        }} className="text-xs p-1.5 rounded border bg-white flex-1" />
+                      )}
+                      <select value={r.operator} onChange={(e) => {
+                        const rg = { ...ruleGroup };
+                        rg.rules[rIdx].operator = e.target.value;
+                        onChange(index, rg);
+                      }} className="text-xs p-1.5 rounded border bg-white w-24">
+                        <option value="==">Equals</option>
+                        <option value="!=">Not Equals</option>
+                        <option value=">">Greater than</option>
+                        <option value="<">Less than</option>
+                        <option value=">=">Greater or eq</option>
+                        <option value="<=">Less or eq</option>
+                        <option value="contains">Contains</option>
+                      </select>
+                      <input type="text" placeholder="Value..." value={r.value} onChange={(e) => {
+                        const rg = { ...ruleGroup };
+                        rg.rules[rIdx].value = e.target.value;
+                        onChange(index, rg);
+                      }} className="text-xs p-1.5 rounded border bg-white w-24" />
+                      <button type="button" onClick={() => {
+                        const rg = { ...ruleGroup };
+                        rg.rules.splice(rIdx, 1);
+                        onChange(index, rg);
+                      }} className="text-gray-400 hover:text-red-500"><Trash2 className="w-3 h-3" /></button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => {
+                    const rg = { ...ruleGroup };
+                    if (!rg.rules) rg.rules = [];
+                    rg.rules.push({ fieldId: "", operator: "==", value: "" });
+                    onChange(index, rg);
+                  }} className="text-[10px] font-bold text-gray-500 hover:text-gray-800 flex items-center gap-1 mt-1">
+                    <Plus className="w-3 h-3" /> Add Condition
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function FormBuilderClient({
   isAdmin,
   branches,
@@ -94,6 +219,12 @@ export default function FormBuilderClient({
   const [publicSlug, setPublicSlug] = useState(initialTemplate?.publicSlug || "");
   const [automatedSignatories, setAutomatedSignatories] = useState<{branch: string, role: string, signingType: string, fallbackBranch?: string, logicType?: "AND" | "OR", rules?: {fieldId: string, operator: string, value: string}[]}[]>(
     typeof initialTemplate?.automatedSignatories === "string" ? JSON.parse(initialTemplate.automatedSignatories) : (initialTemplate?.automatedSignatories || [])
+  );
+  const [conditionalRouting, setConditionalRouting] = useState<{
+    ownerRules?: { owner: string, logicType: "AND" | "OR", rules: {fieldId: string, operator: string, value: string}[] }[],
+    treaterRules?: { branch: string, role: string, logicType: "AND" | "OR", rules: {fieldId: string, operator: string, value: string}[] }[]
+  }>(
+    typeof initialTemplate?.conditionalRouting === "string" ? JSON.parse(initialTemplate.conditionalRouting) : (initialTemplate?.conditionalRouting || {})
   );
   const [automatedSigningType, setAutomatedSigningType] = useState(initialTemplate?.automatedSigningType || "sequential");
   const [generatesExcel, setGeneratesExcel] = useState(initialTemplate?.generatesExcel || false);
@@ -297,7 +428,8 @@ export default function FormBuilderClient({
         automatedSigningType,
         generatesExcel,
         pdfType || "none",
-        templateMappings
+        templateMappings,
+        conditionalRouting
       );
     } else {
       res = await createFormTemplate(
@@ -318,7 +450,8 @@ export default function FormBuilderClient({
         automatedSigningType,
         generatesExcel,
         pdfType || "none",
-        templateMappings
+        templateMappings,
+        conditionalRouting
       );
     }
     
@@ -471,7 +604,7 @@ export default function FormBuilderClient({
               </div>
 
               {/* Form Owner */}
-              <div className="space-y-1">
+              <div className="md:col-span-2 space-y-1">
                 <Label htmlFor="form-owner">
                   Form Owner Branch
                   <span className="text-xs text-gray-400 ml-1">(branch that owns this form)</span>
@@ -487,10 +620,48 @@ export default function FormBuilderClient({
                     <option key={b} value={b}>{b}</option>
                   ))}
                 </select>
+                
+                <ConditionalRuleBuilder
+                  title="Conditional Form Owner"
+                  subtitle="Override the default owner branch based on form field values."
+                  rules={conditionalRouting?.ownerRules || []}
+                  fields={fields}
+                  onAddRule={() => {
+                    const r = { ...(conditionalRouting || {}) };
+                    if (!r.ownerRules) r.ownerRules = [];
+                    r.ownerRules.push({ owner: "", logicType: "AND", rules: [{fieldId: "", operator: "==", value: ""}] });
+                    setConditionalRouting(r);
+                  }}
+                  onRemoveRuleGroup={(index) => {
+                    const r = { ...conditionalRouting };
+                    r.ownerRules?.splice(index, 1);
+                    setConditionalRouting(r);
+                  }}
+                  onChange={(index, newRg) => {
+                    const r = { ...conditionalRouting };
+                    if (r.ownerRules) r.ownerRules[index] = newRg;
+                    setConditionalRouting(r);
+                  }}
+                >
+                  {(ruleGroup, index, updateRuleGroup) => (
+                    <div>
+                      <Label className="text-xs font-semibold mb-1 block">Route to Branch:</Label>
+                      <select
+                        value={ruleGroup.owner}
+                        onChange={(e) => updateRuleGroup({ ...ruleGroup, owner: e.target.value })}
+                        className={SELECT_CLASS}
+                      >
+                        <option value="">— Select Branch —</option>
+                        <option value="MY_BRANCH" className="font-semibold text-primary">My Branch (Referrer's Branch)</option>
+                        {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    </div>
+                  )}
+                </ConditionalRuleBuilder>
               </div>
 
               {/* Form Treater */}
-              <div className="space-y-1">
+              <div className="md:col-span-2 space-y-1">
                 <Label htmlFor="form-treater">
                   Form Treater Branch
                   <span className="text-xs text-gray-400 ml-1">(branch that processes this form)</span>
@@ -531,7 +702,7 @@ export default function FormBuilderClient({
               </div>
 
               {/* Form Treater Role */}
-              <div className="space-y-1">
+              <div className="md:col-span-2 space-y-1">
                 <Label htmlFor="form-treater-role">
                   Form Treater Role
                   <span className="text-xs text-gray-400 ml-1">(role that processes this form)</span>
@@ -547,6 +718,57 @@ export default function FormBuilderClient({
                     <option key={r.id || r} value={r.name || r}>{r.name || r}</option>
                   ))}
                 </select>
+
+                <ConditionalRuleBuilder
+                  title="Conditional Form Treater"
+                  subtitle="Override the default treater branch and role based on form field values."
+                  rules={conditionalRouting?.treaterRules || []}
+                  fields={fields}
+                  onAddRule={() => {
+                    const r = { ...(conditionalRouting || {}) };
+                    if (!r.treaterRules) r.treaterRules = [];
+                    r.treaterRules.push({ branch: "", role: "", logicType: "AND", rules: [{fieldId: "", operator: "==", value: ""}] });
+                    setConditionalRouting(r);
+                  }}
+                  onRemoveRuleGroup={(index) => {
+                    const r = { ...conditionalRouting };
+                    r.treaterRules?.splice(index, 1);
+                    setConditionalRouting(r);
+                  }}
+                  onChange={(index, newRg) => {
+                    const r = { ...conditionalRouting };
+                    if (r.treaterRules) r.treaterRules[index] = newRg;
+                    setConditionalRouting(r);
+                  }}
+                >
+                  {(ruleGroup, index, updateRuleGroup) => (
+                    <div className="grid grid-cols-2 gap-2 mb-2">
+                      <div>
+                        <Label className="text-xs font-semibold mb-1 block">Route to Branch:</Label>
+                        <select
+                          value={ruleGroup.branch}
+                          onChange={(e) => updateRuleGroup({ ...ruleGroup, branch: e.target.value })}
+                          className={SELECT_CLASS}
+                        >
+                          <option value="">— Select Branch —</option>
+                          <option value="MY_BRANCH" className="font-semibold text-primary">My Branch (Referrer's Branch)</option>
+                          {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <Label className="text-xs font-semibold mb-1 block">Route to Role:</Label>
+                        <select
+                          value={ruleGroup.role}
+                          onChange={(e) => updateRuleGroup({ ...ruleGroup, role: e.target.value })}
+                          className={SELECT_CLASS}
+                        >
+                          <option value="">— Any Role —</option>
+                          {roles.map((r: any) => <option key={r.id || r} value={r.name || r}>{r.name || r}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                </ConditionalRuleBuilder>
               </div>
 
               {/* PDF Template Configuration */}
