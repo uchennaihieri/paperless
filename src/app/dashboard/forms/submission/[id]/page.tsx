@@ -1,4 +1,4 @@
-import { getSubmission, getFormTemplate } from "@/app/actions/form";
+import { getSubmission, getFormTemplate, getActiveUsers } from "@/app/actions/form";
 import { auth } from "@/auth";
 import { getPrerequisites } from "@/app/actions/prerequisites";
 import { notFound } from "next/navigation";
@@ -11,7 +11,7 @@ import { RegeneratePdfButton } from "./regenerate-button";
 import { RemindButton } from "./remind-button";
 import { PrereqRemindButton } from "./prereq-remind-button";
 import { FormResponseCell } from "./form-response-cell";
-import { SoftDeleteButton } from "./soft-delete-button";
+import { AdminActionsButton } from "./admin-actions-button";
 import { CopyButton } from "@/components/CopyButton";
 import { BackToFormsLink } from "./back-link";
 
@@ -65,7 +65,10 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
 
   if (!submission) notFound();
 
-  const template = await getFormTemplate(submission.templateId);
+  const [template, activeUsers] = await Promise.all([
+    getFormTemplate(submission.templateId),
+    isAdmin ? getActiveUsers() : Promise.resolve([])
+  ]);
   const templateFields: any[] = typeof template?.fields === "string"
     ? JSON.parse(template.fields)
     : (template?.fields || []);
@@ -158,7 +161,7 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
           <Badge variant={statusVariant(submission.status) as any} className="text-sm px-3">
             {submission.status}
           </Badge>
-          {isAdmin && <SoftDeleteButton submissionId={submission.id} />}
+          {isAdmin && <AdminActionsButton submissionId={submission.id} users={activeUsers} />}
         </div>
       </div>
 

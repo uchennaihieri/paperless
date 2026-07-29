@@ -101,6 +101,7 @@ export const { handlers, signIn, signOut, auth, unstable_update } = NextAuth({
              throw new Error(data.error || "Microsoft login failed.");
            }
            
+           token.sub = data.user.id.toString();
            token.roles = JSON.stringify(data.user.roles || []);
            token.activeRoleId = data.user.roles?.[0]?.id?.toString() ?? data.user.id.toString();
            token.backendToken = data.token;

@@ -21,6 +21,11 @@ export async function getFormTemplate(id: string) {
   return result.data || null;
 }
 
+export async function getActiveUsers() {
+  const result = await apiClient("/folders/users", { method: "GET" }).catch(e => ({ data: [] }));
+  return result.data || [];
+}
+
 import { auth } from "@/auth";
 
 export async function isAdministrator() {
@@ -179,6 +184,45 @@ export async function softDeleteSubmission(id: string, reason: string) {
     return { success: true, data: result };
   } catch (error: any) {
     return { success: false, error: error.message || "Failed to soft delete submission" };
+  }
+}
+
+export async function reassignSubmitter(id: string, newSubmitterId: number, reason: string) {
+  try {
+    const result = await apiClient(`/submissions/${id}/reassign-submitter`, {
+      method: "POST",
+      body: JSON.stringify({ newSubmitterId, reason }),
+    });
+    revalidatePath("/dashboard/forms");
+    return { success: true, data: result };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to reassign submitter" };
+  }
+}
+
+export async function forceRejectSubmission(id: string, reason: string) {
+  try {
+    const result = await apiClient(`/submissions/${id}/force-reject`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+    revalidatePath("/dashboard/forms");
+    return { success: true, data: result };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to force reject submission" };
+  }
+}
+
+export async function bypassCorrection(id: string, reason: string) {
+  try {
+    const result = await apiClient(`/submissions/${id}/bypass-correction`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+    revalidatePath("/dashboard/forms");
+    return { success: true, data: result };
+  } catch (error: any) {
+    return { success: false, error: error.message || "Failed to bypass correction" };
   }
 }
 
