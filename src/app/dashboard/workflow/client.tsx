@@ -193,14 +193,14 @@ function DetailPanel({
   const [canvasAnnotations, setCanvasAnnotations] = useState<any[]>([]);
   const [mySignatureImage, setMySignatureImage] = useState<string | null>(null);
 
-  const fields = typeof (item.template as any)?.fields === "string" 
-    ? JSON.parse((item.template as any).fields) 
+  const fields = typeof (item.template as any)?.fields === "string"
+    ? JSON.parse((item.template as any).fields)
     : (item.template as any)?.fields;
   const signableField = fields?.find((f: any) => f.type === "signable_document" || f.type === "generated_contract");
   const signableDoc = signableField ? item.documents?.find(d => d.fieldName === signableField.label && (d as any).type !== "html") : null;
   const hasSignableDoc = !!signableDoc;
   const pdfUrl = signableDoc ? `${BASE_URL}/api/v1/file?docId=${signableDoc.id}` : "";
-  
+
   // Cache the timestamp to prevent the PDF from reloading on every re-render
   const [cacheBuster] = useState(() => Date.now());
 
@@ -361,7 +361,7 @@ function DetailPanel({
             <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 mt-4">
               <h3 className="text-sm font-semibold text-purple-900 mb-2">Delegation Request Details</h3>
               <p className="text-sm text-purple-700">
-                <strong>{item.submittedBy?.user_name}</strong> has requested to delegate their workflow forms to you. 
+                <strong>{item.submittedBy?.user_name}</strong> has requested to delegate their workflow forms to you.
                 If you approve, any forms sent to them will also appear in your queue until the delegation is reverted.
               </p>
             </div>
@@ -370,354 +370,354 @@ function DetailPanel({
           {!item.isDelegationRequest && (
             <>
               {/* Blocked banner */}
-          {/* Blocked banner */}
-          {item.status === "Blocked - Awaiting Prerequisites" && (
-            <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="text-sm font-semibold text-amber-800">Awaiting Prerequisite Forms</p>
-                <p className="text-xs text-amber-700 mt-0.5">
-                  This submission is blocked until all linked prerequisite forms below have been
-                  independently filled and approved. Signatories will be notified automatically once
-                  all prerequisites are met.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Prerequisites section */}
-          {item.prerequisites && item.prerequisites.length > 0 && (
-            <div>
-              <h3 className="text-xs font-semibold text-orange-700 uppercase tracking-widest border-b border-orange-100 pb-2 mb-3 flex items-center gap-2">
-                <Link2 className="w-3.5 h-3.5" /> Prerequisite Forms
-              </h3>
-              <div className="space-y-2">
-                {item.prerequisites.map((pr) => (
-                  <div
-                    key={pr.id}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-gray-200 rounded-lg px-4 py-3 shadow-sm"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
-                        <FileText className="w-4 h-4 text-orange-500" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
-                          {pr.targetForm?.name ?? "Prerequisite Form"}
-                        </p>
-                        <p className="text-xs text-gray-400">Required from: {pr.targetEmail}</p>
-                        {pr.prereqSubmission?.reference && (
-                          <p className="text-xs text-gray-400">Ref: {pr.prereqSubmission.reference}</p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${prereqStatusColor(pr.status)}`}>
-                        <PrereqStatusIcon status={pr.status} />
-                        {pr.status}
-                      </span>
-                      {pr.prereqSubmissionId && (
-                        <a
-                          href={`/dashboard/forms/submission/${pr.prereqSubmissionId}`}
-                          className="text-xs text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
-                          target="_blank" rel="noreferrer"
-                        >
-                          View →
-                        </a>
-                      )}
-                    </div>
+              {/* Blocked banner */}
+              {item.status === "Blocked - Awaiting Prerequisites" && (
+                <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">Awaiting Prerequisite Forms</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      This submission is blocked until all linked prerequisite forms below have been
+                      independently filled and approved. Signatories will be notified automatically once
+                      all prerequisites are met.
+                    </p>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                </div>
+              )}
 
-          {/* Form Responses */}
-          <div>
-            <div className="flex justify-between items-center mb-3 border-b border-gray-100 pb-2">
-              <h3 className="text-xs font-semibold text-primary uppercase tracking-widest flex items-center gap-1">
-                <FileText className="w-3 h-3" /> Form Responses
-              </h3>
-              <div className="flex items-center gap-2">
-                {(item.status === "Completed" || item.status === "Processing") && (
-                  <RegeneratePdfButton submissionId={item.id} />
-                )}
-                {item.formName.startsWith("Master Roster:") && (
-                  <Button 
-                    onClick={() => openFile(`${BASE_URL}/api/v1/workflow/${item.id}/preview-pdf`, `${item.formName}.pdf`, token)}
-                    variant="outline"
-                    size="sm"
-                    className="cursor-pointer border-blue-200 text-blue-700 hover:bg-blue-50"
-                  >
-                    <Eye className="w-4 h-4 mr-2" /> Preview Attendance PDF
-                  </Button>
-                )}
-              </div>
-            </div>
-            <div className="rounded-xl border border-gray-200 overflow-x-auto">
-              <table className="w-full text-sm min-w-[350px]">
-                <thead>
-                  <tr className="bg-gray-900 text-white text-xs">
-                    <th className="px-4 py-2.5 text-left font-semibold w-1/2">Question</th>
-                    <th className="px-4 py-2.5 text-left font-semibold w-1/2">Response</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {(() => {
-                    const templateFields = Array.isArray(item.template?.fields)
-                      ? item.template.fields
-                      : typeof item.template?.fields === "string"
-                        ? JSON.parse(item.template.fields)
-                        : [];
-
-                    const orderedResponses: any[] = [];
-                    const processedKeys = new Set<string>();
-
-                    templateFields.forEach((field: any) => {
-                      const valById = responses[field.id];
-                      const valByLabel = responses[field.label];
-
-                      if (valById !== undefined || valByLabel !== undefined) {
-                        const key = valById !== undefined ? field.id : field.label;
-                        const value = valById !== undefined ? valById : valByLabel;
-
-                        orderedResponses.push({
-                          label: field.label || key,
-                          key,
-                          value: value,
-                        });
-                        if (field.id) processedKeys.add(field.id);
-                        if (field.label) processedKeys.add(field.label);
-                      }
-                    });
-
-                    Object.entries(responses).forEach(([q, a]) => {
-                      if (q !== "CompletedFormPDF" && q !== "Participants" && !processedKeys.has(q)) {
-                        const fallbackLabel = q.charAt(0).toUpperCase() + q.slice(1).replace(/([A-Z])/g, " $1");
-                        orderedResponses.push({ label: fallbackLabel, key: q, value: a });
-                      }
-                    });
-
-                    return orderedResponses.map(({ label: q, key, value: a }, i) => {
-                      const isAttachmentArray = Array.isArray(a) && a.every((v: any) => v && v.isAttachment);
-                      const isRef = isFormReferenceField(key);
-                      return (
-                        <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                        <td className="px-4 py-2.5 font-medium text-gray-700 align-top">{q}</td>
-                        <td className="px-4 py-2.5 text-gray-600 align-top">
-                          {isRef && typeof a === "string" ? (
-                            <FormReferenceLink value={a} token={token} backendUrl={BASE_URL} />
-                          ) : isAttachmentArray ? (
-                            <div className="flex flex-col gap-2">
-                              {(a as any[]).map((file, idx) => (
-                                <button
-                                  key={idx}
-                                  onClick={() => openFile(`${BASE_URL}${file.url}`, file.name, token)}
-                                  className="flex items-center gap-2 text-primary hover:underline text-left cursor-pointer"
-                                >
-                                  <FileText className="w-4 h-4 shrink-0" /> {file.name}
-                                </button>
-                              ))}
-                            </div>
-                          ) : (
-                            String(a) || <span className="italic text-gray-300">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  });
-                })()}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Completed Generated Documents */}
-          {(() => {
-            const completedPdfArr = Array.isArray(responses["CompletedFormPDF"]) ? responses["CompletedFormPDF"] : [];
-            const signedContractDocs = item.documents?.filter((d) => d.fieldName === "SignedContract") || [];
-            const prerequisiteDocs = item.documents?.filter((d) => d.fieldName?.startsWith("PrerequisitePDF:")) || [];
-
-            if (completedPdfArr.length === 0 && signedContractDocs.length === 0 && prerequisiteDocs.length === 0) {
-              return null;
-            }
-
-            return (
-              <div className="mt-6">
-                <h3 className="text-xs font-semibold text-primary uppercase tracking-widest mb-3 border-b border-gray-100 pb-2">
-                  Completed Generated Document
-                </h3>
-                <div className="space-y-3">
-                  {/* Auto-Generated PDF */}
-                  {completedPdfArr.length > 0 && (
-                    <div className="border border-gray-200 rounded-xl bg-gray-50 p-4 flex items-center justify-between gap-3 shadow-sm">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
-                          <FileText className="w-4 h-4 text-[#b50938]" />
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-gray-800 truncate">{completedPdfArr[0].name}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">Generated PDF document</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          onClick={() => openFile(`${BASE_URL}${completedPdfArr[0].url}`, completedPdfArr[0].name, token)}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors cursor-pointer"
-                        >
-                          Open PDF
-                        </button>
-                        <button
-                          onClick={async () => {
-                            const res = await fetch(`${BASE_URL}${completedPdfArr[0].url}`, { headers: { Authorization: `Bearer ${token}` } });
-                            const blob = await res.blob();
-                            const a = document.createElement("a");
-                            a.href = URL.createObjectURL(blob);
-                            a.download = completedPdfArr[0].name;
-                            a.click();
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
-                        >
-                          Download
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Signed Contract & Prerequisite Documents */}
-                  {[...signedContractDocs, ...prerequisiteDocs].map((doc) => {
-                    const fileUrl = `/api/v1/file?docId=${doc.id}&t=${Date.now()}`;
-                    let fileName = doc.originalName || "Document.pdf";
-                    let subtitle = "Document";
-
-                    if (doc.fieldName === "SignedContract") {
-                      fileName = doc.originalName || "Signed_Contract.pdf";
-                      subtitle = "Signed Contract document";
-                    } else if (doc.fieldName?.startsWith("PrerequisitePDF:")) {
-                      const prereqName = doc.fieldName.replace("PrerequisitePDF:", "");
-                      fileName = doc.originalName || `${prereqName}_Form.pdf`;
-                      subtitle = `Prerequisite: ${prereqName}`;
-                    }
-
-                    return (
-                      <div key={doc.id} className="border border-gray-200 rounded-xl bg-gray-50 p-4 flex items-center justify-between gap-3 shadow-sm">
+              {/* Prerequisites section */}
+              {item.prerequisites && item.prerequisites.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-orange-700 uppercase tracking-widest border-b border-orange-100 pb-2 mb-3 flex items-center gap-2">
+                    <Link2 className="w-3.5 h-3.5" /> Prerequisite Forms
+                  </h3>
+                  <div className="space-y-2">
+                    {item.prerequisites.map((pr) => (
+                      <div
+                        key={pr.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-gray-200 rounded-lg px-4 py-3 shadow-sm"
+                      >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
-                            <FileText className="w-4 h-4 text-[#b50938]" />
+                          <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+                            <FileText className="w-4 h-4 text-orange-500" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-sm font-semibold text-gray-800 truncate">{fileName}</p>
-                            <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {pr.targetForm?.name ?? "Prerequisite Form"}
+                            </p>
+                            <p className="text-xs text-gray-400">Required from: {pr.targetEmail}</p>
+                            {pr.prereqSubmission?.reference && (
+                              <p className="text-xs text-gray-400">Ref: {pr.prereqSubmission.reference}</p>
+                            )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            onClick={() => openFile(`${BASE_URL}${fileUrl}`, fileName, token)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors cursor-pointer"
-                          >
-                            Open PDF
-                          </button>
-                          <button
-                            onClick={async () => {
-                              const res = await fetch(`${BASE_URL}${fileUrl}`, { headers: { Authorization: `Bearer ${token}` } });
-                              const blob = await res.blob();
-                              const a = document.createElement("a");
-                              a.href = URL.createObjectURL(blob);
-                              a.download = fileName;
-                              a.click();
-                            }}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
-                          >
-                            Download
-                          </button>
+                        <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${prereqStatusColor(pr.status)}`}>
+                            <PrereqStatusIcon status={pr.status} />
+                            {pr.status}
+                          </span>
+                          {pr.prereqSubmissionId && (
+                            <a
+                              href={`/dashboard/forms/submission/${pr.prereqSubmissionId}`}
+                              className="text-xs text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
+                              target="_blank" rel="noreferrer"
+                            >
+                              View →
+                            </a>
+                          )}
                         </div>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Form Responses */}
+              <div>
+                <div className="flex justify-between items-center mb-3 border-b border-gray-100 pb-2">
+                  <h3 className="text-xs font-semibold text-primary uppercase tracking-widest flex items-center gap-1">
+                    <FileText className="w-3 h-3" /> Form Responses
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    {(item.status === "Completed" || item.status === "Processing") && (
+                      <RegeneratePdfButton submissionId={item.id} />
+                    )}
+                    {item.formName.startsWith("Master Roster:") && (
+                      <Button
+                        onClick={() => openFile(`${BASE_URL}/api/v1/workflow/${item.id}/preview-pdf`, `${item.formName}.pdf`, token)}
+                        variant="outline"
+                        size="sm"
+                        className="cursor-pointer border-blue-200 text-blue-700 hover:bg-blue-50"
+                      >
+                        <Eye className="w-4 h-4 mr-2" /> Preview Attendance PDF
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-gray-200 overflow-x-auto">
+                  <table className="w-full text-sm min-w-[350px]">
+                    <thead>
+                      <tr className="bg-gray-900 text-white text-xs">
+                        <th className="px-4 py-2.5 text-left font-semibold w-1/2">Question</th>
+                        <th className="px-4 py-2.5 text-left font-semibold w-1/2">Response</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {(() => {
+                        const templateFields = Array.isArray(item.template?.fields)
+                          ? item.template.fields
+                          : typeof item.template?.fields === "string"
+                            ? JSON.parse(item.template.fields)
+                            : [];
+
+                        const orderedResponses: any[] = [];
+                        const processedKeys = new Set<string>();
+
+                        templateFields.forEach((field: any) => {
+                          const valById = responses[field.id];
+                          const valByLabel = responses[field.label];
+
+                          if (valById !== undefined || valByLabel !== undefined) {
+                            const key = valById !== undefined ? field.id : field.label;
+                            const value = valById !== undefined ? valById : valByLabel;
+
+                            orderedResponses.push({
+                              label: field.label || key,
+                              key,
+                              value: value,
+                            });
+                            if (field.id) processedKeys.add(field.id);
+                            if (field.label) processedKeys.add(field.label);
+                          }
+                        });
+
+                        Object.entries(responses).forEach(([q, a]) => {
+                          if (q !== "CompletedFormPDF" && q !== "Participants" && !processedKeys.has(q)) {
+                            const fallbackLabel = q.charAt(0).toUpperCase() + q.slice(1).replace(/([A-Z])/g, " $1");
+                            orderedResponses.push({ label: fallbackLabel, key: q, value: a });
+                          }
+                        });
+
+                        return orderedResponses.map(({ label: q, key, value: a }, i) => {
+                          const isAttachmentArray = Array.isArray(a) && a.every((v: any) => v && v.isAttachment);
+                          const isRef = isFormReferenceField(key);
+                          return (
+                            <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                              <td className="px-4 py-2.5 font-medium text-gray-700 align-top">{q}</td>
+                              <td className="px-4 py-2.5 text-gray-600 align-top">
+                                {isRef && typeof a === "string" ? (
+                                  <FormReferenceLink value={a} token={token} backendUrl={BASE_URL} />
+                                ) : isAttachmentArray ? (
+                                  <div className="flex flex-col gap-2">
+                                    {(a as any[]).map((file, idx) => (
+                                      <button
+                                        key={idx}
+                                        onClick={() => openFile(`${BASE_URL}${file.url}`, file.name, token)}
+                                        className="flex items-center gap-2 text-primary hover:underline text-left cursor-pointer"
+                                      >
+                                        <FileText className="w-4 h-4 shrink-0" /> {file.name}
+                                      </button>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  String(a) || <span className="italic text-gray-300">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-            );
-          })()}
 
+              {/* Completed Generated Documents */}
+              {(() => {
+                const completedPdfArr = Array.isArray(responses["CompletedFormPDF"]) ? responses["CompletedFormPDF"] : [];
+                const signedContractDocs = item.documents?.filter((d) => d.fieldName === "SignedContract") || [];
+                const prerequisiteDocs = item.documents?.filter((d) => d.fieldName?.startsWith("PrerequisitePDF:")) || [];
 
-          <div>
-            <h3 className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">
-              Signatories
-            </h3>
-            <div className="space-y-3">
-              {item.signatories.map((s) => (
-                <div
-                  key={s.id}
-                  className={`bg-white border rounded-xl px-4 py-3 space-y-2 ${s.status === "Declined" ? "border-red-200 bg-red-50/30"
-                      : s.status === "Signed" ? "border-green-200 bg-green-50/20"
-                        : "border-gray-200"
-                    }`}
-                >
-                  {/* Top row: position, name, email, badge */}
-                  <div className="flex items-center gap-3">
-                    {item.signingType === "sequential" && (
-                      <div className={`h-6 w-6 rounded-full text-xs font-bold flex items-center justify-center shrink-0 ${s.status === "Signed" ? "bg-green-100 text-green-700"
-                          : s.status === "Declined" ? "bg-red-100 text-red-600"
-                            : "bg-primary/10 text-primary"
-                        }`}>
-                        {s.position}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{s.userName}</p>
-                      <p className="text-xs text-gray-400 truncate">{s.email}</p>
+                if (completedPdfArr.length === 0 && signedContractDocs.length === 0 && prerequisiteDocs.length === 0) {
+                  return null;
+                }
+
+                return (
+                  <div className="mt-6">
+                    <h3 className="text-xs font-semibold text-primary uppercase tracking-widest mb-3 border-b border-gray-100 pb-2">
+                      Completed Generated Document
+                    </h3>
+                    <div className="space-y-3">
+                      {/* Auto-Generated PDF */}
+                      {completedPdfArr.length > 0 && (
+                        <div className="border border-gray-200 rounded-xl bg-gray-50 p-4 flex items-center justify-between gap-3 shadow-sm">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                              <FileText className="w-4 h-4 text-[#b50938]" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-800 truncate">{completedPdfArr[0].name}</p>
+                              <p className="text-xs text-gray-400 mt-0.5">Generated PDF document</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => openFile(`${BASE_URL}${completedPdfArr[0].url}`, completedPdfArr[0].name, token)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors cursor-pointer"
+                            >
+                              Open PDF
+                            </button>
+                            <button
+                              onClick={async () => {
+                                const res = await fetch(`${BASE_URL}${completedPdfArr[0].url}`, { headers: { Authorization: `Bearer ${token}` } });
+                                const blob = await res.blob();
+                                const a = document.createElement("a");
+                                a.href = URL.createObjectURL(blob);
+                                a.download = completedPdfArr[0].name;
+                                a.click();
+                              }}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
+                            >
+                              Download
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Signed Contract & Prerequisite Documents */}
+                      {[...signedContractDocs, ...prerequisiteDocs].map((doc) => {
+                        const fileUrl = `/api/v1/file?docId=${doc.id}&t=${Date.now()}`;
+                        let fileName = doc.originalName || "Document.pdf";
+                        let subtitle = "Document";
+
+                        if (doc.fieldName === "SignedContract") {
+                          fileName = doc.originalName || "Signed_Contract.pdf";
+                          subtitle = "Signed Contract document";
+                        } else if (doc.fieldName?.startsWith("PrerequisitePDF:")) {
+                          const prereqName = doc.fieldName.replace("PrerequisitePDF:", "");
+                          fileName = doc.originalName || `${prereqName}_Form.pdf`;
+                          subtitle = `Prerequisite: ${prereqName}`;
+                        }
+
+                        return (
+                          <div key={doc.id} className="border border-gray-200 rounded-xl bg-gray-50 p-4 flex items-center justify-between gap-3 shadow-sm">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="w-9 h-9 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                                <FileText className="w-4 h-4 text-[#b50938]" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-gray-800 truncate">{fileName}</p>
+                                <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                onClick={() => openFile(`${BASE_URL}${fileUrl}`, fileName, token)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors cursor-pointer"
+                              >
+                                Open PDF
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  const res = await fetch(`${BASE_URL}${fileUrl}`, { headers: { Authorization: `Bearer ${token}` } });
+                                  const blob = await res.blob();
+                                  const a = document.createElement("a");
+                                  a.href = URL.createObjectURL(blob);
+                                  a.download = fileName;
+                                  a.click();
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
+                              >
+                                Download
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                    <Badge variant={
-                      s.status === "Signed" ? "success"
-                        : s.status === "Declined" ? "destructive"
-                          : "secondary"
-                    }>
-                      {s.status}
-                    </Badge>
                   </div>
+                );
+              })()}
 
-                  {/* Signed/declined timestamp */}
-                  {s.signedAt && (
-                    <p className="text-xs text-gray-400 pl-9" suppressHydrationWarning>
-                      {s.status === "Declined" ? "Declined" : "Signed"}: {formatDateTime(s.signedAt)}
-                    </p>
-                  )}
 
-                  {/* Signature image (Signed only) */}
-                  {s.status === "Signed" && s.signatureData && (
-                    <div className="mt-1 pl-9">
-                      <p className="text-xs text-gray-400 mb-1">Signature</p>
-                      <div className="p-2 bg-white rounded-lg border border-gray-100 inline-block">
-                        <img
-                          src={s.signatureData}
-                          alt={`${s.userName}'s signature`}
-                          className="max-h-14 max-w-[200px] object-contain"
-                        />
+              <div>
+                <h3 className="text-xs font-semibold text-primary uppercase tracking-widest mb-3">
+                  Signatories
+                </h3>
+                <div className="space-y-3">
+                  {item.signatories.map((s) => (
+                    <div
+                      key={s.id}
+                      className={`bg-white border rounded-xl px-4 py-3 space-y-2 ${s.status === "Declined" ? "border-red-200 bg-red-50/30"
+                        : s.status === "Signed" ? "border-green-200 bg-green-50/20"
+                          : "border-gray-200"
+                        }`}
+                    >
+                      {/* Top row: position, name, email, badge */}
+                      <div className="flex items-center gap-3">
+                        {item.signingType === "sequential" && (
+                          <div className={`h-6 w-6 rounded-full text-xs font-bold flex items-center justify-center shrink-0 ${s.status === "Signed" ? "bg-green-100 text-green-700"
+                            : s.status === "Declined" ? "bg-red-100 text-red-600"
+                              : "bg-primary/10 text-primary"
+                            }`}>
+                            {s.position}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{s.userName}</p>
+                          <p className="text-xs text-gray-400 truncate">{s.email}</p>
+                        </div>
+                        <Badge variant={
+                          s.status === "Signed" ? "success"
+                            : s.status === "Declined" ? "destructive"
+                              : "secondary"
+                        }>
+                          {s.status}
+                        </Badge>
                       </div>
-                    </div>
-                  )}
 
-                  {/* Decline reason (Declined only) */}
-                  {s.status === "Declined" && s.declineReason && (
-                    <div className="pl-9">
-                      <p className="text-xs font-semibold text-red-600 mb-0.5">Reason</p>
-                      <p className="text-xs text-red-700">{s.declineReason}</p>
-                    </div>
-                  )}
+                      {/* Signed/declined timestamp */}
+                      {s.signedAt && (
+                        <p className="text-xs text-gray-400 pl-9" suppressHydrationWarning>
+                          {s.status === "Declined" ? "Declined" : "Signed"}: {formatDateTime(s.signedAt)}
+                        </p>
+                      )}
 
-                  {/* Approval comment (Signed only) */}
-                  {s.status === "Signed" && s.approvalComment && (
-                    <div className="pl-9 mt-1">
-                      <p className="text-xs font-semibold text-green-700 mb-0.5">Comment</p>
-                      <p className="text-xs text-green-800">{s.approvalComment}</p>
-                    </div>
-                  )}
+                      {/* Signature image (Signed only) */}
+                      {s.status === "Signed" && s.signatureData && (
+                        <div className="mt-1 pl-9">
+                          <p className="text-xs text-gray-400 mb-1">Signature</p>
+                          <div className="p-2 bg-white rounded-lg border border-gray-100 inline-block">
+                            <img
+                              src={s.signatureData}
+                              alt={`${s.userName}'s signature`}
+                              className="max-h-14 max-w-[200px] object-contain"
+                            />
+                          </div>
+                        </div>
+                      )}
 
+                      {/* Decline reason (Declined only) */}
+                      {s.status === "Declined" && s.declineReason && (
+                        <div className="pl-9">
+                          <p className="text-xs font-semibold text-red-600 mb-0.5">Reason</p>
+                          <p className="text-xs text-red-700">{s.declineReason}</p>
+                        </div>
+                      )}
+
+                      {/* Approval comment (Signed only) */}
+                      {s.status === "Signed" && s.approvalComment && (
+                        <div className="pl-9 mt-1">
+                          <p className="text-xs font-semibold text-green-700 mb-0.5">Comment</p>
+                          <p className="text-xs text-green-800">{s.approvalComment}</p>
+                        </div>
+                      )}
+
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </div>
-          </>
+              </div>
+            </>
           )}
 
           {error && (
@@ -1109,7 +1109,7 @@ function DetailPanel({
                   </button>
                 </div>
               </div>
-              
+
               <div className="space-y-4 mt-6">
                 <p className="text-sm text-gray-500">Approval Comment <span className="text-gray-400 font-normal">(optional)</span></p>
                 <textarea
@@ -1146,15 +1146,15 @@ function DetailPanel({
                 setError("");
                 startSignTransition(async () => {
                   let payload: { signatureData?: string; annotations?: any[] } = {};
-                  
+
                   const firstSig = anns.find(a => a.type === "signature" && a.customSignatureData);
                   if (!firstSig) {
                     setError("You must place at least one signature.");
                     return;
                   }
-                  
+
                   payload.signatureData = firstSig.customSignatureData;
-                  
+
                   if (anns.length > 0) {
                     payload.annotations = anns.map(a => ({
                       ...a,
@@ -1163,12 +1163,12 @@ function DetailPanel({
                   }
 
                   const res = await signSubmission(item.id, payload);
-                  if (res.success) { 
-                    onSigned(item.id); 
+                  if (res.success) {
+                    onSigned(item.id);
                     setShowCanvas(false);
-                    onClose(); 
-                  } else { 
-                    setError(res.error ?? "Failed to sign."); 
+                    onClose();
+                  } else {
+                    setError(res.error ?? "Failed to sign.");
                   }
                 });
               }}
@@ -1254,11 +1254,10 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
           {queue.map((item) => (
             <Card
               key={item.id}
-              className={`hover:shadow-md transition-all cursor-pointer group border-l-4 ${
-                item.isDelegationRequest ? "border-l-purple-400" :
-                item.isPrerequisiteTask ? "border-l-indigo-400" : 
-                "border-l-amber-400"
-              }`}
+              className={`hover:shadow-md transition-all cursor-pointer group border-l-4 ${item.isDelegationRequest ? "border-l-purple-400" :
+                item.isPrerequisiteTask ? "border-l-indigo-400" :
+                  "border-l-amber-400"
+                }`}
               onClick={() => {
                 if (item.type === "CONTRACT") {
                   setSelectedContractId(item.contractRequestId || null);
@@ -1271,11 +1270,10 @@ export default function WorkflowClient({ initialQueue }: { initialQueue: QueueIt
             >
               <CardContent className="p-4 sm:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                 <div className="flex gap-3 sm:gap-4 items-start md:items-center min-w-0 w-full md:w-auto">
-                  <div className={`${
-                    item.isDelegationRequest ? "bg-purple-100 text-purple-600" :
-                    item.isPrerequisiteTask ? "bg-indigo-100 text-indigo-600" : 
-                    "bg-amber-100 text-amber-600"
-                  } p-2 sm:p-2.5 rounded-xl shrink-0 mt-1 md:mt-0 hidden sm:block`}>
+                  <div className={`${item.isDelegationRequest ? "bg-purple-100 text-purple-600" :
+                    item.isPrerequisiteTask ? "bg-indigo-100 text-indigo-600" :
+                      "bg-amber-100 text-amber-600"
+                    } p-2 sm:p-2.5 rounded-xl shrink-0 mt-1 md:mt-0 hidden sm:block`}>
                     {item.isDelegationRequest ? <Users className="w-4 h-4 sm:w-5 sm:h-5" /> : <Clock className="w-4 h-4 sm:w-5 sm:h-5" />}
                   </div>
                   <div className="min-w-0 flex-1">

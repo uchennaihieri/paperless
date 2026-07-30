@@ -71,10 +71,10 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
   const localItems = (fetchedItems || items).filter(item => {
     if (!textSearch.trim()) return true;
     const q = textSearch.toLowerCase();
-    
+
     let formValuesMatch = false;
     if (item.formResponses) {
-      formValuesMatch = Object.values(item.formResponses).some(v => 
+      formValuesMatch = Object.values(item.formResponses).some(v =>
         v && typeof v === 'string' && v.toLowerCase().includes(q)
       );
     }
@@ -131,7 +131,7 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
   const [isJournalOpen, setIsJournalOpen] = useState(false);
   const [assignError, setAssignError] = useState("");
   const [showCheckPdfErrorModal, setShowCheckPdfErrorModal] = useState(false);
-  
+
   // File to Folder State
   const [showFileModal, setShowFileModal] = useState(false);
   const [fileTargetId, setFileTargetId] = useState<string | null>(null);
@@ -417,12 +417,12 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
                     }>
                       {item.status}
                     </Badge>
-                    
+
                     {statusFilter === "Completed" && (() => {
-                      const hasAutomated = (item.template?.formOwner?.toLowerCase() === userBranch?.toLowerCase()) || 
-                                           (item.treaterBranch?.toLowerCase() === userBranch?.toLowerCase()) || 
-                                           (item.formResponses?.Branch === userBranch) || 
-                                           (item.formResponses?.branch === userBranch);
+                      const hasAutomated = (item.template?.formOwner?.toLowerCase() === userBranch?.toLowerCase()) ||
+                        (item.treaterBranch?.toLowerCase() === userBranch?.toLowerCase()) ||
+                        (item.formResponses?.Branch === userBranch) ||
+                        (item.formResponses?.branch === userBranch);
                       const hasManual = item.manualFolders && item.manualFolders.length > 0;
                       const hasAnyFolder = hasAutomated || hasManual;
 
@@ -583,21 +583,43 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <a
-                        href={selected.formResponses["CompletedFormPDF"][0].url}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        onClick={async () => {
+                          const newWindow = window.open("", "_blank");
+                          const fileUrl = `${BASE_URL}${selected.formResponses["CompletedFormPDF"][0].url}`;
+                          const fileName = selected.formResponses["CompletedFormPDF"][0].name || "Completed_Document.pdf";
+                          if (newWindow) newWindow.document.write(`<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;color:#666;">Loading ${fileName}...</div>`);
+                          try {
+                            const res = await fetch(fileUrl, { headers: { Authorization: `Bearer ${token}` } });
+                            if (!res.ok) throw new Error("Failed to fetch file");
+                            const blob = await res.blob();
+                            const url = URL.createObjectURL(blob);
+                            if (newWindow) newWindow.location.href = url;
+                            setTimeout(() => URL.revokeObjectURL(url), 60000);
+                          } catch { if (newWindow) newWindow.document.write(`<div style="color:red;padding:20px;">Failed to load file.</div>`); }
+                        }}
                         className="flex items-center gap-1.5 px-4 py-2 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors shadow-sm"
                       >
                         <FileDown className="w-3.5 h-3.5" /> Open PDF
-                      </a>
-                      <a
-                        href={selected.formResponses["CompletedFormPDF"][0].url}
-                        download
+                      </button>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch(`${BASE_URL}${selected.formResponses["CompletedFormPDF"][0].url}`, { headers: { Authorization: `Bearer ${token}` } });
+                            if (!res.ok) throw new Error("Failed to fetch file");
+                            const blob = await res.blob();
+                            const a = document.createElement("a");
+                            a.href = URL.createObjectURL(blob);
+                            a.download = selected.formResponses["CompletedFormPDF"][0].name || "Completed_Document.pdf";
+                            a.click();
+                          } catch (err) {
+                            console.error("Error downloading file:", err);
+                          }
+                        }}
                         className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors shadow-sm"
                       >
                         Download
-                      </a>
+                      </button>
                     </div>
                   </div>
                 )}
@@ -734,8 +756,8 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
                         s.status === "Signed"
                           ? "success"
                           : s.status === "Declined"
-                          ? "destructive"
-                          : "secondary"
+                            ? "destructive"
+                            : "secondary"
                       }
                     >
                       {s.status}
@@ -828,7 +850,7 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
                         <AlertTriangle className="w-5 h-5 mr-3 text-amber-600" />
                         <div className="text-left"><div className="font-semibold text-gray-900">Request Correction</div><div className="text-xs text-gray-500 font-normal">Send back to submitter for corrections</div></div>
                       </Button>
-                  )}
+                    )}
                 </div>
               )}
 
