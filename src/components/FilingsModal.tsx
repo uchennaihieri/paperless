@@ -289,25 +289,27 @@ export function FilingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[80vh] flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0 bg-gray-50/50">
-          <div>
-            <div className="flex items-center gap-2">
-              <FolderOpen className="w-5 h-5 text-gray-700" />
-              <h2 className="text-lg font-bold text-gray-900">File Room</h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-[#b50938]/10">
+              <FolderOpen className="w-5 h-5 text-[#b50938]" />
             </div>
-            <p className="text-xs text-gray-400 mt-0.5">
-              Completed submissions and custom folders for: <span className="font-semibold text-gray-700">{userBranch}</span>
-            </p>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">File Room</h2>
+              <p className="text-xs text-gray-400">
+                Completed submissions and custom folders for: <span className="font-semibold text-gray-700">{userBranch}</span>
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <Button size="sm" onClick={() => setShowCreateModal(true)} className="h-8 bg-primary hover:opacity-90 text-white" style={{ backgroundColor: "#B50938" }}>
               <Plus className="w-4 h-4 mr-1" /> Create Folder
             </Button>
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500 cursor-pointer">
-              <X className="w-5 h-5" />
+            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors">
+              <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
         </div>

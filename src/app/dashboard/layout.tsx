@@ -7,14 +7,14 @@ import { OfflineIndicator } from "@/components/OfflineIndicator";
 import {
   Building2, FileText, CheckSquare, PenTool, LayoutDashboard,
   LogOut, Users, BarChart2, Menu, X, History, Settings, ShieldCheck, Zap, BookOpen,
-  FolderOpen, Smartphone, UserPlus, PhoneCall
+  FolderOpen, Smartphone, UserPlus, PhoneCall, Bug
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
 import { HistoryModal } from "@/components/HistoryModal";
 import { SettingsModal } from "@/components/SettingsModal";
 import { AuditTrailModal } from "@/components/AuditTrailModal";
-import { JournalLedgerModal } from "@/components/JournalLedgerModal";
+import { BugsAndFixesModal } from "@/components/BugsAndFixesModal";
 import { SessionGuard } from "@/components/SessionGuard";
 import { FilingsModal } from "@/components/FilingsModal";
 import SwapDelegateModal from "@/components/SwapDelegateModal";
@@ -55,7 +55,7 @@ export default function DashboardLayout({
   const [isFilingsOpen, setIsFilingsOpen]       = useState(false);
   const [isSettingsOpen, setIsSettingsOpen]     = useState(false);
   const [isAuditOpen, setIsAuditOpen]           = useState(false);
-  const [isJournalLedgerOpen, setIsJournalLedgerOpen] = useState(false);
+  const [isBugsAndFixesOpen, setIsBugsAndFixesOpen] = useState(false);
   const [isSwapDelegateOpen, setIsSwapDelegateOpen] = useState(false);
   const [isCrmOpen, setIsCrmOpen] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement>(null);
@@ -260,14 +260,12 @@ export default function DashboardLayout({
                       <ShieldCheck className="w-4 h-4 text-gray-400" /> Audit Trail
                     </button>
                   )}
-                  {activeRole?.specialAccess?.toLowerCase().includes("accountant") && (
-                    <button
-                      onClick={() => { setIsJournalLedgerOpen(true); setIsAvatarMenuOpen(false); }}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      <BookOpen className="w-4 h-4 text-gray-400" /> Journal Ledger
-                    </button>
-                  )}
+                  <button
+                    onClick={() => { setIsBugsAndFixesOpen(true); setIsAvatarMenuOpen(false); }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <Bug className="w-4 h-4 text-gray-400" /> Bugs and Fixes
+                  </button>
                   <button
                     onClick={() => { setIsCrmOpen(true); setIsAvatarMenuOpen(false); }}
                     className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
@@ -307,7 +305,7 @@ export default function DashboardLayout({
     <FilingsModal isOpen={isFilingsOpen} onClose={() => setIsFilingsOpen(false)} />
     <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
     <AuditTrailModal isOpen={isAuditOpen} onClose={() => setIsAuditOpen(false)} />
-    <JournalLedgerModal isOpen={isJournalLedgerOpen} onClose={() => setIsJournalLedgerOpen(false)} />
+    <BugsAndFixesModal isOpen={isBugsAndFixesOpen} onClose={() => setIsBugsAndFixesOpen(false)} />
     <SwapDelegateModal 
       open={isSwapDelegateOpen} 
       onOpenChange={setIsSwapDelegateOpen} 

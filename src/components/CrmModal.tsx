@@ -257,23 +257,23 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-gray-900/50 flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden relative">
 
         {/* Header */}
         <div className="h-16 shrink-0 border-b border-gray-100 flex items-center justify-between px-6 bg-white gap-4">
           <div className="flex items-center gap-3 shrink-0">
             {view === "grid" && (
-              <button onClick={() => setView("select")} className="mr-2 p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors flex items-center justify-center" title="Back to Lists">
+              <button onClick={() => setView("select")} className="mr-2 p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors flex items-center justify-center" title="Back to Lists">
                 <ChevronLeft className="w-5 h-5" />
               </button>
             )}
-            <div className="h-10 w-10 bg-primary/10 rounded-lg flex items-center justify-center text-primary shrink-0">
-              <PhoneCall className="w-5 h-5" />
+            <div className="p-2 rounded-lg bg-[#b50938]/10 shrink-0">
+              <PhoneCall className="w-5 h-5 text-[#b50938]" />
             </div>
             <div className="hidden sm:block">
               <h2 className="text-lg font-bold text-gray-900">Mini CRM</h2>
-              <p className="text-xs text-gray-500">Call Logs & Customer Feedback</p>
+              <p className="text-xs text-gray-400">Call Logs & Customer Feedback</p>
             </div>
           </div>
 

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useTransition, useEffect, useCallback } from "react";
 import SignatureCanvas from "react-signature-canvas";
-import { X, PenTool, Save, Eraser, CheckCircle2, Upload, ImageIcon, AlertCircle, Bell, Mail, MessageSquare, UserPlus } from "lucide-react";
+import { X, PenTool, Save, Eraser, CheckCircle2, Upload, ImageIcon, AlertCircle, Bell, Mail, MessageSquare, UserPlus, Settings } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -220,13 +220,18 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] sm:h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] sm:h-[85vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">Settings</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Configure your digital signature and application settings</p>
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-[#b50938]/10">
+              <Settings className="w-5 h-5 text-[#b50938]" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Settings</h2>
+              <p className="text-xs text-gray-400">Configure your digital signature and application settings</p>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             {/* Auto-Save Indicators in Header */}
@@ -249,8 +254,8 @@ export function SettingsModal({ isOpen, onClose }: { isOpen: boolean; onClose: (
                 )}
               </div>
             )}
-            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition-colors text-gray-500 cursor-pointer">
-              <X className="w-5 h-5" />
+            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors">
+              <X className="w-5 h-5 text-gray-500" />
             </button>
           </div>
         </div>
