@@ -289,7 +289,17 @@ export default function EditSubmissionModal({
           const num = Number(srcVal);
           if (!isNaN(num)) valToConvert = Math.abs(num);
         }
-        const words = numberToWords(valToConvert ?? '');
+
+        const currencyFieldValue = (field as any).sourceCurrencyFieldId ? formData[(field as any).sourceCurrencyFieldId] : null;
+        const isUSD = typeof currencyFieldValue === 'string' && currencyFieldValue.toUpperCase().includes('USD');
+
+        let words = "";
+        if (isUSD) {
+          words = numberToWords(valToConvert ?? '', "Dollars", "Cents");
+        } else {
+          words = numberToWords(valToConvert ?? '');
+        }
+
         if (formData[field.id] !== words) handleFieldChange(field.id, words);
       }
 

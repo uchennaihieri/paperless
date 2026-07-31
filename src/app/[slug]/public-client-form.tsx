@@ -285,7 +285,15 @@ export default function PublicClientForm({
             const num = Number(srcVal);
             if (!isNaN(num)) valToConvert = Math.abs(num);
           }
-          next[f.id] = numberToWords(valToConvert ?? '');
+
+          const currencyFieldValue = f.sourceCurrencyFieldId ? next[f.sourceCurrencyFieldId] : null;
+          const isUSD = typeof currencyFieldValue === 'string' && currencyFieldValue.toUpperCase().includes('USD');
+
+          if (isUSD) {
+            next[f.id] = numberToWords(valToConvert ?? '', "Dollars", "Cents");
+          } else {
+            next[f.id] = numberToWords(valToConvert ?? '');
+          }
         });
 
       // Handle conditional fields

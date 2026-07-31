@@ -1479,6 +1479,19 @@ export default function FormBuilderClient({
                               ))}
                             </select>
                           </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs font-semibold text-teal-800">Source Type (Currency) Field <span className="text-gray-500 text-[10px] font-normal">(Optional)</span></Label>
+                            <select
+                              value={(field as any).sourceCurrencyFieldId || ""}
+                              onChange={(e) => updateField(idx, "sourceCurrencyFieldId" as any, e.target.value)}
+                              className={SELECT_CLASS}
+                            >
+                              <option value="">— Select currency dropdown field (Defaults to NGN) —</option>
+                              {fields.filter(f => (f.type === 'select' || f.type === 'searchable_select') && f.id !== field.id).map(f => (
+                                <option key={f.id} value={f.id}>{f.label || `Field ${f.id}`}</option>
+                              ))}
+                            </select>
+                          </div>
                           <p className="text-xs text-teal-700">This field will automatically display the selected number in British-English words (e.g. "One Million Two Hundred And Seventy-Five Thousand Only").</p>
                         </div>
                       )}
