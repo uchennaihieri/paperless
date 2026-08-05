@@ -4,6 +4,29 @@ import MicrosoftEntraId from "next-auth/providers/microsoft-entra-id"
 import { apiClient } from "@/lib/apiClient"
 import { cookies } from "next/headers"
 
+// --- PATCH: Override default Auth.js 3500ms timeout for Microsoft Entra ---
+// We intercept the global fetch to strip out Auth.js's aggressive AbortSignal
+// and apply a generous 12-second timeout for on-premise Docker environments.
+const originalFetch = global.fetch;
+global.fetch = async (url, options) => {
+  if (typeof url === "string" && (url.includes("microsoftonline.com") || url.includes("graph.microsoft.com"))) {
+    const newOptions = { ...options };
+    if (newOptions.signal) delete newOptions.signal; // Strip the 3.5s limit
+    
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+    newOptions.signal = controller.signal;
+
+    try {
+      return await originalFetch(url, newOptions);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  return originalFetch(url, options);
+};
+// --------------------------------------------------------------------------
+
 declare module "next-auth" {
   interface Session {
     user: {
