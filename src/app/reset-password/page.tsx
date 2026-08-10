@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
@@ -34,8 +34,36 @@ export default function ResetPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
-  const handleRequestOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+
+  useEffect(() => {
+    const calculateCooldown = () => {
+      const lastRequest = localStorage.getItem("lastOtpRequestTime");
+      if (lastRequest) {
+        const timePassed = Date.now() - parseInt(lastRequest, 10);
+        const timeLeft = (4 * 60 * 1000) - timePassed;
+        if (timeLeft > 0) {
+          setCooldownRemaining(Math.ceil(timeLeft / 1000));
+        } else {
+          setCooldownRemaining(0);
+          localStorage.removeItem("lastOtpRequestTime");
+        }
+      }
+    };
+    
+    calculateCooldown();
+    const interval = setInterval(calculateCooldown, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
+
+  const handleRequestOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setErrorMsg("");
 
     if (newPassword.length < 8) {
@@ -57,11 +85,17 @@ export default function ResetPasswordPage() {
       const data = await res.json();
 
       if (!data.success) {
+        if (data.code === "OTP_COOLDOWN") {
+          setEmail(data.email || employeeId);
+          setStep("otp");
+          return;
+        }
         setErrorMsg(data.error || "Failed to request reset.");
         return;
       }
 
       setEmail(data.email);
+      localStorage.setItem("lastOtpRequestTime", Date.now().toString());
       setStep("otp");
     } catch {
       setErrorMsg("Failed to connect to the server. Please try again.");
@@ -247,6 +281,15 @@ export default function ResetPasswordPage() {
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                   />
                   <p className="text-xs text-gray-500 text-center">Check your email inbox (and spam folder)</p>
+                  <div className="text-center mt-2 text-sm">
+                    {cooldownRemaining > 0 ? (
+                      <span className="text-gray-500 font-medium">Resend OTP in {formatTime(cooldownRemaining)}</span>
+                    ) : (
+                      <button type="button" onClick={() => handleRequestOtp()} className="text-primary hover:underline font-medium disabled:opacity-50" disabled={isLoading}>
+                        Resend OTP
+                      </button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
               <CardFooter className="flex flex-col gap-3">

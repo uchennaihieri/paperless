@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
@@ -59,6 +59,34 @@ function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+
+  useEffect(() => {
+    const calculateCooldown = () => {
+      const lastRequest = localStorage.getItem("lastOtpRequestTime");
+      if (lastRequest) {
+        const timePassed = Date.now() - parseInt(lastRequest, 10);
+        const timeLeft = (4 * 60 * 1000) - timePassed;
+        if (timeLeft > 0) {
+          setCooldownRemaining(Math.ceil(timeLeft / 1000));
+        } else {
+          setCooldownRemaining(0);
+          localStorage.removeItem("lastOtpRequestTime");
+        }
+      }
+    };
+    
+    calculateCooldown();
+    const interval = setInterval(calculateCooldown, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+  };
+
   const allowedLoginTypesStr = process.env.NEXT_PUBLIC_ALLOWED_LOGIN_TYPES || "microsoft,credentials";
   const allowedLoginTypes = allowedLoginTypesStr.split(",").map(s => s.trim().toLowerCase());
   const allowCredentials = allowedLoginTypes.includes("credentials");
@@ -67,8 +95,8 @@ function LoginPage() {
   // ── Step 1: Employee ID + Temp Password → /auth/login ─────────────────────
   // The temporary password is treated purely as a verification token.
   // If mustResetPassword is true, the user must set a new password before OTP.
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!allowCredentials && allowMicrosoft) {
       return handleMicrosoftLogin();
     } else if (!allowCredentials) {
@@ -86,11 +114,23 @@ function LoginPage() {
       const data = await res.json();
 
       if (!data.success) {
+        if (data.code === "OTP_COOLDOWN") {
+          setEmail(data.email || employeeId);
+          if (data.mustResetPassword) {
+            setIsResetFlow(true);
+            setStep("new-password");
+          } else {
+            setIsResetFlow(false);
+            setStep("otp");
+          }
+          return;
+        }
         setErrorMsg(data.error || "Invalid credentials.");
         return;
       }
 
       setEmail(data.email);
+      localStorage.setItem("lastOtpRequestTime", Date.now().toString());
 
       if (data.mustResetPassword) {
         // Temp password verified — now collect the new password before OTP
@@ -463,6 +503,15 @@ function LoginPage() {
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                   />
                   <p className="text-xs text-gray-500 text-center">Check your email inbox (and spam folder)</p>
+                  <div className="text-center mt-2 text-sm">
+                    {cooldownRemaining > 0 ? (
+                      <span className="text-gray-500 font-medium">Resend OTP in {formatTime(cooldownRemaining)}</span>
+                    ) : (
+                      <button type="button" onClick={() => handleLogin()} className="text-primary hover:underline font-medium disabled:opacity-50" disabled={isLoading}>
+                        Resend OTP
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {isResetFlow && (
                   <div className="bg-green-50 border border-green-100 rounded-lg p-3 text-xs text-green-700">
