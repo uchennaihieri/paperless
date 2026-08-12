@@ -7,7 +7,7 @@ import { OfflineIndicator } from "@/components/OfflineIndicator";
 import {
   Building2, FileText, CheckSquare, PenTool, LayoutDashboard,
   LogOut, Users, BarChart2, Menu, X, History, Settings, ShieldCheck, Zap, BookOpen,
-  FolderOpen, Smartphone, UserPlus, PhoneCall, Bug
+  FolderOpen, Smartphone, UserPlus, PhoneCall, Bug, Activity, TrendingUp, DollarSign, FileCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useRef, useEffect } from "react";
@@ -20,6 +20,8 @@ import { FilingsModal } from "@/components/FilingsModal";
 import SwapDelegateModal from "@/components/SwapDelegateModal";
 import { CrmModal } from "@/components/CrmModal";
 import { getProfile } from "@/app/actions/profile";
+import { ESaveLoginModal } from "@/components/ESaveLoginModal";
+import { useRouter } from "next/navigation";
 
 const navigation = [
   { name: "Workflow", href: "/dashboard/workflow", icon: LayoutDashboard },
@@ -33,6 +35,16 @@ const navigation = [
   { name: "App Download", href: "/dashboard/app-download", icon: Smartphone },
 ];
 
+const esaveNavigation = [
+  { name: "Health", href: "/dashboard/esave/health", icon: Activity },
+  { name: "Audit", href: "/dashboard/esave/audit", icon: ShieldCheck },
+  { name: "Rate", href: "/dashboard/esave/rate", icon: TrendingUp },
+  { name: "Team", href: "/dashboard/esave/team", icon: Users },
+  { name: "Bank Management", href: "/dashboard/esave/bank", icon: Building2 },
+  { name: "Payout", href: "/dashboard/esave/payout", icon: DollarSign },
+  { name: "Reconciliation", href: "/dashboard/esave/reconciliation", icon: FileCheck },
+];
+
 
 export default function DashboardLayout({
   children,
@@ -40,7 +52,11 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { data: session, status } = useSession();
+  
+  const isESaveMode = pathname.startsWith("/dashboard/esave");
+  const currentNavigation = isESaveMode ? esaveNavigation : navigation;
 
   // Find the exact active role from session
   const roles = session?.user && (session.user as any).roles ? JSON.parse((session.user as any).roles) : [];
@@ -58,6 +74,7 @@ export default function DashboardLayout({
   const [isBugsAndFixesOpen, setIsBugsAndFixesOpen] = useState(false);
   const [isSwapDelegateOpen, setIsSwapDelegateOpen] = useState(false);
   const [isCrmOpen, setIsCrmOpen] = useState(false);
+  const [isESaveModalOpen, setIsESaveModalOpen] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement>(null);
 
   const [profileImage, setProfileImage] = useState<string | null>(null);
@@ -89,6 +106,16 @@ export default function DashboardLayout({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  // E-Save Token check
+  useEffect(() => {
+    if (isESaveMode) {
+      const token = localStorage.getItem("esave_token");
+      if (!token) {
+        router.push("/dashboard/workflow");
+      }
+    }
+  }, [isESaveMode, pathname, router]);
 
   if (status === "loading") {
     return (
@@ -122,8 +149,17 @@ export default function DashboardLayout({
       )}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-2 text-primary font-bold text-xl">
-            <img src="/logo.png" alt="FINCALite Logo" className="h-8 object-contain rounded-full" />
-            FINCALite
+            {isESaveMode ? (
+              <>
+                <Building2 className="h-8 w-8 text-primary" />
+                E-Save
+              </>
+            ) : (
+              <>
+                <img src="/logo.png" alt="FINCALite Logo" className="h-8 object-contain rounded-full" />
+                FINCALite
+              </>
+            )}
           </div>
           <button className="md:hidden p-1 text-gray-500" onClick={() => setIsMobileMenuOpen(false)}>
             <X className="w-5 h-5" />
@@ -143,7 +179,7 @@ export default function DashboardLayout({
           <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-3">
             Navigation
           </div>
-          {navigation
+          {currentNavigation
             .filter((item) => {
               // App Download is rendered as its own button below — not a standard nav link
               if (item.name === "App Download") return false;
@@ -280,6 +316,25 @@ export default function DashboardLayout({
                   </button>
 
                   <div className="border-t border-gray-100 mt-1 pt-1">
+                    {isESaveMode ? (
+                      <button
+                        onClick={() => { 
+                          router.push("/dashboard/workflow"); 
+                          setIsAvatarMenuOpen(false); 
+                        }}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-primary hover:bg-gray-50 transition-colors"
+                      >
+                        <Building2 className="w-4 h-4" /> Switch to FINCALite
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => { setIsESaveModalOpen(true); setIsAvatarMenuOpen(false); }}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-primary hover:bg-gray-50 transition-colors"
+                      >
+                        <Building2 className="w-4 h-4" /> Switch to E-Save
+                      </button>
+                    )}
+                    
                     <button
                       onClick={handleSignOut}
                       className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
@@ -313,6 +368,7 @@ export default function DashboardLayout({
       originalUserName={activeRole?.user_name || session?.user?.name || ""}
     />
     <CrmModal isOpen={isCrmOpen} onClose={() => setIsCrmOpen(false)} />
+    <ESaveLoginModal isOpen={isESaveModalOpen} onClose={() => setIsESaveModalOpen(false)} />
     </>
   );
 }
