@@ -13,6 +13,8 @@ export interface InterestRatePolicy {
   minTenor: number;
   maxTenor?: number;
   rate: number;
+  productCode?: string;
+  productName?: string;
   description?: string;
   createdAt: string;
   updatedAt: string;
@@ -24,6 +26,8 @@ export interface InterestRatePolicyFormData {
   minTenor: number;
   maxTenor?: number;
   rate: number;
+  productCode: string;
+  productName: string;
   description?: string;
 }
 
@@ -46,6 +50,8 @@ export default function InterestRateDashboard() {
     minAmount: 0,
     rate: 0,
     minTenor: 0,
+    productCode: "",
+    productName: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
@@ -105,7 +111,13 @@ export default function InterestRateDashboard() {
   // Modal Handlers
   const handleOpenCreate = () => {
     setEditingPolicy(null);
-    setFormData({ minAmount: 0, rate: 0, minTenor: 0 });
+    setFormData({
+      minAmount: 0,
+      rate: 0,
+      minTenor: 0,
+      productCode: "",
+      productName: "",
+    });
     setFormError("");
     setIsModalOpen(true);
   };
@@ -118,6 +130,8 @@ export default function InterestRateDashboard() {
       rate: policy.rate,
       minTenor: policy.minTenor,
       maxTenor: policy.maxTenor,
+      productCode: policy.productCode || "",
+      productName: policy.productName || "",
       description: policy.description || "",
     });
     setFormError("");
@@ -253,9 +267,11 @@ export default function InterestRateDashboard() {
               {searchQuery && <Button onClick={() => setSearchQuery("")} variant="link">Clear search</Button>}
             </div>
           ) : (
-            <table className="w-full text-sm text-left whitespace-nowrap">
+            <table className="w-full text-sm text-left">
               <thead className="text-xs text-gray-500 uppercase bg-gray-50/80 border-b border-gray-100">
                 <tr>
+                  <th className="px-6 py-4 font-semibold">Product Name</th>
+                  <th className="px-6 py-4 font-semibold">Product Code</th>
                   <th className="px-6 py-4 font-semibold">Rate</th>
                   <th className="px-6 py-4 font-semibold">Amount Range</th>
                   <th className="px-6 py-4 font-semibold">Tenor (Days)</th>
@@ -266,10 +282,16 @@ export default function InterestRateDashboard() {
               <tbody className="divide-y divide-gray-100">
                 {filteredPolicies.map((policy) => (
                   <tr key={policy.id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-4 font-medium text-gray-900">
+                      {policy.productName || "-"}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded text-gray-700">{policy.productCode || "-"}</span>
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1.5 font-bold text-primary">
                         <Percent className="w-3.5 h-3.5" />
-                        {policy.rate}%
+                        {policy.rate}
                       </div>
                     </td>
                     <td className="px-6 py-4 font-medium text-gray-900">
@@ -340,6 +362,27 @@ export default function InterestRateDashboard() {
                     onChange={(e) => setFormData({...formData, rate: parseFloat(e.target.value) || 0})}
                     className="pl-9"
                     placeholder="e.g. 5.5"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Product Name *</label>
+                  <Input 
+                    required
+                    value={formData.productName || ""}
+                    onChange={(e) => setFormData({...formData, productName: e.target.value})}
+                    placeholder="e.g. Term-based savings"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">Product Code *</label>
+                  <Input 
+                    required
+                    value={formData.productCode || ""}
+                    onChange={(e) => setFormData({...formData, productCode: e.target.value})}
+                    placeholder="e.g. 919"
                   />
                 </div>
               </div>

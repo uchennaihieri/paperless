@@ -50,6 +50,7 @@ export function ESaveLoginModal({
       }
 
       localStorage.setItem("esave_token", responseData.accessToken);
+      localStorage.setItem("esave_phone", responseData.user?.phone || phone.trim());
       onClose();
       router.push("/dashboard/esave/health");
       

@@ -31,6 +31,7 @@ export function PdfSigningCanvas({
   signatureImage,
   isSubmitting,
   error,
+  readOnly,
   onConfirm,
   onCancel,
 }: {
@@ -39,6 +40,7 @@ export function PdfSigningCanvas({
   signatureImage?: string | null; // Kept for backwards compatibility if needed, but not used globally anymore
   isSubmitting?: boolean;
   error?: string;
+  readOnly?: boolean;
   onConfirm: (annotations: any[], tokenInput?: string) => void;
   onCancel: () => void;
 }) {
@@ -137,6 +139,7 @@ export function PdfSigningCanvas({
   };
 
   const handlePageClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (readOnly) return;
     // Ignore clicks if they originate from an annotation or the popup menu itself
     if ((e.target as HTMLElement).closest(".annotation-layer") || (e.target as HTMLElement).closest(".popup-menu")) return;
     
@@ -247,9 +250,13 @@ export function PdfSigningCanvas({
           <Button 
             className="bg-[#b50938] hover:bg-[#9a0730] text-white" 
             onClick={() => onConfirm(annotations)}
-            disabled={isSubmitting || annotations.length === 0}
+            disabled={isSubmitting || (!readOnly && annotations.length === 0)}
           >
-            {isSubmitting ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Signing...</> : <><CheckCircle2 className="w-4 h-4 mr-2" /> Sign & Submit</>}
+            {isSubmitting ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {readOnly ? "Processing..." : "Submitting..."}</>
+            ) : (
+              <><CheckCircle2 className="w-4 h-4 mr-2" /> {readOnly ? "Next" : "Sign & Submit"}</>
+            )}
           </Button>
         </div>
       </div>
@@ -297,15 +304,16 @@ export function PdfSigningCanvas({
                 .map((ann) => (
                   <div
                     key={ann.id}
-                    className={`annotation-layer absolute border ${dragState?.id === ann.id ? "border-blue-500" : "border-transparent hover:border-blue-400"} group`}
+                    className={`annotation-layer absolute border ${!readOnly && dragState?.id === ann.id ? "border-blue-500" : "border-transparent " + (!readOnly ? "hover:border-blue-400" : "")} group`}
                     style={{
                       left: ann.x * scale,
                       top: ann.y * scale,
                       width: ann.width * scale,
                       height: ann.height * scale,
-                      cursor: dragState?.id === ann.id ? "grabbing" : "grab",
+                      cursor: readOnly ? "default" : (dragState?.id === ann.id ? "grabbing" : "grab"),
                     }}
                     onMouseDown={(e) => {
+                      if (readOnly) return;
                       if ((e.target as HTMLElement).tagName.toLowerCase() === 'input') return;
                       e.stopPropagation();
                       setDragState({
@@ -318,29 +326,33 @@ export function PdfSigningCanvas({
                     }}
                   >
                     {/* Delete Button */}
-                    <button
-                      className="absolute -top-3 -right-3 bg-red-500 text-white rounded-full p-0.5 hidden group-hover:flex items-center justify-center z-40 cursor-pointer shadow-md"
-                      onMouseDown={(e) => e.stopPropagation()}
-                      onClick={(e) => { e.stopPropagation(); handleRemoveAnnotation(ann.id); }}
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
+                    {!readOnly && (
+                      <button
+                        className="absolute -top-3 -right-3 bg-red-500 text-white rounded-full p-0.5 hidden group-hover:flex items-center justify-center z-40 cursor-pointer shadow-md"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); handleRemoveAnnotation(ann.id); }}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
 
                     {/* Resize Handle */}
-                    <div
-                      className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-blue-500 rounded-sm hidden group-hover:block z-40 cursor-se-resize shadow-sm"
-                      onMouseDown={(e) => {
-                        e.stopPropagation();
-                        setResizeState({
-                          id: ann.id,
-                          startX: e.clientX,
-                          startY: e.clientY,
-                          initialWidth: ann.width,
-                          initialHeight: ann.height,
-                          initialFontSize: ann.fontSize || 14,
-                        });
-                      }}
-                    />
+                    {!readOnly && (
+                      <div
+                        className="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-blue-500 rounded-sm hidden group-hover:block z-40 cursor-se-resize shadow-sm"
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          setResizeState({
+                            id: ann.id,
+                            startX: e.clientX,
+                            startY: e.clientY,
+                            initialWidth: ann.width,
+                            initialHeight: ann.height,
+                            initialFontSize: ann.fontSize || 14,
+                          });
+                        }}
+                      />
+                    )}
 
                     {ann.type === "signature" && ann.customSignatureData ? (
                       <img

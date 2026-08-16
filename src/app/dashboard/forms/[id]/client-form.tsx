@@ -802,7 +802,7 @@ function FormFieldsStep({
                           id={field.id}
                           type="file"
                           required={field.required && (!formData[field.id] || formData[field.id].length === 0)}
-                          accept="application/pdf"
+                          accept=".pdf,.xlsx,.xls"
                           multiple={false}
                           className="cursor-pointer file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30"
                           onChange={async (e) => {
@@ -813,7 +813,7 @@ function FormFieldsStep({
                           }}
                         />
                         <p className="text-xs text-primary/70 mt-2">
-                          Upload the PDF document that will be used for signing. Only one PDF is allowed.
+                          Upload the PDF or Excel document that will be used for signing. Only one file is allowed.
                         </p>
                         {formData[field.id] && formData[field.id].length > 0 && (
                           <ul className="mt-4 space-y-2">
@@ -1389,6 +1389,7 @@ function SignDocumentStep({
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [hasSignatureTable, setHasSignatureTable] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -1438,6 +1439,7 @@ function SignDocumentStep({
           if (data.success) {
             setDraftId(data.data.id);
             setPdfUrl(`/api/v1/forms/draft-pdf/${data.data.id}`);
+            setHasSignatureTable(data.data.hasSignatureTable || false);
             setError("");
           } else {
             setError(data.error || "Failed to generate draft PDF");
@@ -1489,8 +1491,9 @@ function SignDocumentStep({
           <PdfSigningCanvas
             pdfUrl={pdfUrl}
             token={token || ""}
+            readOnly={hasSignatureTable}
             onConfirm={(annotations) => {
-              if (initiatorNeedsToSign && annotations.filter((a: any) => a.type === "signature" || a.type === "image").length === 0) {
+              if (!hasSignatureTable && initiatorNeedsToSign && annotations.filter((a: any) => a.type === "signature" || a.type === "image").length === 0) {
                 alert("You must apply a signature before continuing.");
                 return;
               }

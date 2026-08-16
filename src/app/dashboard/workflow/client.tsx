@@ -53,7 +53,7 @@ type QueueItem = {
   publicSubmitterName?: string | null;
   publicSubmitterEmail?: string | null;
   submittedBy: { user_name: string | null; finca_email: string | null; branch: string | null } | null;
-  documents?: Array<{ id: string; fieldName: string; originalName: string }>;
+  documents?: Array<{ id: string; fieldName: string; originalName: string; hasSignatureTable?: boolean }>;
   prerequisites?: {
     id: string;
     targetForm: { name: string };
@@ -1142,8 +1142,16 @@ function DetailPanel({
               signatureImage={mySignatureImage}
               isSubmitting={isPendingSig}
               error={error}
+              readOnly={signableDoc?.hasSignatureTable}
               onConfirm={(anns) => {
                 setError("");
+                
+                if (signableDoc?.hasSignatureTable) {
+                  setShowCanvas(false);
+                  setShowSignModal(true);
+                  return;
+                }
+
                 startSignTransition(async () => {
                   let payload: { signatureData?: string; annotations?: any[] } = {};
 

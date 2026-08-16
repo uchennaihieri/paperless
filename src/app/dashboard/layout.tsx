@@ -56,7 +56,42 @@ export default function DashboardLayout({
   const { data: session, status } = useSession();
   
   const isESaveMode = pathname.startsWith("/dashboard/esave");
-  const currentNavigation = isESaveMode ? esaveNavigation : navigation;
+  const [eSaveScopes, setESaveScopes] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    if (!isESaveMode) return;
+    const phone = localStorage.getItem("esave_phone");
+    if (!phone) {
+      // If no phone stored, we can't filter scopes. Default to empty or all.
+      setESaveScopes([]);
+      return;
+    }
+
+    const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api/v1";
+    fetch(`${base}/esave-scopes/${encodeURIComponent(phone)}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data && Array.isArray(data.scopes) && data.scopes.length > 0) {
+          setESaveScopes(data.scopes);
+        } else {
+          // If no scopes found, maybe default to showing everything for legacy admins? 
+          // For true RBAC, we should hide everything if they have no scopes.
+          setESaveScopes([]);
+        }
+      })
+      .catch(err => {
+        console.error("Failed to fetch esave scopes", err);
+        setESaveScopes([]); 
+      });
+  }, [isESaveMode]);
+
+  const filteredESaveNavigation = esaveNavigation.filter(item => {
+    if (eSaveScopes === null) return true; // Show while loading
+    if (eSaveScopes.length === 0) return true; // Legacy fallback: if no scopes assigned in DB, assume full access? Or change this to return false for strict access.
+    return eSaveScopes.includes(item.name);
+  });
+
+  const currentNavigation = isESaveMode ? filteredESaveNavigation : navigation;
 
   // Find the exact active role from session
   const roles = session?.user && (session.user as any).roles ? JSON.parse((session.user as any).roles) : [];
