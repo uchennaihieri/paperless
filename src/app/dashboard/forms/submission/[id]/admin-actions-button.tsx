@@ -2,10 +2,11 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Trash2, Loader2, Settings, UserPlus, XOctagon, SkipForward, ChevronDown } from "lucide-react";
+import { Trash2, Loader2, Settings, UserPlus, XOctagon, SkipForward, ChevronDown, RefreshCw } from "lucide-react";
 import { softDeleteSubmission, reassignSubmitter, forceRejectSubmission, bypassCorrection } from "@/app/actions/form";
+import { reburnSignatures } from "@/app/actions/workflow";
 
-type ActionType = "Reassign" | "ForceReject" | "BypassCorrection" | "Delete" | null;
+type ActionType = "Reassign" | "ForceReject" | "BypassCorrection" | "Delete" | "ReburnSignatures" | null;
 
 export function AdminActionsButton({ submissionId, users }: { submissionId: string, users: any[] }) {
   const router = useRouter();
@@ -38,7 +39,7 @@ export function AdminActionsButton({ submissionId, users }: { submissionId: stri
   }
 
   async function handleSubmit() {
-    if (!reason.trim()) {
+    if (activeAction !== "ReburnSignatures" && !reason.trim()) {
       setError("Please enter a reason.");
       return;
     }
@@ -57,6 +58,7 @@ export function AdminActionsButton({ submissionId, users }: { submissionId: stri
       else if (activeAction === "ForceReject") res = await forceRejectSubmission(submissionId, reason);
       else if (activeAction === "BypassCorrection") res = await bypassCorrection(submissionId, reason);
       else if (activeAction === "Delete") res = await softDeleteSubmission(submissionId, reason);
+      else if (activeAction === "ReburnSignatures") res = await reburnSignatures(submissionId);
       
       if (res?.success === false) throw new Error(res.error || "Action failed");
       
@@ -76,6 +78,7 @@ export function AdminActionsButton({ submissionId, users }: { submissionId: stri
       case "ForceReject": return { title: "Force Reject", desc: "Forcibly terminate this submission. It will be marked as Rejected.", icon: <XOctagon className="w-5 h-5 text-red-600" />, bg: "bg-red-100", btnClass: "bg-red-600 hover:bg-red-700" };
       case "BypassCorrection": return { title: "Bypass Correction", desc: "Move this submission from 'Awaiting Correction' back to 'Processing'.", icon: <SkipForward className="w-5 h-5 text-amber-600" />, bg: "bg-amber-100", btnClass: "bg-amber-600 hover:bg-amber-700" };
       case "Delete": return { title: "Soft Delete", desc: "Mark this submission as deleted and remove it from standard views.", icon: <Trash2 className="w-5 h-5 text-red-600" />, bg: "bg-red-100", btnClass: "bg-red-600 hover:bg-red-700" };
+      case "ReburnSignatures": return { title: "Reburn Signatures", desc: "Re-scan the document and apply any missed signatures. (Self-healing)", icon: <RefreshCw className="w-5 h-5 text-emerald-600" />, bg: "bg-emerald-100", btnClass: "bg-emerald-600 hover:bg-emerald-700" };
       default: return null;
     }
   };
@@ -108,6 +111,10 @@ export function AdminActionsButton({ submissionId, users }: { submissionId: stri
             <div className="h-px bg-gray-200 my-1"></div>
             <button onClick={() => handleActionClick("Delete")} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 text-left">
               <Trash2 className="w-4 h-4" /> Delete Submission
+            </button>
+            <div className="h-px bg-gray-200 my-1"></div>
+            <button onClick={() => handleActionClick("ReburnSignatures")} className="w-full flex items-center gap-2 px-4 py-2 text-sm text-emerald-700 hover:bg-emerald-50 text-left">
+              <RefreshCw className="w-4 h-4 text-emerald-500" /> Reburn Signatures
             </button>
           </div>
         </div>
@@ -169,7 +176,7 @@ export function AdminActionsButton({ submissionId, users }: { submissionId: stri
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={loading || !reason.trim() || (activeAction === "Reassign" && !newSubmitterId)}
+                disabled={loading || (activeAction !== "ReburnSignatures" && !reason.trim()) || (activeAction === "Reassign" && !newSubmitterId)}
                 className={`flex items-center gap-2 px-4 py-2 text-sm font-bold text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm ${config.btnClass}`}
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : config.icon}

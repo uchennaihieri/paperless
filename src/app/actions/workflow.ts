@@ -182,3 +182,16 @@ export async function requestCorrection(submissionId: string, correctionRequests
     return { success: false, error: e.message };
   }
 }
+
+export async function reburnSignatures(submissionId: string) {
+  try {
+    const result = await apiClient(`/workflow/${submissionId}/reburn-signatures`, {
+      method: "POST",
+    });
+    revalidatePath("/dashboard/forms");
+    revalidatePath("/dashboard/action");
+    return result;
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}

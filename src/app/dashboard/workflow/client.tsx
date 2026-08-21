@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   signSubmission, declineSubmission,
-  approveSubmission, declineFinalApproval, disapproveSignatory, remindSignatory, getMyQueue,
+  approveSubmission, declineFinalApproval, disapproveSignatory, remindSignatory, getMyQueue, reburnSignatures,
 } from "@/app/actions/workflow";
 import { getMySignature } from "@/app/actions/security";
 
