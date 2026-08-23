@@ -7,8 +7,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileDown, ChevronRight, CheckSquare, X, User, RefreshCw, AlertTriangle, Loader2, Eye, EyeOff, BookOpen, Search, Filter, Folder } from "lucide-react";
-import { assignToSelf, revertAssignment, completeProcessWithApprover, delegateProcess, searchActiveWorkflowUsers, regeneratePdf, getSubmissionDetail, requestCorrection } from "@/app/actions/workflow";
-import { getActionItems } from "@/app/actions/form";
+import { assignToSelf, revertAssignment, completeProcessWithApprover, delegateProcess, searchActiveWorkflowUsers, regeneratePdf, getSubmissionDetail, requestCorrection, setAwaitingFinalWorkflow } from "@/app/actions/workflow";
+import { getActionItems, getFormTemplates } from "@/app/actions/form";
 import { useSmartFetch } from "@/hooks/useSmartFetch";
 import { FormResponseCell } from "@/app/dashboard/forms/submission/[id]/form-response-cell";
 import { JournalModal } from "@/components/JournalModal";
@@ -116,7 +116,7 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
   };
 
   const [showStatusModal, setShowStatusModal] = useState(false);
-  const [statusMode, setStatusMode] = useState<"assign" | "complete" | "revert" | "delegate" | "correct" | "">("");
+  const [statusMode, setStatusMode] = useState<"assign" | "complete" | "complete-workflow" | "revert" | "delegate" | "correct" | "">("");
   const [searchQuery, setSearchQuery] = useState("");
   const [correctionRequests, setCorrectionRequests] = useState<Record<string, string>>({});
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -127,6 +127,9 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
   const [showTreaterTokenModal, setShowTreaterTokenModal] = useState(false);
   const [treaterToken, setTreaterToken] = useState("");
   const [treaterTokenError, setTreaterTokenError] = useState("");
+
+  const [workflowTemplates, setWorkflowTemplates] = useState<any[]>([]);
+  const [fetchingTemplates, setFetchingTemplates] = useState(false);
   const [showToken, setShowToken] = useState(false);
   const [isJournalOpen, setIsJournalOpen] = useState(false);
   const [assignError, setAssignError] = useState("");
@@ -266,6 +269,38 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
     }
   };
 
+  const handleCompleteWithWorkflow = async () => {
+    setStatusMode("complete-workflow");
+    setFetchingTemplates(true);
+    try {
+      const templates = await getFormTemplates();
+      // Filter templates by user's branch
+      const filtered = templates.filter((t: any) => 
+        t.isActive && !t.isHidden && 
+        (t.formOwner === userBranch || t.formTreaterFallbackBranch === userBranch)
+      );
+      setWorkflowTemplates(filtered);
+    } catch {
+      setWorkflowTemplates([]);
+    } finally {
+      setFetchingTemplates(false);
+    }
+  };
+
+  const handleSelectWorkflowTemplate = async (templateId: string) => {
+    if (!selected) return;
+    setIsChanging(true);
+    try {
+      setShowStatusModal(false);
+      setStatusMode("");
+      router.push(`/dashboard/forms/${templateId}?prefill_form_reference=${encodeURIComponent(selected.reference || selected.id)}&set_awaiting_workflow_for=${selected.id}`);
+    } catch {
+      setAssignError("Unexpected error.");
+    } finally {
+      setIsChanging(false);
+    }
+  };
+
   const handleDelegateProcess = async () => {
     setIsChanging(true);
     try {
@@ -327,7 +362,6 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
 
   const completedPdfArr = selected?.formResponses?.["CompletedFormPDF"] || [];
   const signedContractDocs: any[] = ((selected?.documents || []) as any[]).filter((d: any) => d.fieldName === "SignedContract");
-  const prerequisiteDocs: any[] = ((selected?.documents || []) as any[]).filter((d: any) => d.fieldName?.startsWith("PrerequisitePDF:"));
 
   return (
     <div className="space-y-6 max-w-6xl print:space-y-0">
@@ -564,7 +598,7 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
           </div>
 
           {/* Completed Generated Documents */}
-          {(completedPdfArr.length > 0 || signedContractDocs.length > 0 || prerequisiteDocs.length > 0) && (
+          {(completedPdfArr.length > 0 || signedContractDocs.length > 0) && (
             <div className="mt-8">
               <h3 className="text-xs font-semibold text-primary uppercase tracking-widest border-b border-gray-200 pb-2 mb-3">
                 Completed Generated Document
@@ -678,59 +712,6 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
                   }
                   return null;
                 })}
-
-                {/* Prerequisite PDFs */}
-                {prerequisiteDocs.map((doc: any) => {
-                  const fileUrl = `/api/v1/file?docId=${doc.id}`;
-                  const docName = doc.fieldName.replace("PrerequisitePDF:", "");
-                  const fileName = doc.originalName || `${docName}.pdf`;
-                  const openDoc = async () => {
-                    const newWindow = window.open("", "_blank");
-                    if (newWindow) newWindow.document.write(`<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;color:#666;">Loading ${fileName}...</div>`);
-                    try {
-                      const res = await fetch(fileUrl, { headers: { Authorization: `Bearer ${token}` } });
-                      const blob = await res.blob();
-                      const url = URL.createObjectURL(blob);
-                      if (newWindow) newWindow.location.href = url;
-                      setTimeout(() => URL.revokeObjectURL(url), 60000);
-                    } catch { if (newWindow) newWindow.document.write(`<div style="color:red;padding:20px;">Failed to load file.</div>`); }
-                  };
-                  const downloadDoc = async () => {
-                    const res = await fetch(fileUrl, { headers: { Authorization: `Bearer ${token}` } });
-                    const blob = await res.blob();
-                    const a = document.createElement("a");
-                    a.href = URL.createObjectURL(blob);
-                    a.download = fileName;
-                    a.click();
-                  };
-                  return (
-                    <div key={doc.id} className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
-                          <FileDown className="w-5 h-5 text-orange-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-gray-800">{fileName}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">Prerequisite: {docName}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={openDoc}
-                          className="flex items-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-xs font-semibold rounded-lg hover:bg-orange-700 transition-colors shadow-sm cursor-pointer"
-                        >
-                          <FileDown className="w-3.5 h-3.5" /> Open PDF
-                        </button>
-                        <button
-                          onClick={downloadDoc}
-                          className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors shadow-sm cursor-pointer"
-                        >
-                          Download
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
               </div>
             </div>
           )}
@@ -834,6 +815,15 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
                       </Button>
                     )}
 
+                  {/* Complete with Workflow */}
+                  {(!selected.status.startsWith("Assigned") ||
+                    (currentUserEmail && selected.treaterEmail?.toLowerCase() === currentUserEmail)) && (
+                      <Button variant="outline" className="h-14 justify-start px-6 cursor-pointer hover:bg-teal-50 hover:border-teal-300" onClick={handleCompleteWithWorkflow}>
+                        <CheckSquare className="w-5 h-5 mr-3 text-teal-600" />
+                        <div className="text-left"><div className="font-semibold text-gray-900">Complete with Workflow</div><div className="text-xs text-gray-500 font-normal">Close this and trigger a new form process</div></div>
+                      </Button>
+                    )}
+
                   {/* Delegate Process — only visible if not assigned or assigned to current user */}
                   {(!selected.status.startsWith("Assigned") ||
                     (currentUserEmail && selected.treaterEmail?.toLowerCase() === currentUserEmail)) && (
@@ -919,6 +909,43 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
                   >
                     {isChanging ? "Saving..." : "Confirm & Submit"}
                   </Button>
+                </div>
+              )}
+
+              {statusMode === "complete-workflow" && (
+                <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
+                  <p className="text-sm text-gray-600">Select a workflow to start. This form will be closed once the selected workflow is completed.</p>
+                  
+                  {fetchingTemplates ? (
+                    <div className="text-center py-8">
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary mb-2" />
+                      <p className="text-sm text-gray-500">Loading workflows...</p>
+                    </div>
+                  ) : workflowTemplates.length > 0 ? (
+                    <div className="border border-gray-200 rounded-lg max-h-64 overflow-y-auto bg-white divide-y divide-gray-100 shadow-sm">
+                      {workflowTemplates.map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => handleSelectWorkflowTemplate(t.id)}
+                          disabled={isChanging}
+                          className="w-full text-left text-sm p-4 transition-colors cursor-pointer hover:bg-gray-50 text-gray-800 disabled:opacity-50"
+                        >
+                          <div className="font-semibold text-gray-900">{t.name}</div>
+                          {t.description && <div className="text-xs text-gray-500 mt-1 line-clamp-1">{t.description}</div>}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500 text-sm bg-gray-50 rounded-lg border border-gray-200">
+                      No workflows available for your branch.
+                    </div>
+                  )}
+
+                  <div className="pt-2">
+                    <Button variant="outline" className="w-full cursor-pointer" onClick={() => setStatusMode("")} disabled={isChanging}>
+                      Cancel
+                    </Button>
+                  </div>
                 </div>
               )}
 

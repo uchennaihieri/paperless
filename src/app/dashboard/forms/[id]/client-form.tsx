@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { isFormReferenceField } from "@/components/FormReferenceLink";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { searchUsers, SignatoryInput, SigningType } from "@/app/actions/form";
+import { setAwaitingFinalWorkflow } from "@/app/actions/workflow";
 import { X, Search, Check, ChevronRight, GitBranch, Layers, Send, UserPlus, ArrowLeft, KeyRound, Loader2, Eye, EyeOff, Copy, Link as LinkIcon, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { numberToWords } from "@/lib/toWords";
@@ -302,6 +303,7 @@ function FormFieldsStep({
   dynamicOptions,
   setDynamicOptions,
   correctionRequests,
+  prerequisiteInfo,
 }: {
   template: any;
   formData: Record<string, any>;
@@ -317,16 +319,18 @@ function FormFieldsStep({
   dynamicOptions: Record<string, { label: string; value: string }[]>;
   setDynamicOptions: React.Dispatch<React.SetStateAction<Record<string, { label: string; value: string }[]>>>;
   correctionRequests?: Record<string, string>;
+  prerequisiteInfo?: any;
 }) {
   const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
-  const fields: any[] = typeof template.fields === "string" 
-    ? JSON.parse(template.fields) 
+  const fields: any[] = typeof template.fields === "string"
+    ? JSON.parse(template.fields)
     : template.fields ?? [];
 
   // ── Section navigation ────────────────────────────────────────────────────
   const sections = useMemo(() => groupIntoSections(fields), []); // eslint-disable-line
   const [sectionIdx, setSectionIdx] = useState(0);
   const [sectionError, setSectionError] = useState('');
+  const [uploadModeMap, setUploadModeMap] = useState<Record<string, boolean>>({});
 
   const section = sections[sectionIdx];
   const isLastSection = sectionIdx === sections.length - 1;
@@ -717,7 +721,7 @@ function FormFieldsStep({
                 </div>
               );
             }
-            
+
             if ((field as any).type === 'generated_contract') {
               return null; // Suppress the display entirely
             }
@@ -741,7 +745,7 @@ function FormFieldsStep({
             let hasReferenceValue = false;
             if (field.description && /View Referenced/i.test(field.description)) {
               let val = initialFormData[field.id] !== undefined ? initialFormData[field.id] : initialFormData[field.label];
-              
+
               if ((val === undefined || val === null || val === "") && referenceData) {
                 const match = field.description.match(/Referenced\s+"([^"]+)"/i);
                 if (match && match[1]) {
@@ -793,8 +797,9 @@ function FormFieldsStep({
 
                 {(() => {
                   const isLockedPrereq = !!((field as any).isPrerequisite && (field as any).defaultPrereqRole && ((field as any).defaultPrereqBranch || (field as any).defaultPrereqRole === "ME") && formData[field.id]);
-                  const isReadOnly = isLockedPrereq;
-                  
+                  const isViewOnlyReferenced = !!(prerequisiteInfo && field.description?.toLowerCase().includes("referenced") && formData[field.id]);
+                  const isReadOnly = isLockedPrereq || isViewOnlyReferenced;
+
                   if (field.type === "signable_document") {
                     return (
                       <div className="border-2 border-dashed border-primary/50 rounded-lg p-6 bg-primary/5 hover:bg-primary/10 transition-colors max-w-xl">
@@ -830,7 +835,7 @@ function FormFieldsStep({
                       </div>
                     );
                   }
-                  
+
                   if (field.type === "textarea") {
                     return (
                       <textarea
@@ -1026,6 +1031,81 @@ function FormFieldsStep({
                       </div>
                     );
                   }
+                  if ((field as any).type === "extended_service") {
+                    const isUploadMode = uploadModeMap[field.id] || false;
+                    return (
+                      <div className="relative max-w-md flex flex-col gap-2">
+                        <div className="flex items-center justify-end">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 text-xs px-2 text-primary hover:bg-primary/10"
+                            onClick={() => {
+                              setUploadModeMap(prev => ({ ...prev, [field.id]: !prev[field.id] }));
+                              onChange(field.id, "");
+                            }}
+                          >
+                            {isUploadMode ? "Select from list instead" : "Upload file instead"}
+                          </Button>
+                        </div>
+                        {isUploadMode ? (
+                          <div className="border-2 border-dashed border-primary/50 rounded-lg p-4 bg-primary/5 hover:bg-primary/10 transition-colors">
+                            <Input
+                              id={field.id}
+                              type="file"
+                              accept=".pdf,image/*"
+                              required={field.required && (!formData[field.id] || formData[field.id].length === 0)}
+                              disabled={isReadOnly}
+                              className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90 cursor-pointer"
+                              onChange={(e) => {
+                                const files = e.target.files;
+                                if (files && files.length > 0) {
+                                  onChange(field.id, Array.from(files));
+                                } else {
+                                  onChange(field.id, "");
+                                }
+                              }}
+                            />
+                            {formData[field.id] && Array.isArray(formData[field.id]) && formData[field.id].length > 0 && (
+                              <p className="mt-2 text-xs text-primary font-medium flex items-center gap-1">
+                                <Check className="w-3 h-3" /> File ready to upload
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1">
+                              <SearchableSelect
+                                id={field.id}
+                                options={dynamicOptions[field.id] || []}
+                                value={typeof formData[field.id] === "string" ? formData[field.id] : ""}
+                                onChange={(val) => onChange(field.id, val)}
+                                required={field.required}
+                                disabled={isReadOnly}
+                                placeholder="Search extended service logs..."
+                              />
+                            </div>
+                            <div className="flex-shrink-0 min-w-[80px]">
+                              {extendedStatus[field.id]?.loading ? (
+                                <span className="flex items-center justify-center gap-1.5 px-2 py-1.5 bg-gray-100 rounded-md text-[10px] font-bold text-gray-500 uppercase tracking-widest h-10 w-full">
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                </span>
+                              ) : extendedStatus[field.id]?.valid ? (
+                                <span className="flex items-center justify-center gap-1.5 px-2 py-1.5 bg-green-100 rounded-md text-[10px] font-bold text-green-700 uppercase tracking-widest h-10 w-full" title={extendedStatus[field.id]?.label}>
+                                  <Check className="w-3 h-3" /> Valid
+                                </span>
+                              ) : typeof formData[field.id] === "string" && formData[field.id]?.length > 2 ? (
+                                <span className="flex items-center justify-center gap-1.5 px-2 py-1.5 bg-red-100 rounded-md text-[10px] font-bold text-red-600 uppercase tracking-widest h-10 w-full">
+                                  <X className="w-3 h-3" /> Invalid
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
                   if ((field as any).type === "to_words") {
                     return (
                       <div className="relative max-w-2xl">
@@ -1035,38 +1115,6 @@ function FormFieldsStep({
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-teal-400 text-xs font-mono whitespace-nowrap">
                           IN WORDS
                         </span>
-                      </div>
-                    );
-                  }
-                  if ((field as any).type === "extended_service") {
-                    return (
-                      <div className="relative max-w-md flex items-center gap-2">
-                        <div className="flex-1">
-                          <SearchableSelect
-                            id={field.id}
-                            options={dynamicOptions[field.id] || []}
-                            value={formData[field.id] ?? ""}
-                            onChange={(val) => onChange(field.id, val)}
-                            required={field.required}
-                            disabled={isReadOnly}
-                            placeholder="Search extended service logs..."
-                          />
-                        </div>
-                        <div className="flex-shrink-0 min-w-[80px]">
-                          {extendedStatus[field.id]?.loading ? (
-                            <span className="flex items-center justify-center gap-1.5 px-2 py-1.5 bg-gray-100 rounded-md text-[10px] font-bold text-gray-500 uppercase tracking-widest h-10 w-full">
-                              <Loader2 className="w-3 h-3 animate-spin" />
-                            </span>
-                          ) : extendedStatus[field.id]?.valid ? (
-                            <span className="flex items-center justify-center gap-1.5 px-2 py-1.5 bg-green-100 rounded-md text-[10px] font-bold text-green-700 uppercase tracking-widest h-10 w-full" title={extendedStatus[field.id]?.label}>
-                              <Check className="w-3 h-3" /> Valid
-                            </span>
-                          ) : formData[field.id]?.length > 2 ? (
-                            <span className="flex items-center justify-center gap-1.5 px-2 py-1.5 bg-red-100 rounded-md text-[10px] font-bold text-red-600 uppercase tracking-widest h-10 w-full">
-                              <X className="w-3 h-3" /> Invalid
-                            </span>
-                          ) : null}
-                        </div>
                       </div>
                     );
                   }
@@ -1371,6 +1419,7 @@ function SignatoriesStep({
 function SignDocumentStep({
   template,
   formData,
+  signatories,
   onBack,
   onNext,
   token,
@@ -1379,6 +1428,7 @@ function SignDocumentStep({
 }: {
   template: any;
   formData: Record<string, any>;
+  signatories: any[];
   onBack: () => void;
   onNext: (pdfId: string, annotations: any[]) => void;
   token?: string;
@@ -1420,6 +1470,7 @@ function SignDocumentStep({
             templateId: template.id,
             formName: template.name,
             formResponses: formData,
+            signatories: signatories,
           };
           if (contractField) {
             payload.contractFieldName = contractField.label;
@@ -1710,20 +1761,20 @@ function ReviewStep({
 
 // ─── Main Wizard ──────────────────────────────────────────────────────────────
 
-export default function FormFillerClient({ 
-  template, 
-  currentUser, 
-  draftId, 
-  initialFormData, 
+export default function FormFillerClient({
+  template,
+  currentUser,
+  draftId,
+  initialFormData,
   prerequisiteInfo,
   prefilledData,
   requestToken,
   correctionId,
   correctionRequests
-}: { 
-  template: any, 
-  currentUser: { userName: string; email: string; token?: string; id?: string }, 
-  draftId?: string, 
+}: {
+  template: any,
+  currentUser: { userName: string; email: string; token?: string; id?: string },
+  draftId?: string,
   initialFormData?: Record<string, any>,
   prerequisiteInfo?: any,
   prefilledData?: Record<string, any>,
@@ -1732,6 +1783,8 @@ export default function FormFillerClient({
   correctionRequests?: Record<string, string>
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const prefillFormReference = searchParams.get("prefill_form_reference");
 
   // ── Form state persistence (localStorage) ──────────────────────────────────
   const STORAGE_KEY = `form_draft_${template.id}`;
@@ -1751,8 +1804,8 @@ export default function FormFillerClient({
   const savedState = useRef(loadSavedState());
 
   const [step, setStep] = useState(() => savedState.current?.step || 1);
-  const formFields: any[] = typeof template.fields === "string" 
-    ? JSON.parse(template.fields) 
+  const formFields: any[] = typeof template.fields === "string"
+    ? JSON.parse(template.fields)
     : template.fields ?? [];
 
   const [formData, setFormData] = useState<Record<string, any>>(() => {
@@ -1765,17 +1818,28 @@ export default function FormFillerClient({
       });
       return result;
     };
-    
+
+    let baseData: Record<string, any> = {};
     // initialFormData (from drafts) takes priority, then prefilledData (from request token), then saved state, then empty
-    if (initialFormData && Object.keys(initialFormData).length > 0) return normalize(initialFormData);
-    if (prefilledData && Object.keys(prefilledData).length > 0) return normalize(prefilledData);
-    return savedState.current?.formData || {};
+    if (initialFormData && Object.keys(initialFormData).length > 0) baseData = normalize(initialFormData);
+    else if (prefilledData && Object.keys(prefilledData).length > 0) baseData = normalize(prefilledData);
+    else baseData = savedState.current?.formData || {};
+
+    if (prefillFormReference) {
+      const refField = formFields.find(f => f.label.toLowerCase().includes("form reference") || f.label.toLowerCase() === "reference");
+      if (refField) {
+        baseData[refField.id] = prefillFormReference;
+        baseData[refField.label] = prefillFormReference;
+      }
+    }
+
+    return baseData;
   });
   const [internalFormsData, setInternalFormsData] = useState<Record<string, any[]>>(() => savedState.current?.internalFormsData || {});
   const [activeInternalFormTarget, setActiveInternalFormTarget] = useState<{ fieldId: string, templateId: string, index?: number } | null>(null);
   const hasSignableDocument = formFields.some(f => f.type === "signable_document" || (f as any).type === "signable_document" || f.type === "generated_contract" || (f as any).type === "generated_contract");
-  const initiatorNeedsToSign = formFields.some(f => 
-    (f.type === "signable_document" || (f as any).type === "signable_document" || f.type === "generated_contract" || (f as any).type === "generated_contract") 
+  const initiatorNeedsToSign = formFields.some(f =>
+    (f.type === "signable_document" || (f as any).type === "signable_document" || f.type === "generated_contract" || (f as any).type === "generated_contract")
     && f.initiatorNeedsToSign
   );
 
@@ -1869,7 +1933,7 @@ export default function FormFillerClient({
                 headers: { Authorization: `Bearer ${currentUser.token}` }
               });
               const data = await res.json();
-              
+
               if (data.success && data.data && data.data.length === 1) {
                 newFormData[f.id] = data.data[0].finca_email;
                 changed = true;
@@ -1887,11 +1951,16 @@ export default function FormFillerClient({
     };
 
     resolveDefaults();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fields.length, currentUser.token]);
 
   const handleFieldChange = (id: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [id]: value }));
+    const field = fields.find((f: any) => f.id === id);
+    if (field) {
+      setFormData((prev) => ({ ...prev, [id]: value, [field.label]: value }));
+    } else {
+      setFormData((prev) => ({ ...prev, [id]: value }));
+    }
   };
 
   // ── Prefill handler: map source submission responses onto current template fields ──
@@ -1944,17 +2013,17 @@ export default function FormFillerClient({
     }
     // ── Check for automated signatories from template config ──────────────────
     const rawAutoSigs = typeof template.automatedSignatories === "string" ? JSON.parse(template.automatedSignatories) : template.automatedSignatories;
-    
+
     let autoSigs: any[] = [];
     if (rawAutoSigs && Array.isArray(rawAutoSigs)) {
       // Filter based on conditions
       autoSigs = rawAutoSigs.filter((sig) => {
         if (!sig.rules || !Array.isArray(sig.rules) || sig.rules.length === 0) return true;
-        
+
         const matchRule = (rule: any) => {
           const formValue = formData[rule.fieldId] ?? "";
           const targetValue = rule.value ?? "";
-          
+
           let numFormValue = Number(formValue);
           let numTargetValue = Number(targetValue);
           const isNum = !isNaN(numFormValue) && !isNaN(numTargetValue) && formValue !== "" && targetValue !== "";
@@ -1997,7 +2066,7 @@ export default function FormFillerClient({
           headers: { Authorization: `Bearer ${currentUser.token}` }
         });
         const data = await res.json();
-        
+
         if (data.success && data.data && data.data.length > 0) {
           const user = data.data[0];
           // Deduplicate if identical signatory role/branch results in same user
@@ -2040,7 +2109,7 @@ export default function FormFillerClient({
 
     fields.forEach((f) => {
       if ((f as any).type === 'section_header' || (f as any).type === 'instructions' || (f as any).type === 'generated_contract') return;
-      if (f.type === "file" || (f as any).type === "signable_document") {
+      if (f.type === "file" || (f as any).type === "signable_document" || ((f as any).type === "extended_service" && Array.isArray(formData[f.id]) && formData[f.id].some((i: any) => i instanceof File))) {
         if (formData[f.id]) {
           const items = Array.isArray(formData[f.id]) ? formData[f.id] : [formData[f.id]];
           const newFiles = items.filter((item: any) => item instanceof File);
@@ -2087,7 +2156,7 @@ export default function FormFillerClient({
     }
 
     try {
-      const endpointUrl = correctionId 
+      const endpointUrl = correctionId
         ? `/api/v1/submissions/${correctionId}/submit-correction`
         : "/api/v1/submissions";
 
@@ -2120,6 +2189,15 @@ export default function FormFillerClient({
             console.error("Failed to auto-regenerate PDF after correction", e);
           }
         }
+        const parentToComplete = searchParams.get("set_awaiting_workflow_for");
+        if (parentToComplete && res?.data?.id) {
+          try {
+            await setAwaitingFinalWorkflow(parentToComplete, res.data.id);
+          } catch (e) {
+            console.error("Failed to set awaiting final workflow on parent", e);
+          }
+        }
+
         clearSavedState();
         router.refresh();
         router.push("/dashboard/forms");
@@ -2171,6 +2249,7 @@ export default function FormFillerClient({
 
         {step === 1 && (
           <FormFieldsStep
+            prerequisiteInfo={prerequisiteInfo}
             template={template}
             formData={formData}
             initialFormData={initialFormData}
@@ -2208,6 +2287,7 @@ export default function FormFillerClient({
           <SignDocumentStep
             template={template}
             formData={formData}
+            signatories={signatories}
             onBack={() => setStep(correctionRequests && Object.keys(correctionRequests).length > 0 ? 1 : 2)}
             onNext={(pdfId: string, annotations: any[]) => {
               setTempPdfId(pdfId);
@@ -2492,10 +2572,10 @@ function TargetedRequestModal({
   const [customMessage, setCustomMessage] = useState(`Hello,\n\nPlease kindly fill out the attached form "${templateName}" at your earliest convenience.\n\nThank you.`);
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [alertMsg, setAlertMsg] = useState<{type: "error"|"success", msg: string} | null>(null);
+  const [alertMsg, setAlertMsg] = useState<{ type: "error" | "success", msg: string } | null>(null);
   const [step, setStep] = useState<1 | 2>(1);
   const [parsedEmails, setParsedEmails] = useState<string[]>([]);
-  
+
   const [isPublic, setIsPublic] = useState(initialIsPublic || false);
   const [publicSlug, setPublicSlug] = useState(initialPublicSlug || "");
   const [generatingLink, setGeneratingLink] = useState(false);
@@ -2527,7 +2607,7 @@ function TargetedRequestModal({
 
   const handleNextStep = async () => {
     let targetEmails: string[] = [];
-    
+
     if (activeTab === "csv" && file) {
       const text = await file.text();
       const rows = text.split("\n");
@@ -2554,7 +2634,7 @@ function TargetedRequestModal({
       setAlertMsg({ type: "error", msg: "Please provide at least one valid email address." });
       return;
     }
-    
+
     setAlertMsg(null);
     setParsedEmails(targetEmails);
     setStep(2);
@@ -2629,21 +2709,21 @@ function TargetedRequestModal({
                 {alertMsg.msg}
               </div>
             )}
-            
+
             {activeTab === "public" ? (
               <div className="py-4 space-y-4">
                 {isPublic && publicSlug ? (
                   <div className="space-y-2">
                     <Label className="text-sm font-semibold">Public Link URL (General)</Label>
                     <div className="flex items-center gap-2">
-                      <Input 
-                        readOnly 
-                        value={`${FRONTEND_URL}/${publicSlug}`} 
+                      <Input
+                        readOnly
+                        value={`${FRONTEND_URL}/${publicSlug}`}
                         className="bg-gray-50 text-gray-600 font-medium"
                       />
-                      <Button 
-                        type="button" 
-                        variant="outline" 
+                      <Button
+                        type="button"
+                        variant="outline"
                         size="icon"
                         className="shrink-0"
                         onClick={() => {
@@ -2654,12 +2734,12 @@ function TargetedRequestModal({
                         <Copy className="w-4 h-4" />
                       </Button>
                     </div>
-                    
+
                     <div className="flex items-center justify-between mt-4">
                       <Label className="text-sm font-semibold">My Personal Link (Routed to me)</Label>
                       <div className="flex items-center gap-2">
-                        <input 
-                          type="checkbox" 
+                        <input
+                          type="checkbox"
                           id="officerNeedsToSign"
                           checked={officerNeedsToSign}
                           onChange={(e) => setOfficerNeedsToSign(e.target.checked)}
@@ -2671,14 +2751,14 @@ function TargetedRequestModal({
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mt-2">
-                      <Input 
-                        readOnly 
-                        value={`${FRONTEND_URL}/${publicSlug}${currentUser.id || ""}${!officerNeedsToSign ? '?nosign=1' : ''}`} 
+                      <Input
+                        readOnly
+                        value={`${FRONTEND_URL}/${publicSlug}${currentUser.id || ""}${!officerNeedsToSign ? '?nosign=1' : ''}`}
                         className="bg-primary/5 text-primary font-medium border-primary/20"
                       />
-                      <Button 
-                        type="button" 
-                        variant="default" 
+                      <Button
+                        type="button"
+                        variant="default"
                         size="icon"
                         className="shrink-0"
                         onClick={() => {
@@ -2700,8 +2780,8 @@ function TargetedRequestModal({
                       <p className="text-sm font-semibold text-gray-900">No Public Link Generated</p>
                       <p className="text-xs text-gray-500 mt-1 max-w-[250px] mx-auto">Generate a unique public link to allow anyone to fill out this form.</p>
                     </div>
-                    <Button 
-                      onClick={handleGeneratePublicLink} 
+                    <Button
+                      onClick={handleGeneratePublicLink}
                       disabled={generatingLink}
                       variant="outline"
                       className="mt-2"
@@ -2937,3 +3017,5 @@ function InternalFormModal({
     </div>
   );
 }
+
+

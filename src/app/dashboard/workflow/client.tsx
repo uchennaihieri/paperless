@@ -536,9 +536,8 @@ function DetailPanel({
               {(() => {
                 const completedPdfArr = Array.isArray(responses["CompletedFormPDF"]) ? responses["CompletedFormPDF"] : [];
                 const signedContractDocs = item.documents?.filter((d) => d.fieldName === "SignedContract") || [];
-                const prerequisiteDocs = item.documents?.filter((d) => d.fieldName?.startsWith("PrerequisitePDF:")) || [];
 
-                if (completedPdfArr.length === 0 && signedContractDocs.length === 0 && prerequisiteDocs.length === 0) {
+                if (completedPdfArr.length === 0 && signedContractDocs.length === 0) {
                   return null;
                 }
 
@@ -585,19 +584,10 @@ function DetailPanel({
                       )}
 
                       {/* Signed Contract & Prerequisite Documents */}
-                      {[...signedContractDocs, ...prerequisiteDocs].map((doc) => {
+                      {signedContractDocs.map((doc) => {
                         const fileUrl = `/api/v1/file?docId=${doc.id}&t=${Date.now()}`;
-                        let fileName = doc.originalName || "Document.pdf";
-                        let subtitle = "Document";
-
-                        if (doc.fieldName === "SignedContract") {
-                          fileName = doc.originalName || "Signed_Contract.pdf";
-                          subtitle = "Signed Contract document";
-                        } else if (doc.fieldName?.startsWith("PrerequisitePDF:")) {
-                          const prereqName = doc.fieldName.replace("PrerequisitePDF:", "");
-                          fileName = doc.originalName || `${prereqName}_Form.pdf`;
-                          subtitle = `Prerequisite: ${prereqName}`;
-                        }
+                        let fileName = doc.originalName || "Signed_Contract.pdf";
+                        let subtitle = "Signed Contract document";
 
                         return (
                           <div key={doc.id} className="border border-gray-200 rounded-xl bg-gray-50 p-4 flex items-center justify-between gap-3 shadow-sm">

@@ -195,3 +195,17 @@ export async function reburnSignatures(submissionId: string) {
     return { success: false, error: e.message };
   }
 }
+
+export async function setAwaitingFinalWorkflow(submissionId: string, childId?: string) {
+  try {
+    const result = await apiClient(`/workflow/${submissionId}/awaiting-final-workflow`, {
+      method: "POST",
+      body: JSON.stringify(childId ? { childId } : {})
+    });
+    revalidatePath("/dashboard/action");
+    return result;
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
+
