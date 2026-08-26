@@ -5,9 +5,9 @@ import { ExternalLink } from "lucide-react";
 
 // ── Utility ───────────────────────────────────────────────────────────────────
 
-/** Matches any field label that normalises to "formreference" */
+/** Matches any field label that contains "reference" */
 export function isFormReferenceField(key: string): boolean {
-  return key.toLowerCase().replace(/[\s_-]+/g, "") === "formreference";
+  return key.toLowerCase().includes("reference");
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────

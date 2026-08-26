@@ -778,7 +778,7 @@ function FormFieldsStep({
                       {field.label}
                       {field.required && <span className="text-red-500">*</span>}
                     </span>
-                    {isFormReferenceField(field.label) && loadingReference && (
+                    {formReferenceField?.id === field.id && loadingReference && (
                       <span className="text-xs text-primary animate-pulse flex items-center gap-1">
                         <Loader2 className="w-3 h-3 animate-spin" /> Resolving reference...
                       </span>
