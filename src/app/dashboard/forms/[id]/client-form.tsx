@@ -357,7 +357,57 @@ function FormFieldsStep({
         });
         const data = await res.json();
         if (data.success && data.data) {
-          setReferenceData(data.data.formResponses);
+          const responses = { ...data.data.formResponses };
+          const refTemplateId = data.data.templateId;
+
+          // Resolve prerequisite fields: the backend overwrites the original
+          // email with the prereq submission's reference code. Fetch the
+          // referenced form's template, find prerequisite fields, and resolve
+          // each reference code back to the submitter's email.
+          if (refTemplateId) {
+            try {
+              const tplRes = await fetch(`${BASE_URL}/api/v1/forms/${refTemplateId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+              });
+              const tplData = await tplRes.json();
+              if (tplData.success && tplData.data?.fields) {
+                const tplFields = typeof tplData.data.fields === "string"
+                  ? JSON.parse(tplData.data.fields)
+                  : tplData.data.fields;
+
+                const prereqFields = tplFields.filter((f: any) => f.isPrerequisite);
+                for (const pf of prereqFields) {
+                  const key = responses[pf.label] !== undefined ? pf.label : (responses[pf.id] !== undefined ? pf.id : null);
+                  const overwrittenValue = key ? responses[key] : null;
+                  if (overwrittenValue && typeof overwrittenValue === "string" && overwrittenValue.trim()) {
+                    try {
+                      const prereqRes = await fetch(
+                        `${BASE_URL}/api/v1/submissions/by-reference/${encodeURIComponent(overwrittenValue.trim())}`,
+                        { headers: { Authorization: `Bearer ${token}` } }
+                      );
+                      const prereqData = await prereqRes.json();
+                      if (prereqData.success && prereqData.data) {
+                        const submitterEmail =
+                          prereqData.data.submittedBy?.finca_email ||
+                          prereqData.data.submittedBy?.email ||
+                          prereqData.data.submittedByEmail;
+                        if (submitterEmail && key) {
+                          responses[key] = submitterEmail;
+                        }
+                      }
+                    } catch {
+                      // Resolution failed — keep the overwritten value
+                    }
+                  }
+                }
+              }
+            } catch {
+              // Template fetch failed — proceed with original responses
+            }
+          }
+
+          setReferenceData(responses);
+
         } else {
           setReferenceData(null);
         }
