@@ -390,9 +390,9 @@ function FormFieldsStep({
                         const submitterEmail =
                           prereqData.data.submittedBy?.finca_email ||
                           prereqData.data.submittedBy?.email ||
-                          prereqData.data.submittedByEmail;
+                          prereqData.data.publicSubmitterEmail;
                         if (submitterEmail && key) {
-                          responses[key] = submitterEmail;
+                          responses[`${key}.email`] = submitterEmail;
                         }
                       }
                     } catch {
@@ -2111,25 +2111,42 @@ export default function FormFillerClient({
       let hasError = false;
 
       for (const sig of autoSigs) {
-        const fallback = sig.fallbackBranch ? `&fallbackBranch=${encodeURIComponent(sig.fallbackBranch)}` : '';
-        const res = await fetch(`/api/v1/workflow/resolve-assignee?branch=${encodeURIComponent(sig.branch)}&role=${encodeURIComponent(sig.role)}${fallback}`, {
-          headers: { Authorization: `Bearer ${currentUser.token}` }
-        });
-        const data = await res.json();
+        if (sig.type === "dynamic") {
+          const sigName = formData[sig.nameFieldId] || "Unknown";
+          const sigEmail = formData[sig.emailFieldId];
+          
+          if (!sigEmail) {
+            continue;
+          }
 
-        if (data.success && data.data && data.data.length > 0) {
-          const user = data.data[0];
-          // Deduplicate if identical signatory role/branch results in same user
-          if (!resolvedSigs.some(s => s.email.toLowerCase() === (user.finca_email || "").toLowerCase())) {
+          if (!resolvedSigs.some(s => s.email.toLowerCase() === sigEmail.toLowerCase())) {
             resolvedSigs.push({
               position: resolvedSigs.length + 1,
-              userName: user.user_name ?? "",
-              email: user.finca_email ?? "",
+              userName: sigName,
+              email: sigEmail,
             });
           }
         } else {
-          hasError = true;
-          break;
+          const fallback = sig.fallbackBranch ? `&fallbackBranch=${encodeURIComponent(sig.fallbackBranch)}` : '';
+          const res = await fetch(`/api/v1/workflow/resolve-assignee?branch=${encodeURIComponent(sig.branch)}&role=${encodeURIComponent(sig.role)}${fallback}`, {
+            headers: { Authorization: `Bearer ${currentUser.token}` }
+          });
+          const data = await res.json();
+
+          if (data.success && data.data && data.data.length > 0) {
+            const user = data.data[0];
+            // Deduplicate if identical signatory role/branch results in same user
+            if (!resolvedSigs.some(s => s.email.toLowerCase() === (user.finca_email || "").toLowerCase())) {
+              resolvedSigs.push({
+                position: resolvedSigs.length + 1,
+                userName: user.user_name ?? "",
+                email: user.finca_email ?? "",
+              });
+            }
+          } else {
+            hasError = true;
+            break;
+          }
         }
       }
 

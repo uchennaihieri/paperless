@@ -217,7 +217,7 @@ export default function FormBuilderClient({
   const [formTreaterRole, setFormTreaterRole] = useState(initialTemplate?.formTreaterRole || "");
   const [isPublic, setIsPublic] = useState(initialTemplate?.isPublic || false);
   const [publicSlug, setPublicSlug] = useState(initialTemplate?.publicSlug || "");
-  const [automatedSignatories, setAutomatedSignatories] = useState<{branch: string, role: string, signingType: string, fallbackBranch?: string, logicType?: "AND" | "OR", rules?: {fieldId: string, operator: string, value: string}[]}[]>(
+  const [automatedSignatories, setAutomatedSignatories] = useState<{type?: "static" | "dynamic", branch: string, role: string, nameFieldId?: string, emailFieldId?: string, signingType: string, fallbackBranch?: string, logicType?: "AND" | "OR", rules?: {fieldId: string, operator: string, value: string}[]}[]>(
     typeof initialTemplate?.automatedSignatories === "string" ? JSON.parse(initialTemplate.automatedSignatories) : (initialTemplate?.automatedSignatories || [])
   );
   const [conditionalRouting, setConditionalRouting] = useState<{
@@ -892,50 +892,95 @@ export default function FormBuilderClient({
                           {automatedSigningType === "sequential" ? index + 1 : "-"}
                         </div>
                         <div className="flex-1 flex flex-col gap-2">
-                          <div className="grid grid-cols-2 gap-3">
+                          <div className="mb-2">
                             <select
-                              value={sig.branch}
+                              value={sig.type || "static"}
                               onChange={(e) => {
                                 const updated = [...automatedSignatories];
-                                updated[index].branch = e.target.value;
-                                if (e.target.value !== "MY_BRANCH") {
-                                  delete updated[index].fallbackBranch;
-                                }
+                                updated[index].type = e.target.value as "static" | "dynamic";
                                 setAutomatedSignatories(updated);
                               }}
                               className={SELECT_CLASS}
                             >
-                              <option value="">— Select branch —</option>
-                              <option value="MY_BRANCH" className="font-semibold text-primary">My Branch (Referrer's Branch)</option>
-                              {branches.map(b => <option key={b} value={b}>{b}</option>)}
-                            </select>
-                            <select
-                              value={sig.role}
-                              onChange={(e) => {
-                                const updated = [...automatedSignatories];
-                                updated[index].role = e.target.value;
-                                setAutomatedSignatories(updated);
-                              }}
-                              className={SELECT_CLASS}
-                            >
-                              <option value="">— Select role —</option>
-                              {roles.map((r: any) => <option key={r.id || r} value={r.name || r}>{r.name || r}</option>)}
+                              <option value="static">From System (Branch/Role)</option>
+                              <option value="dynamic">From Form Fields</option>
                             </select>
                           </div>
-                          {sig.branch === "MY_BRANCH" && (
-                            <div className="w-full">
-                              <label className="text-xs font-semibold text-gray-500 mb-1 block">If Officer is at Head Office, route to:</label>
+                          {(sig.type === "static" || !sig.type) ? (
+                            <>
+                              <div className="grid grid-cols-2 gap-3">
+                                <select
+                                  value={sig.branch}
+                                  onChange={(e) => {
+                                    const updated = [...automatedSignatories];
+                                    updated[index].branch = e.target.value;
+                                    if (e.target.value !== "MY_BRANCH") {
+                                      delete updated[index].fallbackBranch;
+                                    }
+                                    setAutomatedSignatories(updated);
+                                  }}
+                                  className={SELECT_CLASS}
+                                >
+                                  <option value="">— Select branch —</option>
+                                  <option value="MY_BRANCH" className="font-semibold text-primary">My Branch (Referrer's Branch)</option>
+                                  {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                                </select>
+                                <select
+                                  value={sig.role}
+                                  onChange={(e) => {
+                                    const updated = [...automatedSignatories];
+                                    updated[index].role = e.target.value;
+                                    setAutomatedSignatories(updated);
+                                  }}
+                                  className={SELECT_CLASS}
+                                >
+                                  <option value="">— Select role —</option>
+                                  {roles.map((r: any) => <option key={r.id || r} value={r.name || r}>{r.name || r}</option>)}
+                                </select>
+                              </div>
+                              {sig.branch === "MY_BRANCH" && (
+                                <div className="w-full">
+                                  <label className="text-xs font-semibold text-gray-500 mb-1 block">If Officer is at Head Office, route to:</label>
+                                  <select
+                                    value={sig.fallbackBranch || ""}
+                                    onChange={(e) => {
+                                      const updated = [...automatedSignatories];
+                                      updated[index].fallbackBranch = e.target.value;
+                                      setAutomatedSignatories(updated);
+                                    }}
+                                    className={SELECT_CLASS}
+                                  >
+                                    <option value="">— Select Fallback Branch —</option>
+                                    {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                                  </select>
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <div className="grid grid-cols-2 gap-3">
                               <select
-                                value={sig.fallbackBranch || ""}
+                                value={sig.nameFieldId || ""}
                                 onChange={(e) => {
                                   const updated = [...automatedSignatories];
-                                  updated[index].fallbackBranch = e.target.value;
+                                  updated[index].nameFieldId = e.target.value;
                                   setAutomatedSignatories(updated);
                                 }}
                                 className={SELECT_CLASS}
                               >
-                                <option value="">— Select Fallback Branch —</option>
-                                {branches.map(b => <option key={b} value={b}>{b}</option>)}
+                                <option value="">— Select Name Field —</option>
+                                {fields.map((f: any) => <option key={f.id} value={f.id}>{f.label}</option>)}
+                              </select>
+                              <select
+                                value={sig.emailFieldId || ""}
+                                onChange={(e) => {
+                                  const updated = [...automatedSignatories];
+                                  updated[index].emailFieldId = e.target.value;
+                                  setAutomatedSignatories(updated);
+                                }}
+                                className={SELECT_CLASS}
+                              >
+                                <option value="">— Select Email Field —</option>
+                                {fields.map((f: any) => <option key={f.id} value={f.id}>{f.label}</option>)}
                               </select>
                             </div>
                           )}
