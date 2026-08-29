@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileDown, ChevronRight, CheckSquare, X, User, RefreshCw, AlertTriangle, Loader2, Eye, EyeOff, BookOpen, Search, Filter, Folder } from "lucide-react";
+import { FileDown, ChevronRight, CheckSquare, X, User, RefreshCw, AlertTriangle, Loader2, Eye, EyeOff, BookOpen, Search, Filter, Folder, Link2, FileText, CheckCircle2, Clock } from "lucide-react";
+import Link from "next/link";
+import { PrereqRemindButton } from "@/app/dashboard/forms/submission/[id]/prereq-remind-button";
 import { assignToSelf, revertAssignment, completeProcessWithApprover, delegateProcess, searchActiveWorkflowUsers, regeneratePdf, getSubmissionDetail, requestCorrection, setAwaitingFinalWorkflow } from "@/app/actions/workflow";
 import { getActionItems, getFormTemplates } from "@/app/actions/form";
 import { useSmartFetch } from "@/hooks/useSmartFetch";
@@ -34,7 +36,22 @@ type ActionItem = {
   documents?: Array<{ id: string; fieldName: string; originalName: string }>;
   treaterBranch?: string | null;
   manualFolders?: any[];
+  prerequisites?: any[];
 };
+
+function prereqStatusColor(status: string) {
+  switch (status) {
+    case "Approved": return "bg-green-50 text-green-700 border-green-200";
+    case "Submitted": return "bg-blue-50 text-blue-700 border-blue-200";
+    default: return "bg-amber-50 text-amber-700 border-amber-200";
+  }
+}
+
+function PrereqStatusIcon({ status }: { status: string }) {
+  if (status === "Approved") return <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />;
+  if (status === "Submitted") return <Clock className="w-3.5 h-3.5 text-blue-500" />;
+  return <Clock className="w-3.5 h-3.5 text-amber-500" />;
+}
 
 export default function ActionClient({ items, viewMode = "list", detailId }: { items: ActionItem[], viewMode?: "list" | "detail", detailId?: string }) {
   const { data: session } = useSession();
@@ -446,8 +463,9 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
                     <Badge variant={
                       item.status === "Filed" ? "secondary" :
                         item.status === "Processing" ? "warning" :
-                          item.status === "Awaiting Correction" ? "pending" :
-                            item.status.startsWith("Assigned") ? "default" : "success"
+                          item.status === "Blocked - Awaiting Prerequisites" ? "destructive" :
+                            item.status === "Awaiting Correction" ? "pending" :
+                              item.status.startsWith("Assigned") ? "default" : "success"
                     }>
                       {item.status}
                     </Badge>
@@ -504,20 +522,122 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
               <Badge variant={
                 selected.status === "Filed" ? "secondary" :
                   selected.status === "Processing" ? "warning" :
-                    selected.status === "Awaiting Correction" ? "pending" :
-                      selected.status.startsWith("Assigned") ? "default" : "success"
+                    selected.status === "Blocked - Awaiting Prerequisites" ? "destructive" :
+                      selected.status === "Awaiting Correction" ? "pending" :
+                        selected.status.startsWith("Assigned") ? "default" : "success"
               } className="text-sm px-3">
                 {selected.status}
               </Badge>
             </div>
           </div>
 
+          {/* Blocked banner */}
+          {selected.status === "Blocked - Awaiting Prerequisites" && (
+            <div className="flex flex-col gap-4 p-5 bg-amber-50 border border-amber-200 rounded-xl mt-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">Awaiting Prerequisite Forms</p>
+                  <p className="text-xs text-amber-700 mt-0.5">
+                    This submission is blocked until all sequential prerequisite forms have been
+                    completed. The workflow will proceed automatically once all prerequisites are approved.
+                  </p>
+                </div>
+              </div>
+              {/* Prerequisite Timeline */}
+              {(selected.prerequisites || []).length > 0 && (
+                <div className="flex items-center gap-1 mt-2 w-full overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-amber-200">
+                  {[...(selected.prerequisites || [])].sort((a, b) => (a.order || 0) - (b.order || 0)).map((pr, idx, arr) => {
+                    let nodeColor = "bg-gray-100 text-gray-500 border-gray-200";
+                    let icon = <Clock className="w-4 h-4" />;
+                    if (pr.status === "Approved") {
+                      nodeColor = "bg-green-50 text-green-700 border-green-200";
+                      icon = <CheckCircle2 className="w-4 h-4 text-green-500" />;
+                    } else if (pr.status === "Active") {
+                      nodeColor = "bg-white text-amber-700 border-amber-300 ring-2 ring-amber-400 ring-offset-2 ring-offset-amber-50 shadow-sm";
+                      icon = <Clock className="w-4 h-4 text-amber-500 animate-pulse" />;
+                    } else if (pr.status === "Declined") {
+                      nodeColor = "bg-red-50 text-red-700 border-red-200";
+                      icon = <AlertTriangle className="w-4 h-4 text-red-500" />;
+                    }
+
+                    return (
+                      <div key={pr.id} className="flex items-center">
+                        <div className={`flex flex-col items-center justify-center p-3 rounded-lg border w-[140px] text-center ${nodeColor}`}>
+                          {icon}
+                          <span className="text-xs font-semibold mt-1.5 truncate w-full" title={pr.type === "CONTRACT" ? "Contract Signature" : (pr.targetForm?.name || "Prerequisite")}>
+                            {pr.type === "CONTRACT" ? "Contract Signature" : (pr.targetForm?.name || "Prerequisite")}
+                          </span>
+                          <span className="text-[10px] opacity-80 mt-0.5 truncate w-full" title={pr.targetEmail}>
+                            {pr.targetEmail}
+                          </span>
+                        </div>
+                        {idx < arr.length - 1 && (
+                          <div className="w-6 h-0.5 bg-amber-200 mx-2 shrink-0" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Prerequisites section */}
+          {(selected.prerequisites || []).length > 0 && (
+            <div className="mt-4 mb-4">
+              <h3 className="text-xs font-semibold text-orange-700 uppercase tracking-widest border-b border-orange-100 pb-2 mb-3 flex items-center gap-2">
+                <Link2 className="w-3.5 h-3.5" /> Prerequisite Forms
+              </h3>
+              <div className="space-y-2">
+                {(selected.prerequisites || []).map((pr: any) => (
+                  <div
+                    key={pr.id}
+                    className="flex items-center justify-between gap-3 bg-white border border-gray-200 rounded-lg px-4 py-3 shadow-sm"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center shrink-0">
+                        <FileText className="w-4 h-4 text-orange-500" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {pr.type === "CONTRACT" ? "Contract Signature" : (pr.targetForm?.name ?? "Prerequisite Form")}
+                        </p>
+                        <p className="text-xs text-gray-400">Required from: {pr.targetEmail}</p>
+                        {pr.prereqSubmission?.reference && (
+                          <p className="text-xs text-gray-400">Ref: {pr.prereqSubmission.reference}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${prereqStatusColor(pr.status)}`}>
+                        <PrereqStatusIcon status={pr.status} />
+                        {pr.status}
+                      </span>
+                      {pr.status === "Pending" && (
+                        <PrereqRemindButton prereqId={pr.id} />
+                      )}
+                      {pr.prereqSubmissionId && (
+                        <Link
+                          href={`/dashboard/forms/submission/${pr.prereqSubmissionId}`}
+                          className="text-xs text-primary underline underline-offset-2 hover:text-primary/80 transition-colors"
+                        >
+                          View &rarr;
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Form Responses */}
           <div>
             <div className="flex justify-between items-center border-b border-gray-200 pb-2 mb-3">
               <h3 className="text-xs font-semibold text-primary uppercase tracking-widest">Form Responses</h3>
               <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={openStatusModal} className="cursor-pointer">
+                <Button size="sm" variant="outline" onClick={openStatusModal} disabled={selected.status === "Blocked - Awaiting Prerequisites"} className="cursor-pointer">
                   Change Status
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => handleRegenerate(selected.id)} disabled={isRegenerating} className="cursor-pointer border-amber-200 text-amber-700 hover:bg-amber-50">

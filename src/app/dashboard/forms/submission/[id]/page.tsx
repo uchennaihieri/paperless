@@ -198,8 +198,8 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
                   <div key={pr.id} className="flex items-center">
                     <div className={`flex flex-col items-center justify-center p-3 rounded-lg border w-[140px] text-center ${nodeColor}`}>
                       {icon}
-                      <span className="text-xs font-semibold mt-1.5 truncate w-full" title={pr.targetForm?.name || "Prerequisite"}>
-                        {pr.targetForm?.name || "Prerequisite"}
+                      <span className="text-xs font-semibold mt-1.5 truncate w-full" title={pr.type === "CONTRACT" ? "Contract Signature" : (pr.targetForm?.name || "Prerequisite")}>
+                        {pr.type === "CONTRACT" ? "Contract Signature" : (pr.targetForm?.name || "Prerequisite")}
                       </span>
                       <span className="text-[10px] opacity-80 mt-0.5 truncate w-full" title={pr.targetEmail}>
                         {pr.targetEmail}
@@ -234,7 +234,7 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">
-                      {pr.targetForm?.name ?? "Prerequisite Form"}
+                      {pr.type === "CONTRACT" ? "Contract Signature" : (pr.targetForm?.name ?? "Prerequisite Form")}
                     </p>
                     <p className="text-xs text-gray-400">Required from: {pr.targetEmail}</p>
                     {pr.prereqSubmission?.reference && (
