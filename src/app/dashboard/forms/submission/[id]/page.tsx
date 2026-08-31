@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { FileText, FileDown, AlertTriangle, Link2, CheckCircle2, Clock } from "lucide-react";
 import { AttachmentLink } from "./attachment-link";
 import { RegeneratePdfButton } from "./regenerate-button";
+import { CancelSubmissionButton } from "./cancel-button";
 import { RemindButton } from "./remind-button";
 import { PrereqRemindButton } from "./prereq-remind-button";
 import { FormResponseCell } from "./form-response-cell";
@@ -269,9 +270,12 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
       <div>
         <div className="flex justify-between items-center border-b border-gray-200 pb-2 mb-3">
           <h3 className="text-xs font-semibold text-primary uppercase tracking-widest">Form Responses</h3>
-          {(submission.status === "Completed" || submission.status === "Processing") && (
-            <RegeneratePdfButton submissionId={submission.id} />
-          )}
+          <div className="flex items-center gap-2">
+            <CancelSubmissionButton submission={submission} />
+            {(submission.status === "Completed" || submission.status === "Processing") && (
+              <RegeneratePdfButton submissionId={submission.id} />
+            )}
+          </div>
         </div>
         <div className="rounded-xl border border-gray-200 overflow-hidden shadow-sm">
           <table className="w-full text-sm">
