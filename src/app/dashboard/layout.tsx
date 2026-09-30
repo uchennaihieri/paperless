@@ -97,6 +97,7 @@ export default function DashboardLayout({
   const roles = session?.user && (session.user as any).roles ? JSON.parse((session.user as any).roles) : [];
   const activeRoleId = session?.user && (session.user as any).activeRoleId;
   const activeRole = roles.find((r: any) => r.id === activeRoleId) || roles[0];
+  const isAdmin = activeRole?.user_role?.toLowerCase() === "administrator" || activeRole?.specialAccess?.toLowerCase().includes("administrator");
 
   const handleSignOut = () => signOut({ callbackUrl: '/' });
 
@@ -219,7 +220,7 @@ export default function DashboardLayout({
               // App Download is rendered as its own button below — not a standard nav link
               if (item.name === "App Download") return false;
               if (item.name === "Teams" || item.name === "Templates") {
-                return activeRole?.user_role?.toLowerCase() === "administrator" || activeRole?.specialAccess?.toLowerCase().includes("administrator");
+                return isAdmin;
               }
               return true;
             })
@@ -351,7 +352,7 @@ export default function DashboardLayout({
                   </button>
 
                   <div className="border-t border-gray-100 mt-1 pt-1">
-                    {isESaveMode ? (
+                    {isESaveMode && (
                       <button
                         onClick={() => { 
                           router.push("/dashboard/workflow"); 
@@ -361,7 +362,9 @@ export default function DashboardLayout({
                       >
                         <Building2 className="w-4 h-4" /> Switch to FINCALite
                       </button>
-                    ) : (
+                    )}
+                    
+                    {!isESaveMode && isAdmin && (
                       <button
                         onClick={() => { setIsESaveModalOpen(true); setIsAvatarMenuOpen(false); }}
                         className="w-full flex items-center gap-3 px-3 py-2 text-sm text-primary hover:bg-gray-50 transition-colors"
