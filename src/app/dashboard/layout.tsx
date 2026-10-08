@@ -43,6 +43,7 @@ const esaveNavigation = [
   { name: "Bank Management", href: "/dashboard/esave/bank", icon: Building2 },
   { name: "Payout", href: "/dashboard/esave/payout", icon: DollarSign },
   { name: "Reconciliation", href: "/dashboard/esave/reconciliation", icon: FileCheck },
+  { name: "System Config", href: "/dashboard/esave/system-config", icon: Settings },
 ];
 
 
@@ -85,7 +86,16 @@ export default function DashboardLayout({
       });
   }, [isESaveMode]);
 
+  // Find the exact active role from session
+  const roles = session?.user && (session.user as any).roles ? JSON.parse((session.user as any).roles) : [];
+  const activeRoleId = session?.user && (session.user as any).activeRoleId;
+  const activeRole = roles.find((r: any) => r.id === activeRoleId) || roles[0];
+  const isAdmin = activeRole?.user_role?.toLowerCase() === "administrator" || activeRole?.specialAccess?.toLowerCase().includes("administrator");
+
   const filteredESaveNavigation = esaveNavigation.filter(item => {
+    if (item.name === "System Config") {
+      return isAdmin;
+    }
     if (eSaveScopes === null) return true; // Show while loading
     if (eSaveScopes.length === 0) return true; // Legacy fallback: if no scopes assigned in DB, assume full access? Or change this to return false for strict access.
     return eSaveScopes.includes(item.name);
@@ -93,11 +103,6 @@ export default function DashboardLayout({
 
   const currentNavigation = isESaveMode ? filteredESaveNavigation : navigation;
 
-  // Find the exact active role from session
-  const roles = session?.user && (session.user as any).roles ? JSON.parse((session.user as any).roles) : [];
-  const activeRoleId = session?.user && (session.user as any).activeRoleId;
-  const activeRole = roles.find((r: any) => r.id === activeRoleId) || roles[0];
-  const isAdmin = activeRole?.user_role?.toLowerCase() === "administrator" || activeRole?.specialAccess?.toLowerCase().includes("administrator");
 
   const handleSignOut = () => signOut({ callbackUrl: '/' });
 
