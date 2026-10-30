@@ -27,7 +27,7 @@ type HistoryItem = {
   updatedAt: string;
   myRoles: MyRole[];
   mySignatory: { status: string; signedAt: string } | null;
-  submittedBy: { user_name: string; finca_email: string; branch: string } | null;
+  submittedBy: { user_name: string; finca_email: string; branch: string; user_role?: string } | null;
   template: { name: string; formTreater: string };
   signatories: Array<{ userName: string; email: string; status: string; signedAt: string | null; position: number }>;
 };
@@ -105,18 +105,88 @@ export function HistoryModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
   const token = (session?.user as any)?.backendToken ?? "";
   const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://paperlessbackend-production.up.railway.app";
 
+  // Check if current user has the "Control" special access
+  const roles = session?.user && (session.user as any).roles
+    ? (typeof (session.user as any).roles === "string"
+        ? JSON.parse((session.user as any).roles)
+        : (session.user as any).roles)
+    : [];
+  const activeRoleId = (session?.user as any)?.activeRoleId;
+  const activeRole = roles.find((r: any) => String(r.id) === String(activeRoleId)) || roles[0];
+  const hasControlAccess = Boolean(
+    activeRole?.specialAccess?.toLowerCase().includes("control") ||
+    roles.some((r: any) => r.specialAccess?.toLowerCase().includes("control"))
+  );
+
+  const [isMonitoring, setIsMonitoring] = useState(false);
   const [items, setItems] = useState<HistoryItem[]>([]);
   const [meta, setMeta] = useState<Meta>({ page: 1, limit: 20, total: 0, totalPages: 1 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   // Filters
-  const [search, setSearch]     = useState("");
-  const [status, setStatus]     = useState("");
-  const [role, setRole]         = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo]     = useState("");
-  const [page, setPage]         = useState(1);
+  const [search, setSearch]                   = useState("");
+  const [status, setStatus]                   = useState("");
+  const [role, setRole]                       = useState("");
+  const [submittedBranch, setSubmittedBranch] = useState("");
+  const [treatedBranch, setTreatedBranch]     = useState("");
+  const [formType, setFormType]               = useState("");
+  const [userFilter, setUserFilter]           = useState("");
+  const [dateFrom, setDateFrom]               = useState("");
+  const [dateTo, setDateTo]                   = useState("");
+  const [page, setPage]                       = useState(1);
+
+  // Options for monitoring filters
+  const [branchOptions, setBranchOptions]     = useState<string[]>([]);
+  const [formTypeOptions, setFormTypeOptions] = useState<{ id: string; name: string }[]>([]);
+  const [roleOptions, setRoleOptions]         = useState<string[]>([
+    "Branch Manager", "Teller", "Operations", "Loan Officer", "Customer Service",
+    "Credit Risk", "Audit", "Accountant", "Administrator",
+  ]);
+
+  // Load dynamic branches, roles, and form templates for monitoring mode
+  useEffect(() => {
+    if (!isOpen || !token) return;
+
+    // Branches
+    fetch(`${BASE_URL}/api/v1/branches`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.data && Array.isArray(json.data)) {
+          const names = json.data
+            .map((b: any) => (typeof b === "string" ? b : b.name || b.id))
+            .filter(Boolean);
+          setBranchOptions(Array.from(new Set(names)));
+        }
+      })
+      .catch(() => {});
+
+    // Roles
+    fetch(`${BASE_URL}/api/v1/lookup?type=role`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.data && Array.isArray(json.data)) {
+          setRoleOptions((prev) => Array.from(new Set([...prev, ...json.data])));
+        }
+      })
+      .catch(() => {});
+
+    // Form Types / Templates
+    fetch(`${BASE_URL}/api/v1/forms`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((json) => {
+        if (json.data && Array.isArray(json.data)) {
+          setFormTypeOptions(json.data.map((f: any) => ({ id: f.id, name: f.name })));
+        }
+      })
+      .catch(() => {});
+  }, [isOpen, token, BASE_URL]);
 
   // Debounce search
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -127,8 +197,32 @@ export function HistoryModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
     return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
   }, [search]);
 
-  // Reset page when filters change
-  useEffect(() => { setPage(1); }, [debouncedSearch, status, role, dateFrom, dateTo]);
+  // Debounce user filter
+  const userTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [debouncedUser, setDebouncedUser] = useState("");
+  useEffect(() => {
+    if (userTimerRef.current) clearTimeout(userTimerRef.current);
+    userTimerRef.current = setTimeout(() => setDebouncedUser(userFilter), 350);
+    return () => { if (userTimerRef.current) clearTimeout(userTimerRef.current); };
+  }, [userFilter]);
+
+  // Reset page when filters or monitoring mode change
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, status, role, submittedBranch, treatedBranch, formType, debouncedUser, dateFrom, dateTo, isMonitoring]);
+
+  const handleToggleMonitoring = (checked: boolean) => {
+    setIsMonitoring(checked);
+    setPage(1);
+    setStatus("");
+    setRole("");
+    setSubmittedBranch("");
+    setTreatedBranch("");
+    setFormType("");
+    setUserFilter("");
+    setDateFrom("");
+    setDateTo("");
+  };
 
   const fetchHistory = useCallback(async () => {
     if (!token || !isOpen) return;
@@ -142,6 +236,14 @@ export function HistoryModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
       if (dateFrom)        params.set("dateFrom", dateFrom);
       if (dateTo)          params.set("dateTo", dateTo);
 
+      if (isMonitoring) {
+        params.set("monitoring", "true");
+        if (submittedBranch) params.set("submittedBranch", submittedBranch);
+        if (treatedBranch)   params.set("treatedBranch", treatedBranch);
+        if (formType)        params.set("formType", formType);
+        if (debouncedUser)   params.set("user", debouncedUser);
+      }
+
       const res = await fetch(`${BASE_URL}/api/v1/history?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -154,7 +256,7 @@ export function HistoryModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
     } finally {
       setLoading(false);
     }
-  }, [token, isOpen, page, debouncedSearch, status, role, dateFrom, dateTo, BASE_URL]);
+  }, [token, isOpen, page, debouncedSearch, status, role, submittedBranch, treatedBranch, formType, debouncedUser, dateFrom, dateTo, isMonitoring, BASE_URL]);
 
   useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
@@ -180,88 +282,263 @@ export function HistoryModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
             </div>
             <div>
               <h2 className="text-lg font-bold text-gray-900">Activity History</h2>
-              <p className="text-xs text-gray-400">Your last {meta.total} activities across all workflows</p>
+              <p className="text-xs text-gray-400">
+                {isMonitoring
+                  ? `Total of ${meta.total} activities across all workflows`
+                  : `Your last ${meta.total} activities across all workflows`}
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors">
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
+          <div className="flex items-center gap-4">
+            {hasControlAccess && (
+              <div className="flex items-center gap-2.5 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-full shadow-sm">
+                <span className="text-xs font-medium text-gray-700">Activate monitoring</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isMonitoring}
+                  onClick={() => handleToggleMonitoring(!isMonitoring)}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#b50938]/30 ${
+                    isMonitoring ? "bg-[#b50938]" : "bg-gray-300"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      isMonitoring ? "translate-x-4" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
+            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-full transition-colors">
+              <X className="w-5 h-5 text-gray-500" />
+            </button>
+          </div>
         </div>
 
         {/* Filters */}
         <div className="px-6 py-4 border-b border-gray-100 shrink-0 space-y-3">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-            <Input
-              placeholder="Search by form name, reference, status..."
-              className="pl-9 h-9 text-sm"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
+          {isMonitoring ? (
+            <div className="space-y-3">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Search by form name, reference, keyword..."
+                  className="pl-9 h-9 text-sm"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
 
-          {/* Role chips */}
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setRole("")}
-              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                role === "" ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"
-              }`}
-            >
-              All Roles
-            </button>
-            {ROLE_OPTIONS.map((r) => (
-              <button
-                key={r.value}
-                onClick={() => setRole(role === r.value ? "" : r.value)}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                  role === r.value ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"
-                }`}
-              >
-                {r.icon} {r.label}
-              </button>
-            ))}
-          </div>
+              {/* Monitoring Controls: status, form type, submitted branch, treated branch, Roles, user, from date and to date */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 items-center">
+                {/* Status */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-gray-500">Status</label>
+                  <select
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value)}
+                    className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30 h-8"
+                  >
+                    <option value="">All Statuses</option>
+                    {STATUS_OPTIONS.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
 
-          {/* Status + date row */}
-          <div className="flex flex-wrap gap-2 items-center">
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30"
-            >
-              <option value="">All Statuses</option>
-              {STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
+                {/* Form Type */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-gray-500">Form Type</label>
+                  <select
+                    value={formType}
+                    onChange={(e) => setFormType(e.target.value)}
+                    className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30 h-8"
+                  >
+                    <option value="">All Form Types</option>
+                    {formTypeOptions.map((f) => (
+                      <option key={f.id} value={f.name}>{f.name}</option>
+                    ))}
+                  </select>
+                </div>
 
-            <div className="flex items-center gap-1.5">
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
-              <span className="text-xs text-gray-400">to</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30"
-              />
+                {/* Submitted Branch */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-gray-500">Submitted Branch</label>
+                  <select
+                    value={submittedBranch}
+                    onChange={(e) => setSubmittedBranch(e.target.value)}
+                    className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30 h-8"
+                  >
+                    <option value="">All Origin Branches</option>
+                    {branchOptions.map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Treated Branch */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-gray-500">Treated Branch</label>
+                  <select
+                    value={treatedBranch}
+                    onChange={(e) => setTreatedBranch(e.target.value)}
+                    className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30 h-8"
+                  >
+                    <option value="">All Treater Branches</option>
+                    {branchOptions.map((b) => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Roles */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-gray-500">Roles</label>
+                  <select
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
+                    className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30 h-8"
+                  >
+                    <option value="">All Roles</option>
+                    {roleOptions.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* User */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-gray-500">User</label>
+                  <Input
+                    placeholder="Name or email..."
+                    value={userFilter}
+                    onChange={(e) => setUserFilter(e.target.value)}
+                    className="h-8 text-xs px-2.5"
+                  />
+                </div>
+
+                {/* From Date */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-gray-500">From Date</label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30 h-8"
+                  />
+                </div>
+
+                {/* To Date */}
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-gray-500">To Date</label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30 h-8"
+                  />
+                </div>
+              </div>
+
+              {(search || status || role || submittedBranch || treatedBranch || formType || userFilter || dateFrom || dateTo) && (
+                <div className="flex justify-end pt-1">
+                  <button
+                    onClick={() => {
+                      setSearch("");
+                      setStatus("");
+                      setRole("");
+                      setSubmittedBranch("");
+                      setTreatedBranch("");
+                      setFormType("");
+                      setUserFilter("");
+                      setDateFrom("");
+                      setDateTo("");
+                    }}
+                    className="text-xs text-primary hover:underline font-medium"
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              )}
             </div>
+          ) : (
+            <>
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Search by form name, reference, status..."
+                  className="pl-9 h-9 text-sm"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
 
-            {(search || status || role || dateFrom || dateTo) && (
-              <button
-                onClick={() => { setSearch(""); setStatus(""); setRole(""); setDateFrom(""); setDateTo(""); }}
-                className="text-xs text-primary hover:underline"
-              >
-                Clear filters
-              </button>
-            )}
-          </div>
+              {/* Role chips */}
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setRole("")}
+                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                    role === "" ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"
+                  }`}
+                >
+                  All Roles
+                </button>
+                {ROLE_OPTIONS.map((r) => (
+                  <button
+                    key={r.value}
+                    onClick={() => setRole(role === r.value ? "" : r.value)}
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      role === r.value ? "bg-gray-900 text-white border-gray-900" : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"
+                    }`}
+                  >
+                    {r.icon} {r.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Status + date row */}
+              <div className="flex flex-wrap gap-2 items-center">
+                <select
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                >
+                  <option value="">All Statuses</option>
+                  {STATUS_OPTIONS.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                  <span className="text-xs text-gray-400">to</span>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="text-xs border border-gray-200 rounded-lg px-3 py-1.5 bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+
+                {(search || status || role || dateFrom || dateTo) && (
+                  <button
+                    onClick={() => { setSearch(""); setStatus(""); setRole(""); setDateFrom(""); setDateTo(""); }}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Content */}
@@ -300,6 +577,12 @@ export function HistoryModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                         <span>REF: {item.reference ?? "—"}</span>
                         <span>·</span>
                         <span>By {item.submittedBy?.user_name ?? "Unknown"}</span>
+                        {item.submittedBy?.branch && (
+                          <>
+                            <span>·</span>
+                            <span className="text-gray-500 font-medium">{item.submittedBy.branch}</span>
+                          </>
+                        )}
                         <span>·</span>
                         <span>{formatDate(item.createdAt)}</span>
                         {item.updatedAt !== item.createdAt && (
@@ -330,6 +613,12 @@ export function HistoryModal({ isOpen, onClose }: { isOpen: boolean; onClose: ()
                         {ROLE_OPTIONS.find((ro) => ro.value === r)?.label ?? r}
                       </span>
                     ))}
+                    {isMonitoring && item.submittedBy?.user_role && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 text-gray-700 border border-gray-200">
+                        <Users className="w-3 h-3 text-gray-400" />
+                        {item.submittedBy.user_role}
+                      </span>
+                    )}
                   </div>
 
                   {/* Signatories progress */}
