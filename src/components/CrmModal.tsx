@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
-import { X, Search, PhoneCall, ChevronLeft, Send, CheckCircle, Clock, AlertCircle, ShieldCheck, User } from "lucide-react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import {
+  X, Search, PhoneCall, ChevronLeft, ChevronRight, Send, CheckCircle,
+  Clock, AlertCircle, ShieldCheck, User, Calendar, Phone, Filter, Loader2,
+} from "lucide-react";
 import { useSession } from "next-auth/react";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
 
 interface CrmModalProps {
   isOpen: boolean;
@@ -19,9 +23,106 @@ const STATUS_COLORS: Record<string, string> = {
 export function CrmModal({ isOpen, onClose }: CrmModalProps) {
   const { data: session } = useSession();
 
-  // Views
-  const [view, setView] = useState<"select" | "grid" | "timeline">("select");
+  // Check if current user has the "Control" special access
+  const roles = session?.user && (session.user as any).roles
+    ? (typeof (session.user as any).roles === "string"
+        ? JSON.parse((session.user as any).roles)
+        : (session.user as any).roles)
+    : [];
+  const activeRoleId = (session?.user as any)?.activeRoleId;
+  const activeRole = roles.find((r: any) => String(r.id) === String(activeRoleId)) || roles[0];
+  const hasControlAccess = Boolean(
+    activeRole?.specialAccess?.toLowerCase().includes("control") ||
+    roles.some((r: any) => r.specialAccess?.toLowerCase().includes("control"))
+  );
+
+  // Views: select | grid | timeline | monitoring
+  const [view, setView] = useState<"select" | "grid" | "timeline" | "monitoring">("select");
+  const [isMonitoring, setIsMonitoring] = useState(false);
   const [landingTab, setLandingTab] = useState<"working-list" | "quick-lookup">("working-list");
+
+  // Monitoring State & Filters
+  const [monitoringInteractions, setMonitoringInteractions] = useState<any[]>([]);
+  const [monitoringMeta, setMonitoringMeta] = useState({ page: 1, limit: 50, total: 0, totalPages: 1 });
+  const [loadingMonitoring, setLoadingMonitoring] = useState(false);
+
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
+  const [filterUser, setFilterUser] = useState("");
+  const [filterPhone, setFilterPhone] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [monitoringPage, setMonitoringPage] = useState(1);
+
+  // Debouncing filters for user and phone inputs
+  const [debouncedFilterUser, setDebouncedFilterUser] = useState("");
+  const [debouncedFilterPhone, setDebouncedFilterPhone] = useState("");
+  const userTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const phoneTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (userTimerRef.current) clearTimeout(userTimerRef.current);
+    userTimerRef.current = setTimeout(() => setDebouncedFilterUser(filterUser), 350);
+    return () => { if (userTimerRef.current) clearTimeout(userTimerRef.current); };
+  }, [filterUser]);
+
+  useEffect(() => {
+    if (phoneTimerRef.current) clearTimeout(phoneTimerRef.current);
+    phoneTimerRef.current = setTimeout(() => setDebouncedFilterPhone(filterPhone), 350);
+    return () => { if (phoneTimerRef.current) clearTimeout(phoneTimerRef.current); };
+  }, [filterPhone]);
+
+  useEffect(() => {
+    setMonitoringPage(1);
+  }, [filterDateFrom, filterDateTo, debouncedFilterUser, debouncedFilterPhone, filterStatus]);
+
+  // Fetch monitoring interaction history
+  const fetchMonitoringInteractions = useCallback(async () => {
+    if (!isOpen || !isMonitoring) return;
+    setLoadingMonitoring(true);
+    try {
+      const params = new URLSearchParams({
+        page: String(monitoringPage),
+        limit: "50",
+      });
+      if (filterDateFrom) params.set("dateFrom", filterDateFrom);
+      if (filterDateTo) params.set("dateTo", filterDateTo);
+      if (debouncedFilterUser) params.set("user", debouncedFilterUser);
+      if (debouncedFilterPhone) params.set("phone", debouncedFilterPhone);
+      if (filterStatus) params.set("status", filterStatus);
+
+      const res = await fetch(`/api/v1/crm/interactions?${params.toString()}`);
+      const json = await res.json();
+      if (json.success) {
+        setMonitoringInteractions(json.data || []);
+        setMonitoringMeta(json.meta || { page: 1, limit: 50, total: 0, totalPages: 1 });
+      }
+    } catch (e) {
+      console.error("Failed to load monitoring interactions", e);
+    } finally {
+      setLoadingMonitoring(false);
+    }
+  }, [isOpen, isMonitoring, monitoringPage, filterDateFrom, filterDateTo, debouncedFilterUser, debouncedFilterPhone, filterStatus]);
+
+  useEffect(() => {
+    if (isMonitoring && isOpen && view === "monitoring") {
+      fetchMonitoringInteractions();
+    }
+  }, [isMonitoring, isOpen, view, fetchMonitoringInteractions]);
+
+  const handleToggleMonitoring = (checked: boolean) => {
+    setIsMonitoring(checked);
+    if (checked) {
+      setView("monitoring");
+      setMonitoringPage(1);
+      setFilterDateFrom("");
+      setFilterDateTo("");
+      setFilterUser("");
+      setFilterPhone("");
+      setFilterStatus("");
+    } else {
+      setView("select");
+    }
+  };
 
   // Source Selection
   const [datasets, setDatasets] = useState<any[]>([]);
@@ -214,7 +315,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
       if (!searchQuery) return records;
       const lowerQuery = searchQuery.toLowerCase();
       return records.filter(r => {
-        return JSON.stringify(r.rowData).toLowerCase().includes(lowerQuery) || 
+        return JSON.stringify(r.rowData).toLowerCase().includes(lowerQuery) ||
                String(r.reference || "").toLowerCase().includes(lowerQuery);
       });
     } else {
@@ -232,7 +333,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
 
     let originalKeys: string[] = [];
     if (currentDataset?.headers && currentDataset.headers.length > 0) {
-      originalKeys = currentDataset.headers.filter((k: string) => 
+      originalKeys = currentDataset.headers.filter((k: string) =>
         !["CRM Status", "Latest Feedback", "Last Caller", "Last Call Time"].includes(k)
       );
     } else {
@@ -241,17 +342,13 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
       );
     }
 
-    // Guarantee injected CRM keys appear at the end
-    const crmKeys = ["CRM Status", "Last Caller", "Last Call Time", "Latest Feedback"];
-
-    // Check if any record actually has the CRM keys populated, otherwise we don't necessarily need to render empty columns
-    // But since we want consistent grid extension, we will just render them if they exist in ANY record.
     const keysSet = new Set<string>();
     records.forEach(r => Object.keys(r.rowData || {}).forEach(k => keysSet.add(k)));
 
-    const finalCrmKeys = crmKeys.filter(k => keysSet.has(k));
+    const crmKeys = ["CRM Status", "Last Caller", "Last Call Time", "Latest Feedback"];
+    const populatedCrmKeys = crmKeys.filter(k => keysSet.has(k));
 
-    return [...originalKeys, ...finalCrmKeys];
+    return [...originalKeys, ...populatedCrmKeys];
   }, [records, currentDataset]);
 
   if (!isOpen) return null;
@@ -264,7 +361,11 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
         <div className="h-16 shrink-0 border-b border-gray-100 flex items-center justify-between px-6 bg-white gap-4">
           <div className="flex items-center gap-3 shrink-0">
             {view === "grid" && (
-              <button onClick={() => setView("select")} className="mr-2 p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors flex items-center justify-center" title="Back to Lists">
+              <button
+                onClick={() => setView("select")}
+                className="mr-2 p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors flex items-center justify-center"
+                title="Back to Lists"
+              >
                 <ChevronLeft className="w-5 h-5" />
               </button>
             )}
@@ -272,8 +373,14 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
               <PhoneCall className="w-5 h-5 text-[#b50938]" />
             </div>
             <div className="hidden sm:block">
-              <h2 className="text-lg font-bold text-gray-900">Mini CRM</h2>
-              <p className="text-xs text-gray-400">Call Logs & Customer Feedback</p>
+              <h2 className="text-lg font-bold text-gray-900">
+                {isMonitoring ? "CRM Monitoring" : "Mini CRM"}
+              </h2>
+              <p className="text-xs text-gray-400">
+                {isMonitoring
+                  ? `Total of ${monitoringMeta.total} customer interactions recorded`
+                  : "Call Logs & Customer Feedback"}
+              </p>
             </div>
           </div>
 
@@ -281,10 +388,10 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
             <div className="flex-1 max-w-xl mx-auto w-full flex items-center gap-2">
               <select
                 value={searchColumn}
-                onChange={(e) => { 
-                  setSearchColumn(e.target.value); 
-                  setSelectedValues([]); 
-                  setSearchQuery(""); 
+                onChange={(e) => {
+                  setSearchColumn(e.target.value);
+                  setSelectedValues([]);
+                  setSearchQuery("");
                   setIsFilterDropdownOpen(false);
                 }}
                 className="h-9 rounded-md border border-gray-300 text-sm focus:ring-2 focus:ring-primary focus:border-primary bg-white px-2 w-[140px] truncate shrink-0"
@@ -293,7 +400,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
                 <option value="DAT Reference">DAT Reference</option>
                 {allColumns.map(col => <option key={col} value={col}>{col}</option>)}
               </select>
-              
+
               {searchColumn === "All" ? (
                 <div className="flex-1 relative">
                   <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -312,8 +419,8 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
                     className="w-full h-9 px-3 rounded-md border border-gray-300 text-sm bg-gray-50 text-left flex items-center justify-between hover:bg-gray-100 transition-colors"
                   >
                     <span className="truncate text-gray-700">
-                      {selectedValues.length === 0 
-                        ? `Filter by ${searchColumn}...` 
+                      {selectedValues.length === 0
+                        ? `Filter by ${searchColumn}...`
                         : `${selectedValues.length} selected`}
                     </span>
                     <ChevronLeft className={cn("w-4 h-4 text-gray-500 transition-transform", isFilterDropdownOpen ? "rotate-90" : "-rotate-90")} />
@@ -359,7 +466,7 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
                       </div>
                       {selectedValues.length > 0 && (
                         <div className="p-2 border-t border-gray-100 bg-gray-50 shrink-0 flex justify-end">
-                          <button 
+                          <button
                             onClick={() => setSelectedValues([])}
                             className="text-xs font-medium text-red-600 hover:text-red-700 hover:underline"
                           >
@@ -374,13 +481,228 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
             </div>
           )}
 
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors shrink-0">
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-3 shrink-0">
+            {hasControlAccess && (
+              <div className="flex items-center gap-2.5 bg-gray-50 border border-gray-200/80 px-3 py-1.5 rounded-full shadow-sm">
+                <span className="text-xs font-medium text-gray-700">Activate monitoring</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={isMonitoring}
+                  onClick={() => handleToggleMonitoring(!isMonitoring)}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#b50938]/30 ${
+                    isMonitoring ? "bg-[#b50938]" : "bg-gray-300"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      isMonitoring ? "translate-x-4" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+            )}
+            <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors shrink-0">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Body Content */}
         <div className="flex-1 overflow-hidden relative bg-gray-50/50">
+
+          {/* VIEW D: MONITORING VIEW (Interaction History List) */}
+          {view === "monitoring" && (
+            <div className="absolute inset-0 flex flex-col h-full bg-white animate-in slide-in-from-right-4 duration-300">
+              {/* Filter Toolbar */}
+              <div className="p-4 border-b border-gray-100 bg-gray-50/70 space-y-3 shrink-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                  {/* User Filter */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-gray-600 flex items-center gap-1">
+                      <User className="w-3 h-3 text-gray-400" /> User
+                    </label>
+                    <Input
+                      placeholder="Filter by name or email..."
+                      value={filterUser}
+                      onChange={(e) => setFilterUser(e.target.value)}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+
+                  {/* Phone Filter */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-gray-600 flex items-center gap-1">
+                      <Phone className="w-3 h-3 text-gray-400" /> Phone Number
+                    </label>
+                    <Input
+                      placeholder="Filter by customer phone..."
+                      value={filterPhone}
+                      onChange={(e) => setFilterPhone(e.target.value)}
+                      className="h-9 text-xs"
+                    />
+                  </div>
+
+                  {/* From Date Filter */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-gray-600 flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-gray-400" /> From Date
+                    </label>
+                    <input
+                      type="date"
+                      value={filterDateFrom}
+                      onChange={(e) => setFilterDateFrom(e.target.value)}
+                      className="w-full h-9 border border-gray-200 rounded-lg px-2.5 text-xs bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+
+                  {/* To Date Filter */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-gray-600 flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-gray-400" /> To Date
+                    </label>
+                    <input
+                      type="date"
+                      value={filterDateTo}
+                      onChange={(e) => setFilterDateTo(e.target.value)}
+                      className="w-full h-9 border border-gray-200 rounded-lg px-2.5 text-xs bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    />
+                  </div>
+
+                  {/* Status Filter */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-gray-600 flex items-center gap-1">
+                      <Filter className="w-3 h-3 text-gray-400" /> Status
+                    </label>
+                    <select
+                      value={filterStatus}
+                      onChange={(e) => setFilterStatus(e.target.value)}
+                      className="w-full h-9 border border-gray-200 rounded-lg px-2.5 text-xs bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    >
+                      <option value="">All Statuses</option>
+                      <option value="Open">Open</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Closed">Closed</option>
+                    </select>
+                  </div>
+                </div>
+
+                {(filterDateFrom || filterDateTo || filterUser || filterPhone || filterStatus) && (
+                  <div className="flex justify-end pt-1">
+                    <button
+                      onClick={() => {
+                        setFilterDateFrom("");
+                        setFilterDateTo("");
+                        setFilterUser("");
+                        setFilterPhone("");
+                        setFilterStatus("");
+                      }}
+                      className="text-xs text-primary hover:underline font-medium"
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Table / List */}
+              <div className="flex-1 overflow-auto p-6">
+                {loadingMonitoring ? (
+                  <div className="flex flex-col items-center justify-center h-64 text-gray-400 gap-3">
+                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                    <p className="text-sm">Loading interaction history...</p>
+                  </div>
+                ) : monitoringInteractions.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-64 text-gray-400 gap-2">
+                    <PhoneCall className="w-12 h-12 opacity-20" />
+                    <p className="text-sm font-medium">No interactions found matching your filters.</p>
+                  </div>
+                ) : (
+                  <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm bg-white">
+                    <table className="w-full text-left border-collapse text-sm">
+                      <thead className="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-600">
+                        <tr>
+                          <th className="p-3.5 whitespace-nowrap">Customer Phone</th>
+                          <th className="p-3.5 whitespace-nowrap">Status</th>
+                          <th className="p-3.5 whitespace-nowrap">Logged By</th>
+                          <th className="p-3.5">Feedback / Notes</th>
+                          <th className="p-3.5 whitespace-nowrap">Date & Time</th>
+                          <th className="p-3.5 text-center whitespace-nowrap">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {monitoringInteractions.map((int) => (
+                          <tr
+                            key={int.id}
+                            onClick={() => openProfile(int.customerPhone, true)}
+                            className="hover:bg-primary/5 transition-colors cursor-pointer group"
+                          >
+                            <td className="p-3.5 font-medium text-gray-900 whitespace-nowrap flex items-center gap-2">
+                              <Phone className="w-3.5 h-3.5 text-gray-400 group-hover:text-primary transition-colors" />
+                              <span>{int.customerPhone}</span>
+                            </td>
+                            <td className="p-3.5 whitespace-nowrap">
+                              <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold", STATUS_COLORS[int.status] || "bg-gray-100 text-gray-600")}>
+                                {int.status}
+                              </span>
+                            </td>
+                            <td className="p-3.5 whitespace-nowrap">
+                              <div className="text-xs font-medium text-gray-900">{int.loggedByName || "Unknown"}</div>
+                              {int.loggedByEmail && (
+                                <div className="text-[11px] text-gray-400">{int.loggedByEmail}</div>
+                              )}
+                            </td>
+                            <td className="p-3.5 max-w-xs truncate text-xs text-gray-600" title={int.feedbackText || "No feedback"}>
+                              {int.feedbackText || <span className="text-gray-300 italic">No notes</span>}
+                            </td>
+                            <td className="p-3.5 text-xs text-gray-500 whitespace-nowrap font-mono">
+                              {new Date(int.createdAt).toLocaleString()}
+                            </td>
+                            <td className="p-3.5 text-center whitespace-nowrap">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openProfile(int.customerPhone, true);
+                                }}
+                                className="px-2.5 py-1 text-xs font-medium bg-gray-100 hover:bg-primary/10 hover:text-primary text-gray-700 rounded-md transition-colors"
+                              >
+                                View History →
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Pagination */}
+              {monitoringMeta.totalPages > 1 && (
+                <div className="px-6 py-3 border-t border-gray-100 flex items-center justify-between bg-white shrink-0">
+                  <span className="text-xs text-gray-500">
+                    Page {monitoringMeta.page} of {monitoringMeta.totalPages} · {monitoringMeta.total} total interactions
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      disabled={monitoringPage <= 1}
+                      onClick={() => setMonitoringPage((p) => p - 1)}
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ChevronLeft className="w-3 h-3" /> Prev
+                    </button>
+                    <button
+                      disabled={monitoringPage >= monitoringMeta.totalPages}
+                      onClick={() => setMonitoringPage((p) => p + 1)}
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Next <ChevronRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* VIEW A: SOURCE SELECTION & QUICK LOOKUP */}
           {view === "select" && (
@@ -543,13 +865,17 @@ export function CrmModal({ isOpen, onClose }: CrmModalProps) {
             </div>
           )}
 
-          {/* VIEW C: TIMELINE (Audit Trail Aesthetic) */}
+          {/* VIEW C: TIMELINE (Audit Trail Aesthetic - Main Interaction History Modal View) */}
           {view === "timeline" && (
             <div className="absolute inset-0 flex flex-col bg-gray-50 animate-in slide-in-from-right-4 duration-300">
               {/* Header */}
               <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white shrink-0 shadow-sm">
                 <div className="flex items-center gap-3">
-                  <button onClick={() => setView(readOnlyProfile ? "select" : "grid")} className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors">
+                  <button
+                    onClick={() => setView(isMonitoring ? "monitoring" : (readOnlyProfile ? "select" : "grid"))}
+                    className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                    title="Back"
+                  >
                     <ChevronLeft className="w-5 h-5 text-gray-600" />
                   </button>
                   <div>
