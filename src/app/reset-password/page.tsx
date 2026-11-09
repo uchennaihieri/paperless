@@ -29,6 +29,7 @@ export default function ResetPasswordPage() {
   // Step 2 state
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
+  const [otpRelaxed, setOtpRelaxed] = useState(false);
 
   // UI state
   const [isLoading, setIsLoading] = useState(false);
@@ -95,7 +96,10 @@ export default function ResetPasswordPage() {
       }
 
       setEmail(data.email);
-      localStorage.setItem("lastOtpRequestTime", Date.now().toString());
+      setOtpRelaxed(Boolean(data.otpRelaxed));
+      if (!data.otpRelaxed) {
+        localStorage.setItem("lastOtpRequestTime", Date.now().toString());
+      }
       setStep("otp");
     } catch {
       setErrorMsg("Failed to connect to the server. Please try again.");
@@ -139,8 +143,12 @@ export default function ResetPasswordPage() {
     },
     otp: {
       title: "Verify OTP",
-      description: "We sent a 6-digit code to your registered email address.",
-      subtitle: email ? `OTP sent to ${email}` : "Verify your identity",
+      description: otpRelaxed
+        ? "OTP server is unavailable at the moment, but you can contact admin for a dummy login OTP."
+        : "We sent a 6-digit code to your registered email address.",
+      subtitle: otpRelaxed
+        ? "Contact administrator for OTP"
+        : email ? `OTP sent to ${email}` : "Verify your identity",
     },
   };
 
@@ -280,16 +288,24 @@ export default function ResetPasswordPage() {
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                   />
-                  <p className="text-xs text-gray-500 text-center">Check your email inbox (and spam folder)</p>
-                  <div className="text-center mt-2 text-sm">
-                    {cooldownRemaining > 0 ? (
-                      <span className="text-gray-500 font-medium">Resend OTP in {formatTime(cooldownRemaining)}</span>
-                    ) : (
-                      <button type="button" onClick={() => handleRequestOtp()} className="text-primary hover:underline font-medium disabled:opacity-50" disabled={isLoading}>
-                        Resend OTP
-                      </button>
-                    )}
-                  </div>
+                  {otpRelaxed ? (
+                    <p className="text-xs text-amber-600 text-center font-medium">
+                      OTP server is unavailable at the moment, but you can contact admin for a dummy login OTP.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-xs text-gray-500 text-center">Check your email inbox (and spam folder)</p>
+                      <div className="text-center mt-2 text-sm">
+                        {cooldownRemaining > 0 ? (
+                          <span className="text-gray-500 font-medium">Resend OTP in {formatTime(cooldownRemaining)}</span>
+                        ) : (
+                          <button type="button" onClick={() => handleRequestOtp()} className="text-primary hover:underline font-medium disabled:opacity-50" disabled={isLoading}>
+                            Resend OTP
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               </CardContent>
               <CardFooter className="flex flex-col gap-3">

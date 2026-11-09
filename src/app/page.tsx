@@ -23,7 +23,7 @@ function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionExpired = searchParams.get("reason") === "session_expired";
-  
+
   // Catch NextAuth OAuth errors (e.g. from /api/auth/error?error=...)
   const oauthError = searchParams.get("error");
   let oauthErrorMsg = "";
@@ -54,6 +54,7 @@ function LoginPage() {
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [isResetFlow, setIsResetFlow] = useState(false);
+  const [otpRelaxed, setOtpRelaxed] = useState(false);
 
   // UI
   const [isLoading, setIsLoading] = useState(false);
@@ -75,7 +76,7 @@ function LoginPage() {
         }
       }
     };
-    
+
     calculateCooldown();
     const interval = setInterval(calculateCooldown, 1000);
     return () => clearInterval(interval);
@@ -102,7 +103,7 @@ function LoginPage() {
     } else if (!allowCredentials) {
       return;
     }
-    
+
     setIsLoading(true);
     setErrorMsg("");
     try {
@@ -130,7 +131,10 @@ function LoginPage() {
       }
 
       setEmail(data.email);
-      localStorage.setItem("lastOtpRequestTime", Date.now().toString());
+      setOtpRelaxed(Boolean(data.otpRelaxed));
+      if (!data.otpRelaxed) {
+        localStorage.setItem("lastOtpRequestTime", Date.now().toString());
+      }
 
       if (data.mustResetPassword) {
         // Temp password verified — now collect the new password before OTP
@@ -157,7 +161,7 @@ function LoginPage() {
     setIsLoading(true);
     // Set a cookie for NextAuth jwt callback to read
     document.cookie = `pending_employee_id=${encodeURIComponent(employeeId.trim())}; path=/; max-age=300; SameSite=Lax`;
-    
+
     // Redirect to Microsoft OAuth
     await signIn("microsoft-entra-id", { callbackUrl: "/role-selection" });
   };
@@ -224,11 +228,11 @@ function LoginPage() {
   const stepMeta: Record<Step, { title: string; description: string; subtitle: string }> = {
     "credentials": {
       title: "Sign In",
-      description: (!allowCredentials && allowMicrosoft) 
-        ? "Enter your Employee ID and submit to login." 
+      description: (!allowCredentials && allowMicrosoft)
+        ? "Enter your Employee ID and submit to login."
         : "Enter your Employee ID and password to continue.",
-      subtitle: (!allowCredentials && allowMicrosoft) 
-        ? "Access your dashboard" 
+      subtitle: (!allowCredentials && allowMicrosoft)
+        ? "Access your dashboard"
         : "Sign in with your Employee ID",
     },
     "new-password": {
@@ -238,8 +242,12 @@ function LoginPage() {
     },
     "otp": {
       title: "Verify OTP",
-      description: "We sent a 6-digit code to your registered email address.",
-      subtitle: `OTP sent to ${email}`,
+      description: otpRelaxed
+        ? "OTP server is unavailable at the moment, but you can contact admin for a dummy login OTP."
+        : "We sent a 6-digit code to your registered email address.",
+      subtitle: otpRelaxed
+        ? "Contact administrator for OTP"
+        : `OTP sent to ${email}`,
     },
   };
 
@@ -264,13 +272,12 @@ function LoginPage() {
           <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
             {(["credentials", "new-password", "otp"] as Step[]).map((s, i) => (
               <div key={s} className="flex items-center gap-2">
-                <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[11px] font-bold border-2 transition-colors ${
-                  step === s
+                <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[11px] font-bold border-2 transition-colors ${step === s
                     ? "border-primary bg-primary text-white"
                     : (["credentials", "new-password", "otp"] as Step[]).indexOf(step) > i
-                    ? "border-green-500 bg-green-500 text-white"
-                    : "border-gray-300 bg-white text-gray-400"
-                }`}>{i + 1}</div>
+                      ? "border-green-500 bg-green-500 text-white"
+                      : "border-gray-300 bg-white text-gray-400"
+                  }`}>{i + 1}</div>
                 {i < 2 && <div className={`h-0.5 w-8 ${(["credentials", "new-password", "otp"] as Step[]).indexOf(step) > i ? "bg-green-400" : "bg-gray-200"}`} />}
               </div>
             ))}
@@ -362,7 +369,7 @@ function LoginPage() {
                     {isLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing…</> : "Continue"}
                   </Button>
                 )}
-                
+
                 {allowCredentials && allowMicrosoft && (
                   <div className="relative flex py-2 items-center w-full">
                     <div className="flex-grow border-t border-gray-300"></div>
@@ -372,9 +379,9 @@ function LoginPage() {
                 )}
 
                 {allowMicrosoft && (
-                  <Button 
-                    type="button" 
-                    className="w-full cursor-pointer flex items-center justify-center gap-3 bg-primary hover:bg-primary/90 text-white h-12 text-base font-semibold shadow-sm hover:shadow-md transition-all rounded-lg border-none" 
+                  <Button
+                    type="button"
+                    className="w-full cursor-pointer flex items-center justify-center gap-3 bg-primary hover:bg-primary/90 text-white h-12 text-base font-semibold shadow-sm hover:shadow-md transition-all rounded-lg border-none"
                     disabled={isLoading}
                     onClick={handleMicrosoftLogin}
                   >
@@ -384,10 +391,10 @@ function LoginPage() {
                       <>
                         <div className="bg-white p-1 rounded-sm flex items-center justify-center">
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 21 21">
-                            <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
-                            <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
-                            <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
-                            <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+                            <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+                            <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+                            <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+                            <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
                           </svg>
                         </div>
                         Sign in with Microsoft
@@ -502,16 +509,24 @@ function LoginPage() {
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
                   />
-                  <p className="text-xs text-gray-500 text-center">Check your email inbox (and spam folder)</p>
-                  <div className="text-center mt-2 text-sm">
-                    {cooldownRemaining > 0 ? (
-                      <span className="text-gray-500 font-medium">Resend OTP in {formatTime(cooldownRemaining)}</span>
-                    ) : (
-                      <button type="button" onClick={() => handleLogin()} className="text-primary hover:underline font-medium disabled:opacity-50" disabled={isLoading}>
-                        Resend OTP
-                      </button>
-                    )}
-                  </div>
+                  {otpRelaxed ? (
+                    <p className="text-xs text-amber-600 text-center font-medium">
+                      OTP server is unavailable at the moment, but you can contact admin for a dummy login OTP.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-xs text-gray-500 text-center">Check your email inbox (and spam folder)</p>
+                      <div className="text-center mt-2 text-sm">
+                        {cooldownRemaining > 0 ? (
+                          <span className="text-gray-500 font-medium">Resend OTP in {formatTime(cooldownRemaining)}</span>
+                        ) : (
+                          <button type="button" onClick={() => handleLogin()} className="text-primary hover:underline font-medium disabled:opacity-50" disabled={isLoading}>
+                            Resend OTP
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
                 {isResetFlow && (
                   <div className="bg-green-50 border border-green-100 rounded-lg p-3 text-xs text-green-700">
