@@ -13,6 +13,7 @@ import { assignToSelf, revertAssignment, completeProcessWithApprover, delegatePr
 import { getActionItems, getFormTemplates } from "@/app/actions/form";
 import { useSmartFetch } from "@/hooks/useSmartFetch";
 import { FormResponseCell } from "@/app/dashboard/forms/submission/[id]/form-response-cell";
+import { buildNamedProxyFileUrl } from "@/lib/utils";
 import { JournalModal } from "@/components/JournalModal";
 import { CopyButton } from "@/components/CopyButton";
 import { FileToFolderModal } from "./FileToFolderModal";
@@ -739,9 +740,15 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
                     <div className="flex items-center gap-2">
                       <button
                         onClick={async () => {
-                          const newWindow = window.open("", "_blank");
-                          const fileUrl = `${BASE_URL}${selected.formResponses["CompletedFormPDF"][0].url}`;
+                          const rawUrl = selected.formResponses["CompletedFormPDF"][0].url;
                           const fileName = selected.formResponses["CompletedFormPDF"][0].name || "Completed_Document.pdf";
+                          const namedProxyUrl = buildNamedProxyFileUrl(rawUrl, fileName, false);
+                          if (namedProxyUrl) {
+                            window.open(namedProxyUrl, "_blank", "noopener,noreferrer");
+                            return;
+                          }
+                          const newWindow = window.open("", "_blank");
+                          const fileUrl = `${BASE_URL}${rawUrl}`;
                           if (newWindow) newWindow.document.write(`<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;color:#666;">Loading ${fileName}...</div>`);
                           try {
                             const res = await fetch(fileUrl, { headers: { Authorization: `Bearer ${token}` } });
@@ -762,10 +769,14 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
                             const res = await fetch(`${BASE_URL}${selected.formResponses["CompletedFormPDF"][0].url}`, { headers: { Authorization: `Bearer ${token}` } });
                             if (!res.ok) throw new Error("Failed to fetch file");
                             const blob = await res.blob();
+                            const objectUrl = URL.createObjectURL(blob);
                             const a = document.createElement("a");
-                            a.href = URL.createObjectURL(blob);
+                            a.href = objectUrl;
                             a.download = selected.formResponses["CompletedFormPDF"][0].name || "Completed_Document.pdf";
+                            document.body.appendChild(a);
                             a.click();
+                            document.body.removeChild(a);
+                            setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
                           } catch (err) {
                             console.error("Error downloading file:", err);
                           }
@@ -783,24 +794,21 @@ export default function ActionClient({ items, viewMode = "list", detailId }: { i
                   if (doc.fieldName === "SignedContract") {
                     const fileUrl = `/api/v1/file?docId=${doc.id}`;
                     const fileName = doc.originalName || "Signed_Contract.pdf";
-                    const openDoc = async () => {
-                      const newWindow = window.open("", "_blank");
-                      if (newWindow) newWindow.document.write(`<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;color:#666;">Loading ${fileName}...</div>`);
-                      try {
-                        const res = await fetch(fileUrl, { headers: { Authorization: `Bearer ${token}` } });
-                        const blob = await res.blob();
-                        const url = URL.createObjectURL(blob);
-                        if (newWindow) newWindow.location.href = url;
-                        setTimeout(() => URL.revokeObjectURL(url), 60000);
-                      } catch { if (newWindow) newWindow.document.write(`<div style="color:red;padding:20px;">Failed to load file.</div>`); }
+                    const openDoc = () => {
+                      const namedProxyUrl = `/api/v1/file/${encodeURIComponent(fileName)}?docId=${doc.id}&t=${Date.now()}`;
+                      window.open(namedProxyUrl, "_blank", "noopener,noreferrer");
                     };
                     const downloadDoc = async () => {
                       const res = await fetch(fileUrl, { headers: { Authorization: `Bearer ${token}` } });
                       const blob = await res.blob();
+                      const objectUrl = URL.createObjectURL(blob);
                       const a = document.createElement("a");
-                      a.href = URL.createObjectURL(blob);
+                      a.href = objectUrl;
                       a.download = fileName;
+                      document.body.appendChild(a);
                       a.click();
+                      document.body.removeChild(a);
+                      setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
                     };
                     return (
                       <div key={doc.id} className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">

@@ -356,17 +356,60 @@ export default function EditSubmissionModal({
   const handleResubmit = () => {
     setError("");
     const labeledData: Record<string, any> = {};
+    const fileFields: Record<string, File[]> = {};
+
     fields
       .filter((f) => f.type !== "section_header" && f.type !== "instructions")
       .forEach((f) => { 
-        if (f.type === "file" && internalFormsData[f.id]) {
-          labeledData[f.label] = internalFormsData[f.id];
-        } else if (f.type !== "file") {
+        if (f.type === "file") {
+          const rawVal = formData[f.id];
+          const items = Array.isArray(rawVal) ? rawVal : rawVal ? [rawVal] : [];
+          const newFiles = items.filter((item: any) => item instanceof File);
+          const existingMeta = items.filter((item: any) => !(item instanceof File) && typeof item === "object" && item !== null);
+
+          if (newFiles.length > 0) {
+            fileFields[f.label] = newFiles;
+          }
+          labeledData[f.label] = existingMeta;
+
+          if (internalFormsData[f.id]) {
+            labeledData[f.label] = [...labeledData[f.label], ...internalFormsData[f.id]];
+          }
+        } else {
           labeledData[f.label] = formData[f.id] ?? ""; 
         }
       });
 
     startSave(async () => {
+      if (Object.keys(fileFields).length > 0) {
+        try {
+          const payload = new FormData();
+          payload.append("data", JSON.stringify({
+            formResponses: labeledData,
+            signatories,
+            signingType,
+          }));
+          for (const [fieldName, files] of Object.entries(fileFields)) {
+            for (const file of files) {
+              payload.append(fieldName, file);
+            }
+          }
+          const response = await fetch(`/api/v1/submissions/${submission.id}`, {
+            method: "PUT",
+            body: payload,
+          });
+          const data = await response.json().catch(() => ({}));
+          if (response.ok && data.success !== false) {
+            onSaved();
+          } else {
+            setError(data.error || "Failed to resubmit.");
+          }
+        } catch (err: any) {
+          setError(err.message || "Failed to resubmit.");
+        }
+        return;
+      }
+
       const res = await editSubmission(submission.id, {
         formResponses: labeledData,
         signatories,
@@ -504,9 +547,43 @@ export default function EditSubmissionModal({
                               </Button>
                             </div>
                           )}
-                          <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg border border-amber-100">
-                            ℹ️ Standard file attachments cannot be changed here — existing references are preserved.
-                          </p>
+                          <div className="border-2 border-dashed border-gray-200 rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition-colors max-w-md">
+                            <Input
+                              id={`edit-${field.id}`}
+                              type="file"
+                              required={field.required && (!formData[field.id] || formData[field.id].length === 0) && (!internalFormsData[field.id] || internalFormsData[field.id].length === 0)}
+                              accept={(field as any).accept}
+                              multiple={((field as any).maxFiles ?? 1) > 1}
+                              className="cursor-pointer file:mr-4 file:py-1.5 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                              onChange={(e) => {
+                                const newFiles = Array.from(e.target.files ?? []);
+                                if (newFiles.length === 0) return;
+                                const existing = Array.isArray(formData[field.id]) ? formData[field.id] : [];
+                                const merged = ((field as any).maxFiles ?? 1) > 1 ? [...existing, ...newFiles] : [newFiles[0]];
+                                handleFieldChange(field.id, merged);
+                                e.target.value = "";
+                              }}
+                            />
+                            {Array.isArray(formData[field.id]) && formData[field.id].length > 0 && (
+                              <ul className="mt-3 space-y-2">
+                                {(formData[field.id] as any[]).map((f, i) => (
+                                  <li key={i} className="text-xs text-gray-700 flex items-center justify-between bg-white px-3 py-2 rounded-md border border-gray-200 shadow-sm">
+                                    <span className="truncate">{f.name || "Attachment"}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const updated = (formData[field.id] as any[]).filter((_, idx) => idx !== i);
+                                        handleFieldChange(field.id, updated.length > 0 ? updated : []);
+                                      }}
+                                      className="text-red-400 hover:text-red-600 font-bold ml-2 p-0.5 cursor-pointer"
+                                    >
+                                      &times;
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
                         </div>
                       ) : field.type === "conditional" ? (
                         <div className="relative max-w-md">

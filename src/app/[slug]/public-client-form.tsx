@@ -408,14 +408,19 @@ export default function PublicClientForm({
              if (newFiles.length > 0) {
                  newFiles.forEach((file: File) => formPayload.append(key, file));
              }
-             // Keep only existing metadata in JSON; remove if all were new files
+             // Keep only existing metadata in JSON; in correction mode, set [] when old files were removed/replaced
              if (existingMeta.length > 0) {
                  jsonData.formResponses[key] = existingMeta;
                  if (isCorrectionMode && jsonData.updatedResponses) jsonData.updatedResponses[key] = existingMeta;
+             } else if (isCorrectionMode) {
+                 jsonData.formResponses[key] = [];
+                 if (jsonData.updatedResponses) jsonData.updatedResponses[key] = [];
              } else {
                  delete jsonData.formResponses[key];
-                 if (isCorrectionMode) delete jsonData.updatedResponses[key];
              }
+         } else if (isCorrectionMode && val === null) {
+             jsonData.formResponses[key] = [];
+             if (jsonData.updatedResponses) jsonData.updatedResponses[key] = [];
          }
       });
 
@@ -705,7 +710,7 @@ export default function PublicClientForm({
                       const newFiles = Array.from(e.target.files ?? []);
                       if (newFiles.length === 0) return;
                       const existing = (formData[field.id] as File[]) || [];
-                      const merged = [...existing, ...newFiles];
+                      const merged = (field.maxFiles ?? 1) > 1 ? [...existing, ...newFiles] : [newFiles[0]];
                       handleFieldChange(field.id, merged);
                       e.target.value = "";
                     }}

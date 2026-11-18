@@ -979,7 +979,7 @@ function FormFieldsStep({
                                     const newFiles = Array.from(e.target.files ?? []);
                                     if (newFiles.length === 0) return;
                                     const existing = (formData[field.id] as File[]) || [];
-                                    const merged = [...existing, ...newFiles];
+                                    const merged = (field.maxFiles ?? 1) > 1 ? [...existing, ...newFiles] : [newFiles[0]];
                                     onChange(field.id, merged);
                                     e.target.value = "";
                                   }}
@@ -1021,7 +1021,7 @@ function FormFieldsStep({
                                 const newFiles = Array.from(e.target.files ?? []);
                                 if (newFiles.length === 0) return;
                                 const existing = (formData[field.id] as File[]) || [];
-                                const merged = [...existing, ...newFiles];
+                                const merged = (field.maxFiles ?? 1) > 1 ? [...existing, ...newFiles] : [newFiles[0]];
                                 onChange(field.id, merged);
                                 e.target.value = "";
                               }}
@@ -2185,10 +2185,13 @@ export default function FormFillerClient({
           if (newFiles.length > 0) {
             fileFields[f.label] = newFiles;
           }
-          // Preserve existing attachment/internal form metadata as JSON
-          if (existingMeta.length > 0) {
+          // Always set existingMeta (even if empty when replacing/removing during correction)
+          // so the backend replaces old attachments rather than keeping removed ones.
+          if (existingMeta.length > 0 || correctionId) {
             textOnlyResponses[f.label] = existingMeta;
           }
+        } else if (correctionId) {
+          textOnlyResponses[f.label] = [];
         }
         if (internalFormsData[f.id]) {
           // Merge internal forms with any existing metadata

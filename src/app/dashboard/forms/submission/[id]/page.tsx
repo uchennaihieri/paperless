@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FileText, FileDown, AlertTriangle, Link2, CheckCircle2, Clock } from "lucide-react";
 import { AttachmentLink } from "./attachment-link";
+import { buildNamedProxyFileUrl } from "@/lib/utils";
 import { RegeneratePdfButton } from "./regenerate-button";
 import { CancelSubmissionButton } from "./cancel-button";
 import { RemindButton } from "./remind-button";
@@ -330,40 +331,47 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
           </h3>
           <div className="space-y-3">
             {/* Auto-Generated PDF */}
-            {completedPdfArr && completedPdfArr.length > 0 && (
-              <div className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
-                    <FileDown className="w-5 h-5 text-[#b50938]" />
+            {completedPdfArr && completedPdfArr.length > 0 && (() => {
+              const pdfName = completedPdfArr[0].name || "Completed_Document.pdf";
+              const openPdfUrl = buildNamedProxyFileUrl(completedPdfArr[0].url || "", pdfName, false) || completedPdfArr[0].url;
+              const downloadPdfUrl = buildNamedProxyFileUrl(completedPdfArr[0].url || "", pdfName, true) || completedPdfArr[0].url;
+              return (
+                <div className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-red-50 flex items-center justify-center shrink-0">
+                      <FileDown className="w-5 h-5 text-[#b50938]" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{pdfName}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">Generated PDF document</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">{completedPdfArr[0].name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Generated PDF document</p>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={openPdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-4 py-2 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors shadow-sm"
+                    >
+                      <FileDown className="w-3.5 h-3.5" /> Open PDF
+                    </a>
+                    <a
+                      href={downloadPdfUrl}
+                      download={pdfName}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors shadow-sm"
+                    >
+                      Download
+                    </a>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <a
-                    href={completedPdfArr[0].url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 px-4 py-2 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors shadow-sm"
-                  >
-                    <FileDown className="w-3.5 h-3.5" /> Open PDF
-                  </a>
-                  <a
-                    href={completedPdfArr[0].url}
-                    download
-                    className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors shadow-sm"
-                  >
-                    Download
-                  </a>
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Signed Contract Documents */}
             {signedContractDocs.map((doc: any) => {
-              const downloadUrl = `${FILE_PROXY}?docId=${doc.id}`;
+              const docName = doc.originalName || "Signed_Contract.pdf";
+              const openUrl = `${FILE_PROXY}/${encodeURIComponent(docName)}?docId=${doc.id}`;
+              const downloadUrl = `${FILE_PROXY}/${encodeURIComponent(docName)}?docId=${doc.id}&download=true`;
               return (
                 <div key={doc.id} className="border border-gray-200 rounded-xl bg-gray-50 p-5 flex items-center justify-between gap-4 shadow-sm">
                   <div className="flex items-center gap-3">
@@ -371,13 +379,13 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
                       <FileDown className="w-5 h-5 text-[#b50938]" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-gray-800">{doc.originalName || "Signed_Contract.pdf"}</p>
+                      <p className="text-sm font-semibold text-gray-800">{docName}</p>
                       <p className="text-xs text-gray-400 mt-0.5">Signed Contract document</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <a
-                      href={downloadUrl}
+                      href={openUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-1.5 px-4 py-2 bg-[#b50938] text-white text-xs font-semibold rounded-lg hover:bg-[#9a0730] transition-colors shadow-sm"
@@ -386,7 +394,7 @@ export default async function SubmissionDetailPage({ params }: { params: Promise
                     </a>
                     <a
                       href={downloadUrl}
-                      download
+                      download={docName}
                       className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors shadow-sm"
                     >
                       Download

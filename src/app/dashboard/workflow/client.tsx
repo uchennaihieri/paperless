@@ -16,6 +16,7 @@ import { getMySignature } from "@/app/actions/security";
 import { useSmartFetch } from "@/hooks/useSmartFetch";
 import { FormReferenceLink, isFormReferenceField } from "@/components/FormReferenceLink";
 import { RegeneratePdfButton } from "../forms/submission/[id]/regenerate-button";
+import { buildNamedProxyFileUrl } from "@/lib/utils";
 import { JournalModal } from "@/components/JournalModal";
 import { PdfSigningCanvas } from "../components/PdfSigningCanvas";
 
@@ -90,9 +91,24 @@ function formatDateTime(iso: string | null | undefined): string {
 }
 
 async function openFile(url: string, fileName: string, token: string) {
-  const newWindow = window.open("", "_blank");
+  const safeFileName = fileName || "Attachment";
+  const isViewable = /\.(pdf|jpe?g|png|gif|webp)$/i.test(safeFileName);
+
+  // If viewable and served via /api/v1/file, open through the Next.js proxy with the filename
+  // in the URL path + Content-Disposition header so browser Save/Download uses the real name.
+  if (isViewable) {
+    const namedProxyUrl = buildNamedProxyFileUrl(url, safeFileName, false);
+    if (namedProxyUrl) {
+      window.open(namedProxyUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+  }
+
+  // Only open a blank window for formats browsers can render inline.
+  // For other files (Excel, Word, CSV, etc.), force a download with the original filename.
+  const newWindow = isViewable ? window.open("", "_blank") : null;
   if (newWindow) {
-    newWindow.document.write(`<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;color:#666;">Loading ${fileName}...</div>`);
+    newWindow.document.write(`<div style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;color:#666;">Loading ${safeFileName}...</div>`);
   }
 
   try {
@@ -106,11 +122,12 @@ async function openFile(url: string, fileName: string, token: string) {
     if (newWindow) {
       newWindow.location.href = objectUrl;
     } else {
-      // Fallback if popup blocked
       const link = document.createElement("a");
       link.href = objectUrl;
-      link.target = "_blank";
+      link.download = safeFileName;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
     }
 
     // Revoke object URL after a while so it has time to load
@@ -570,10 +587,14 @@ function DetailPanel({
                               onClick={async () => {
                                 const res = await fetch(`${BASE_URL}${completedPdfArr[0].url}`, { headers: { Authorization: `Bearer ${token}` } });
                                 const blob = await res.blob();
+                                const objectUrl = URL.createObjectURL(blob);
                                 const a = document.createElement("a");
-                                a.href = URL.createObjectURL(blob);
-                                a.download = completedPdfArr[0].name;
+                                a.href = objectUrl;
+                                a.download = completedPdfArr[0].name || "Completed_Document.pdf";
+                                document.body.appendChild(a);
                                 a.click();
+                                document.body.removeChild(a);
+                                setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
                               }}
                               className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
                             >
@@ -611,10 +632,14 @@ function DetailPanel({
                                 onClick={async () => {
                                   const res = await fetch(`${BASE_URL}${fileUrl}`, { headers: { Authorization: `Bearer ${token}` } });
                                   const blob = await res.blob();
+                                  const objectUrl = URL.createObjectURL(blob);
                                   const a = document.createElement("a");
-                                  a.href = URL.createObjectURL(blob);
+                                  a.href = objectUrl;
                                   a.download = fileName;
+                                  document.body.appendChild(a);
                                   a.click();
+                                  document.body.removeChild(a);
+                                  setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
                                 }}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white text-xs font-semibold rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
                               >
